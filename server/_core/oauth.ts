@@ -9,7 +9,21 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function parseStateOrigin(state: string): { origin: string; returnPath: string } {
+  try {
+    // state is base64(redirectUri) where redirectUri = `${origin}/api/oauth/callback`
+    const redirectUri = atob(state);
+    const url = new URL(redirectUri);
+    return { origin: url.origin, returnPath: "/" };
+  } catch {
+    return { origin: "", returnPath: "/" };
+  }
+}
+
 export function registerOAuthRoutes(app: Express) {
+  // Trust the proxy so req.protocol reflects the real HTTPS upstream
+  app.set("trust proxy", 1);
+
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
     const state = getQueryParam(req, "state");
@@ -18,6 +32,9 @@ export function registerOAuthRoutes(app: Express) {
       res.status(400).json({ error: "code and state are required" });
       return;
     }
+
+    // Parse the frontend origin from state so the redirect lands on the correct domain
+    const { origin: frontendOrigin, returnPath } = parseStateOrigin(state);
 
     try {
       const tokenResponse = await sdk.exchangeCodeForToken(code, state);
@@ -44,10 +61,14 @@ export function registerOAuthRoutes(app: Express) {
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
-      res.redirect(302, "/");
+      // Redirect back to the frontend origin (not just "/" which may resolve to the server)
+      const redirectTarget = frontendOrigin ? `${frontendOrigin}${returnPath}` : "/";
+      console.log("[OAuth] Redirecting to", redirectTarget);
+      res.redirect(302, redirectTarget);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
-      res.status(500).json({ error: "OAuth callback failed" });
+      const errorTarget = frontendOrigin ? `${frontendOrigin}/?error=auth_failed` : "/?error=auth_failed";
+      res.redirect(302, errorTarget);
     }
   });
 }
