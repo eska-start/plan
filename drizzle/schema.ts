@@ -1,17 +1,16 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  boolean,
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  decimal,
+} from "drizzle-orm/mysql-core";
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,4 +24,138 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+// ─── 여행 프로젝트 ─────────────────────────────────────────────────────────────
+export const trips = mysqlTable("trips", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  destination: varchar("destination", { length: 255 }).notNull(),
+  startDate: varchar("startDate", { length: 10 }).notNull(), // YYYY-MM-DD
+  endDate: varchar("endDate", { length: 10 }).notNull(),     // YYYY-MM-DD
+  coverColor: varchar("coverColor", { length: 32 }).default("#6366f1"),
+  description: text("description"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Trip = typeof trips.$inferSelect;
+export type InsertTrip = typeof trips.$inferInsert;
+
+// ─── 항공편 ───────────────────────────────────────────────────────────────────
+export const flights = mysqlTable("flights", {
+  id: int("id").autoincrement().primaryKey(),
+  tripId: int("tripId").notNull(),
+  userId: int("userId").notNull(),
+  type: mysqlEnum("type", ["departure", "return", "transit"]).default("departure").notNull(),
+  airline: varchar("airline", { length: 100 }),
+  flightNumber: varchar("flightNumber", { length: 20 }),
+  departureAirport: varchar("departureAirport", { length: 100 }),
+  arrivalAirport: varchar("arrivalAirport", { length: 100 }),
+  departureTime: varchar("departureTime", { length: 20 }), // ISO string
+  arrivalTime: varchar("arrivalTime", { length: 20 }),
+  bookingRef: varchar("bookingRef", { length: 50 }),
+  seatNumber: varchar("seatNumber", { length: 20 }),
+  memo: text("memo"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Flight = typeof flights.$inferSelect;
+export type InsertFlight = typeof flights.$inferInsert;
+
+// ─── 렌트카 ───────────────────────────────────────────────────────────────────
+export const rentals = mysqlTable("rentals", {
+  id: int("id").autoincrement().primaryKey(),
+  tripId: int("tripId").notNull(),
+  userId: int("userId").notNull(),
+  company: varchar("company", { length: 100 }),
+  carModel: varchar("carModel", { length: 100 }),
+  pickupLocation: varchar("pickupLocation", { length: 255 }),
+  dropoffLocation: varchar("dropoffLocation", { length: 255 }),
+  pickupTime: varchar("pickupTime", { length: 20 }),
+  dropoffTime: varchar("dropoffTime", { length: 20 }),
+  bookingRef: varchar("bookingRef", { length: 50 }),
+  price: decimal("price", { precision: 10, scale: 2 }),
+  currency: varchar("currency", { length: 10 }).default("KRW"),
+  memo: text("memo"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Rental = typeof rentals.$inferSelect;
+export type InsertRental = typeof rentals.$inferInsert;
+
+// ─── 숙박 ─────────────────────────────────────────────────────────────────────
+export const accommodations = mysqlTable("accommodations", {
+  id: int("id").autoincrement().primaryKey(),
+  tripId: int("tripId").notNull(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  address: varchar("address", { length: 500 }),
+  checkIn: varchar("checkIn", { length: 10 }),  // YYYY-MM-DD
+  checkOut: varchar("checkOut", { length: 10 }),
+  bookingRef: varchar("bookingRef", { length: 50 }),
+  price: decimal("price", { precision: 10, scale: 2 }),
+  currency: varchar("currency", { length: 10 }).default("KRW"),
+  memo: text("memo"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Accommodation = typeof accommodations.$inferSelect;
+export type InsertAccommodation = typeof accommodations.$inferInsert;
+
+// ─── 자유 메모 ────────────────────────────────────────────────────────────────
+export const memos = mysqlTable("memos", {
+  id: int("id").autoincrement().primaryKey(),
+  tripId: int("tripId").notNull(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }),
+  content: text("content"),
+  pinned: boolean("pinned").default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Memo = typeof memos.$inferSelect;
+export type InsertMemo = typeof memos.$inferInsert;
+
+// ─── 하루별 방문 장소 (동선) ──────────────────────────────────────────────────
+export const itineraryItems = mysqlTable("itinerary_items", {
+  id: int("id").autoincrement().primaryKey(),
+  tripId: int("tripId").notNull(),
+  userId: int("userId").notNull(),
+  date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
+  order: int("order").default(0),
+  placeName: varchar("placeName", { length: 255 }).notNull(),
+  address: varchar("address", { length: 500 }),
+  lat: decimal("lat", { precision: 10, scale: 7 }),
+  lng: decimal("lng", { precision: 10, scale: 7 }),
+  visitTime: varchar("visitTime", { length: 10 }), // HH:MM
+  duration: int("duration"), // minutes
+  visited: boolean("visited").default(false),
+  memo: text("memo"),
+  category: varchar("category", { length: 50 }).default("place"), // place, food, activity, etc.
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ItineraryItem = typeof itineraryItems.$inferSelect;
+export type InsertItineraryItem = typeof itineraryItems.$inferInsert;
+
+// ─── 하루별 여행 일기 ─────────────────────────────────────────────────────────
+export const diaryEntries = mysqlTable("diary_entries", {
+  id: int("id").autoincrement().primaryKey(),
+  tripId: int("tripId").notNull(),
+  userId: int("userId").notNull(),
+  date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
+  title: varchar("title", { length: 255 }),
+  content: text("content"),
+  mood: mysqlEnum("mood", ["amazing", "happy", "neutral", "tired", "sad"]).default("happy"),
+  weather: mysqlEnum("weather", ["sunny", "cloudy", "rainy", "snowy", "windy"]).default("sunny"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DiaryEntry = typeof diaryEntries.$inferSelect;
+export type InsertDiaryEntry = typeof diaryEntries.$inferInsert;
