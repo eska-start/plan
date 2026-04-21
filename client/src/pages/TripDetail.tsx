@@ -22,6 +22,12 @@ const TABS = [
   { id: "map", label: "지도", icon: Map },
 ];
 
+// Cover colors for trips
+const COVER_COLORS = [
+  "#0f172a", "#1e293b", "#1a1a2e", "#0d1b2a",
+  "#1c1917", "#14532d", "#1e3a5f", "#3b0764",
+];
+
 export default function TripDetail() {
   const params = useParams<{ id: string; tab?: string }>();
   const [, setLocation] = useLocation();
@@ -33,7 +39,7 @@ export default function TripDetail() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -41,8 +47,8 @@ export default function TripDetail() {
   if (!trip) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <p className="text-muted-foreground">여행을 찾을 수 없습니다.</p>
-        <Button variant="outline" onClick={() => setLocation("/")}>돌아가기</Button>
+        <p className="text-muted-foreground text-sm">여행을 찾을 수 없습니다.</p>
+        <Button variant="outline" size="sm" onClick={() => setLocation("/")}>돌아가기</Button>
       </div>
     );
   }
@@ -51,75 +57,84 @@ export default function TripDetail() {
   const tripDays = eachDayOfInterval({ start: parseISO(trip.startDate), end: parseISO(trip.endDate) });
 
   const formatDate = (d: string) => {
-    try { return format(parseISO(d), "yyyy.MM.dd (EEE)", { locale: ko }); }
+    try { return format(parseISO(d), "yyyy.MM.dd", { locale: ko }); }
     catch { return d; }
   };
 
+  const coverColor = trip.coverColor ?? "#1e293b";
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Trip Header */}
-      <div
-        className="relative"
-        style={{ backgroundColor: trip.coverColor ?? "#1e293b" }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/30 to-black/60" />
-        <div className="relative z-10 max-w-6xl mx-auto px-6 pt-5 pb-6">
+      {/* ── Trip Header ── */}
+      <div className="relative" style={{ backgroundColor: coverColor }}>
+        <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-black/20 to-black/60 pointer-events-none" />
+
+        {/* Header content */}
+        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-4 pb-4">
           <button
             onClick={() => setLocation("/")}
-            className="flex items-center gap-2 text-white/70 hover:text-white transition-colors text-sm mb-4"
+            className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
           >
-            <ArrowLeft className="w-4 h-4" />
-            내 여행으로
+            <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
+            <span>내 여행</span>
           </button>
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="text-white/70 text-sm font-medium mb-1">{trip.destination}</p>
-              <h1 className="text-white font-serif text-3xl font-semibold tracking-tight mb-2">
-                {trip.name}
-              </h1>
-              <div className="flex items-center gap-3 text-white/70 text-sm">
-                <span>{formatDate(trip.startDate)}</span>
-                <span>—</span>
-                <span>{formatDate(trip.endDate)}</span>
-                <span className="bg-white/20 backdrop-blur-sm px-2.5 py-0.5 rounded-full text-white text-xs font-medium">
-                  {duration}일
-                </span>
-              </div>
-              {trip.description && (
-                <p className="text-white/60 text-sm mt-2 max-w-lg">{trip.description}</p>
-              )}
+
+          <div className="space-y-1.5">
+            <p className="text-white/50 text-[10px] font-semibold tracking-[0.15em] uppercase">
+              {trip.destination}
+            </p>
+            <h1 className="text-white text-xl sm:text-2xl font-bold tracking-tight leading-tight">
+              {trip.name}
+            </h1>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-white/55 text-xs">
+              <span>{formatDate(trip.startDate)}</span>
+              <span className="text-white/25">–</span>
+              <span>{formatDate(trip.endDate)}</span>
+              <span className="bg-white/15 px-2 py-0.5 rounded-full text-white/80 text-[10px] font-medium">
+                {duration}일
+              </span>
             </div>
+            {trip.description && (
+              <p className="text-white/40 text-xs leading-relaxed max-w-md pt-0.5">{trip.description}</p>
+            )}
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="relative z-10 border-t border-white/10">
-          <div className="max-w-6xl mx-auto px-6">
-            <div className="flex gap-0 overflow-x-auto scrollbar-none">
-              {TABS.map(tab => {
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setLocation(`/trips/${tripId}/${tab.id}`)}
-                    className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
-                      isActive
-                        ? "border-white text-white"
-                        : "border-transparent text-white/50 hover:text-white/80 hover:border-white/30"
-                    }`}
-                  >
-                    <tab.icon className="w-4 h-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
+        {/* ── Tab Bar ── */}
+        <div className="relative z-10 max-w-5xl mx-auto">
+          {/* Bottom border line */}
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-white/10" />
+          <div className="flex overflow-x-auto scrollbar-none px-4 sm:px-6">
+            {TABS.map(tab => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setLocation(`/trips/${tripId}/${tab.id}`)}
+                  className="relative flex items-center gap-1.5 px-3 py-3 text-xs font-medium whitespace-nowrap shrink-0 transition-colors duration-150"
+                  style={{
+                    color: isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.40)",
+                  }}
+                >
+                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                  <span>{tab.label}</span>
+                  {/* Active underline — flush to bottom of button */}
+                  {isActive && (
+                    <span
+                      className="absolute left-0 right-0 rounded-full"
+                      style={{ bottom: 0, height: "2px", background: "rgba(255,255,255,0.9)" }}
+                    />
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* Tab Content */}
-      <div className="flex-1 max-w-6xl mx-auto w-full px-6 py-6">
+      {/* ── Tab Content ── */}
+      <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-5 sm:py-6">
         {activeTab === "flights" && <FlightsTab tripId={tripId} />}
         {activeTab === "rentals" && <RentalsTab tripId={tripId} />}
         {activeTab === "accommodations" && <AccommodationsTab tripId={tripId} />}

@@ -26,26 +26,31 @@ export default function TabShell({
   emptyDescription,
 }: TabShellProps) {
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-serif font-semibold text-foreground">{title}</h2>
+    <div className="space-y-4">
+      {/* Header: stacks on mobile, row on sm+ */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-xl font-semibold text-foreground tracking-tight">{title}</h2>
           {description && (
             <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
           )}
         </div>
         {onAdd && (
-          <Button onClick={onAdd} size="sm" className="gap-1.5">
-            <Plus className="w-4 h-4" />
+          <Button
+            onClick={onAdd}
+            size="sm"
+            className="gap-1.5 self-start sm:self-auto shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" />
             {addLabel}
           </Button>
         )}
       </div>
 
       {isEmpty ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-4 rounded-2xl border border-dashed border-border bg-muted/30">
+        <div className="flex flex-col items-center justify-center py-14 gap-4 rounded-2xl border border-dashed border-border bg-muted/20">
           {emptyIcon && (
-            <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
               {emptyIcon}
             </div>
           )}
@@ -59,7 +64,7 @@ export default function TabShell({
           )}
           {onAdd && (
             <Button onClick={onAdd} size="sm" variant="outline" className="gap-1.5">
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               {addLabel}
             </Button>
           )}

@@ -94,11 +94,9 @@ export default function DiaryTab({ tripId, tripDays }: { tripId: number; tripDay
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-serif font-semibold text-foreground">여행 일기</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">하루하루의 감동을 기록하세요.</p>
-        </div>
+      <div>
+        <h2 className="text-lg sm:text-xl font-semibold text-foreground tracking-tight">여행 일기</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">하루하루의 감동을 기록하세요.</p>
       </div>
 
       {/* Date Selector */}
@@ -146,8 +144,8 @@ export default function DiaryTab({ tripId, tripDays }: { tripId: number; tripDay
             </div>
           </div>
 
-          {/* Mood & Weather */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Mood & Weather - single column on mobile */}
+          <div className="space-y-4">
             <div>
               <Label className="text-xs text-muted-foreground mb-2 block">오늘의 기분</Label>
               <div className="flex gap-2 flex-wrap">
@@ -157,7 +155,7 @@ export default function DiaryTab({ tripId, tripDays }: { tripId: number; tripDay
                     <button
                       key={m.value}
                       onClick={() => setForm(f => ({ ...f, mood: m.value }))}
-                      className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all ${
+                      className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-all ${
                         form.mood === m.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
                       }`}
                     >
@@ -177,7 +175,7 @@ export default function DiaryTab({ tripId, tripDays }: { tripId: number; tripDay
                     <button
                       key={w.value}
                       onClick={() => setForm(f => ({ ...f, weather: w.value }))}
-                      className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all ${
+                      className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-all ${
                         form.weather === w.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
                       }`}
                     >

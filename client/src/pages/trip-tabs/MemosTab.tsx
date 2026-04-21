@@ -3,7 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { StickyNote, Loader2, Pin, PinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,7 +53,7 @@ export default function MemosTab({ tripId }: { tripId: number }) {
     else createMutation.mutate({ tripId, ...form });
   };
 
-  if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+  if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
 
   return (
     <>
@@ -63,7 +63,7 @@ export default function MemosTab({ tripId }: { tripId: number }) {
         onAdd={openCreate}
         addLabel="메모 추가"
         isEmpty={!memos || memos.length === 0}
-        emptyIcon={<StickyNote className="w-6 h-6 text-muted-foreground" />}
+        emptyIcon={<StickyNote className="w-5 h-5 text-muted-foreground" />}
         emptyTitle="등록된 메모가 없습니다"
         emptyDescription="여행 관련 메모를 자유롭게 작성해보세요."
       >
@@ -71,34 +71,29 @@ export default function MemosTab({ tripId }: { tripId: number }) {
           {memos?.map(m => (
             <div
               key={m.id}
-              className={`bg-card border rounded-xl p-4 hover:shadow-sm transition-shadow relative ${m.pinned ? "border-accent/40 bg-accent/5" : "border-border"}`}
+              className={`relative rounded-xl p-4 border transition-shadow hover:shadow-sm ${m.pinned ? "border-primary/30 bg-primary/4" : "card-flat"}`}
             >
               {m.pinned && (
                 <div className="absolute top-3 right-3">
-                  <Pin className="w-3.5 h-3.5 text-accent" />
+                  <Pin className="w-3.5 h-3.5 text-primary" />
                 </div>
               )}
-              <div className="flex items-start justify-between mb-2 pr-5">
-                <div>
-                  {m.title && <h3 className="font-semibold text-sm text-foreground mb-1">{m.title}</h3>}
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(m.updatedAt), "MM.dd HH:mm", { locale: ko })}
-                  </p>
-                </div>
+              <div className="mb-2 pr-5">
+                {m.title && <h3 className="font-semibold text-sm text-foreground mb-0.5">{m.title}</h3>}
+                <p className="text-xs text-muted-foreground">
+                  {format(new Date(m.updatedAt), "MM.dd HH:mm", { locale: ko })}
+                </p>
               </div>
               {m.content && (
                 <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap mb-3 line-clamp-6">{m.content}</p>
               )}
               <div className="flex items-center gap-1 pt-2 border-t border-border">
-                <button
-                  onClick={() => togglePin(m)}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
-                >
+                <button onClick={() => togglePin(m)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
                   {m.pinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
                   {m.pinned ? "고정 해제" : "고정"}
                 </button>
-                <button onClick={() => openEdit(m)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors">수정</button>
-                <button onClick={() => deleteMutation.mutate({ id: m.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded hover:bg-destructive/10 transition-colors ml-auto">삭제</button>
+                <button onClick={() => openEdit(m)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
+                <button onClick={() => deleteMutation.mutate({ id: m.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors ml-auto">삭제</button>
               </div>
             </div>
           ))}
@@ -106,42 +101,42 @@ export default function MemosTab({ tripId }: { tripId: number }) {
       </TabShell>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="font-serif text-xl">{editId ? "메모 수정" : "메모 추가"}</DialogTitle>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
+          <DialogHeader className="mb-1">
+            <DialogTitle className="text-lg font-semibold">{editId ? "메모 수정" : "메모 추가"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-3.5">
             <div className="space-y-1.5">
-              <Label>제목</Label>
-              <Input placeholder="메모 제목 (선택)" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+              <Label className="text-sm font-medium">제목</Label>
+              <Input className="h-10" placeholder="메모 제목 (선택)" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
-              <Label>내용</Label>
+              <Label className="text-sm font-medium">내용</Label>
               <Textarea
                 placeholder="메모 내용을 자유롭게 작성하세요..."
                 value={form.content}
                 onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
                 rows={6}
+                className="resize-none"
               />
             </div>
-            <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
               <input
                 type="checkbox"
-                id="pinned"
                 checked={form.pinned}
                 onChange={e => setForm(f => ({ ...f, pinned: e.target.checked }))}
-                className="w-4 h-4 rounded"
+                className="w-4 h-4 rounded accent-primary"
               />
-              <Label htmlFor="pinned" className="cursor-pointer">상단 고정</Label>
-            </div>
+              <span className="text-sm font-medium text-foreground">상단 고정</span>
+            </label>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>취소</Button>
-            <Button onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
+          <div className="flex gap-2 mt-4">
+            <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>취소</Button>
+            <Button className="flex-1" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
               {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {editId ? "수정" : "추가"}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </>

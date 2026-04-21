@@ -3,7 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Car, Loader2, MapPin, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,7 +76,7 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
     else createMutation.mutate({ tripId, ...form });
   };
 
-  if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+  if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
 
   return (
     <>
@@ -86,49 +86,49 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
         onAdd={openCreate}
         addLabel="렌트카 추가"
         isEmpty={!rentals || rentals.length === 0}
-        emptyIcon={<Car className="w-6 h-6 text-muted-foreground" />}
+        emptyIcon={<Car className="w-5 h-5 text-muted-foreground" />}
         emptyTitle="등록된 렌트카가 없습니다"
         emptyDescription="렌트카 예약 정보를 추가해보세요."
       >
         <div className="space-y-3">
           {rentals?.map(r => (
-            <div key={r.id} className="bg-card border border-border rounded-xl p-5 hover:shadow-sm transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <Car className="w-4 h-4 text-muted-foreground" />
+            <div key={r.id} className="card-hover p-4 sm:p-5">
+              <div className="flex items-start justify-between mb-3 gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Car className="w-4 h-4 text-muted-foreground shrink-0" />
                     <span className="font-semibold text-foreground">{r.company || "렌트카"}</span>
                     {r.carModel && <span className="text-sm text-muted-foreground">· {r.carModel}</span>}
                   </div>
                   {r.price && (
-                    <span className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-0.5 ml-6">
                       {Number(r.price).toLocaleString()} {r.currency}
-                    </span>
+                    </p>
                   )}
                 </div>
-                <div className="flex gap-1">
-                  <button onClick={() => openEdit(r)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors">수정</button>
-                  <button onClick={() => deleteMutation.mutate({ id: r.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded hover:bg-destructive/10 transition-colors">삭제</button>
+                <div className="flex gap-1 shrink-0">
+                  <button onClick={() => openEdit(r)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
+                  <button onClick={() => deleteMutation.mutate({ id: r.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors">삭제</button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div className="bg-muted/50 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground mb-1">픽업</p>
-                  <p className="text-sm font-medium text-foreground">{formatDT(r.pickupTime)}</p>
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-3">
+                <div className="bg-muted/40 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1 font-medium">픽업</p>
+                  <p className="text-sm font-semibold text-foreground">{formatDT(r.pickupTime)}</p>
                   {r.pickupLocation && (
                     <div className="flex items-center gap-1 mt-1">
-                      <MapPin className="w-3 h-3 text-muted-foreground" />
+                      <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
                       <p className="text-xs text-muted-foreground truncate">{r.pickupLocation}</p>
                     </div>
                   )}
                 </div>
-                <div className="bg-muted/50 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground mb-1">반납</p>
-                  <p className="text-sm font-medium text-foreground">{formatDT(r.dropoffTime)}</p>
+                <div className="bg-muted/40 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1 font-medium">반납</p>
+                  <p className="text-sm font-semibold text-foreground">{formatDT(r.dropoffTime)}</p>
                   {r.dropoffLocation && (
                     <div className="flex items-center gap-1 mt-1">
-                      <MapPin className="w-3 h-3 text-muted-foreground" />
+                      <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
                       <p className="text-xs text-muted-foreground truncate">{r.dropoffLocation}</p>
                     </div>
                   )}
@@ -147,61 +147,66 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
       </TabShell>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="font-serif text-xl">{editId ? "렌트카 수정" : "렌트카 추가"}</DialogTitle>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
+          <DialogHeader className="mb-1">
+            <DialogTitle className="text-lg font-semibold">{editId ? "렌트카 수정" : "렌트카 추가"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2 max-h-[65vh] overflow-y-auto pr-1">
+          <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
+            {/* 업체 / 차종 */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>렌트 업체</Label>
-                <Input placeholder="예: 허츠" value={form.company} onChange={e => setForm(f => ({ ...f, company: e.target.value }))} />
+                <Label className="text-sm font-medium">렌트 업체</Label>
+                <Input className="h-10" placeholder="허츠" value={form.company} onChange={e => setForm(f => ({ ...f, company: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label>차종</Label>
-                <Input placeholder="예: 토요타 캠리" value={form.carModel} onChange={e => setForm(f => ({ ...f, carModel: e.target.value }))} />
+                <Label className="text-sm font-medium">차종</Label>
+                <Input className="h-10" placeholder="토요타 캠리" value={form.carModel} onChange={e => setForm(f => ({ ...f, carModel: e.target.value }))} />
               </div>
             </div>
+            {/* 픽업 일시 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">픽업 일시</Label>
+              <Input className="h-10" type="datetime-local" value={form.pickupTime} onChange={e => setForm(f => ({ ...f, pickupTime: e.target.value }))} />
+            </div>
+            {/* 픽업 장소 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">픽업 장소</Label>
+              <Input className="h-10" placeholder="나리타 공항 터미널 1" value={form.pickupLocation} onChange={e => setForm(f => ({ ...f, pickupLocation: e.target.value }))} />
+            </div>
+            {/* 반납 일시 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">반납 일시</Label>
+              <Input className="h-10" type="datetime-local" value={form.dropoffTime} onChange={e => setForm(f => ({ ...f, dropoffTime: e.target.value }))} />
+            </div>
+            {/* 반납 장소 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">반납 장소</Label>
+              <Input className="h-10" placeholder="나리타 공항 터미널 1" value={form.dropoffLocation} onChange={e => setForm(f => ({ ...f, dropoffLocation: e.target.value }))} />
+            </div>
+            {/* 예약번호 / 금액 */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>픽업 일시</Label>
-                <Input type="datetime-local" value={form.pickupTime} onChange={e => setForm(f => ({ ...f, pickupTime: e.target.value }))} />
+                <Label className="text-sm font-medium">예약번호</Label>
+                <Input className="h-10" placeholder="RNT12345" value={form.bookingRef} onChange={e => setForm(f => ({ ...f, bookingRef: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label>반납 일시</Label>
-                <Input type="datetime-local" value={form.dropoffTime} onChange={e => setForm(f => ({ ...f, dropoffTime: e.target.value }))} />
+                <Label className="text-sm font-medium">금액</Label>
+                <Input className="h-10" placeholder="150000" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
               </div>
             </div>
+            {/* 메모 */}
             <div className="space-y-1.5">
-              <Label>픽업 장소</Label>
-              <Input placeholder="예: 나리타 공항 터미널 1" value={form.pickupLocation} onChange={e => setForm(f => ({ ...f, pickupLocation: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>반납 장소</Label>
-              <Input placeholder="예: 나리타 공항 터미널 1" value={form.dropoffLocation} onChange={e => setForm(f => ({ ...f, dropoffLocation: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>예약번호</Label>
-                <Input placeholder="예: RNT12345" value={form.bookingRef} onChange={e => setForm(f => ({ ...f, bookingRef: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>금액</Label>
-                <Input placeholder="예: 150000" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>메모</Label>
-              <Textarea placeholder="추가 메모..." value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2} />
+              <Label className="text-sm font-medium">메모</Label>
+              <Textarea placeholder="추가 메모..." value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2} className="resize-none" />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>취소</Button>
-            <Button onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
+          <div className="flex gap-2 mt-4">
+            <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>취소</Button>
+            <Button className="flex-1" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
               {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {editId ? "수정" : "추가"}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </>

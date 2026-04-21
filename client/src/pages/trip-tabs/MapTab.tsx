@@ -174,11 +174,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-serif font-semibold text-foreground">동선 지도</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">날짜별 방문 장소와 이동 경로를 확인하세요.</p>
-        </div>
+      <div>
+        <h2 className="text-lg sm:text-xl font-semibold text-foreground tracking-tight">동선 지도</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">날짜별 방문 장소와 이동 경로를 확인하세요.</p>
       </div>
 
       {/* Date Selector */}

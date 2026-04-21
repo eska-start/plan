@@ -96,13 +96,13 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-serif font-semibold text-foreground">하루별 일정</h2>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-xl font-semibold text-foreground tracking-tight">하루별 일정</h2>
           <p className="text-sm text-muted-foreground mt-0.5">날짜를 선택하고 방문 장소를 관리하세요.</p>
         </div>
-        <Button onClick={openCreate} size="sm" className="gap-1.5">
-          <Plus className="w-4 h-4" />장소 추가
+        <Button onClick={openCreate} size="sm" className="gap-1.5 self-start sm:self-auto shrink-0">
+          <Plus className="w-3.5 h-3.5" />장소 추가
         </Button>
       </div>
 
@@ -235,15 +235,15 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-serif text-xl">{editId ? "장소 수정" : "장소 추가"}</DialogTitle>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
+          <DialogHeader className="mb-1">
+            <DialogTitle className="text-lg font-semibold">{editId ? "장소 수정" : "장소 추가"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
             <div className="space-y-1.5">
-              <Label>카테고리</Label>
+              <Label className="text-sm font-medium">카테고리</Label>
               <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map(c => (
                     <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
@@ -252,35 +252,33 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>장소명 *</Label>
-              <Input placeholder="예: 아사쿠사 센소지" value={form.placeName} onChange={e => setForm(f => ({ ...f, placeName: e.target.value }))} />
+              <Label className="text-sm font-medium">장소명 <span className="text-destructive">*</span></Label>
+              <Input className="h-10" placeholder="아사쿠사 센소지" value={form.placeName} onChange={e => setForm(f => ({ ...f, placeName: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
-              <Label>주소</Label>
-              <Input placeholder="예: 도쿄 다이토구 아사쿠사 2-3-1" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>방문 시간</Label>
-                <Input type="time" value={form.visitTime} onChange={e => setForm(f => ({ ...f, visitTime: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>소요 시간 (분)</Label>
-                <Input type="number" placeholder="예: 60" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} />
-              </div>
+              <Label className="text-sm font-medium">주소</Label>
+              <Input className="h-10" placeholder="도쿄 다이토구 아사쿠사 2-3-1" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
-              <Label>메모</Label>
-              <Textarea placeholder="방문 메모..." value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2} />
+              <Label className="text-sm font-medium">방문 시간</Label>
+              <Input className="h-10" type="time" value={form.visitTime} onChange={e => setForm(f => ({ ...f, visitTime: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">소요 시간 (분)</Label>
+              <Input className="h-10" type="number" placeholder="60" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">메모</Label>
+              <Textarea className="resize-none" placeholder="방문 메모..." value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2} />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>취소</Button>
-            <Button onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
+          <div className="flex gap-2 mt-4">
+            <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>취소</Button>
+            <Button className="flex-1" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
               {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {editId ? "수정" : "추가"}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
