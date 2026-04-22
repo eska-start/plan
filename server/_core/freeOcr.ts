@@ -3,6 +3,7 @@ import { ENV } from "./env";
 const DEFAULT_OCR_SPACE_FREE_KEY = "helloworld";
 
 type OcrSpaceParsedResult = { ParsedText?: string };
+
 type OcrSpaceResponse = {
   IsErroredOnProcessing?: boolean;
   ErrorMessage?: string[] | string;

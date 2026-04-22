@@ -55,4 +55,32 @@ export function registerOAuthRoutes(app: Express) {
 </head><body></body></html>`);
     }
   });
+
+  app.get("/api/auth/guest-login", async (req: Request, res: Response) => {
+    const redirect = typeof req.query.redirect === "string" ? req.query.redirect : "/";
+    try {
+      const openId = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const name = `게스트-${openId.slice(-4)}`;
+
+      await db.upsertUser({
+        openId,
+        name,
+        email: null,
+        loginMethod: "guest",
+        lastSignedIn: new Date(),
+      });
+
+      const sessionToken = await sdk.createSessionToken(openId, {
+        name,
+        expiresInMs: ONE_YEAR_MS,
+      });
+
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.redirect(302, redirect);
+    } catch (error) {
+      console.error("[GuestAuth] Login failed", error);
+      res.redirect(302, "/?error=guest_auth_failed");
+    }
+  });
 }
