@@ -1,5 +1,7 @@
 import { ENV } from "./env";
 
+const DEFAULT_OCR_SPACE_FREE_KEY = "helloworld";
+
 type OcrSpaceParsedResult = {
   ParsedText?: string;
 };
@@ -20,7 +22,7 @@ export async function extractTextWithFreeOcr(imageUrl: string): Promise<string> 
   const response = await fetch("https://api.ocr.space/parse/image", {
     method: "POST",
     headers: {
-      apikey: ENV.ocrSpaceApiKey,
+      apikey: ENV.ocrSpaceApiKey || DEFAULT_OCR_SPACE_FREE_KEY,
       "content-type": "application/x-www-form-urlencoded",
     },
     body: form.toString(),
@@ -54,7 +56,7 @@ const firstMatch = (text: string, patterns: RegExp[]) => {
 
 export function parseFlightFromText(text: string) {
   const upper = text.toUpperCase();
-  const iata = upper.match(/\b([A-Z]{3})\s*(?:-|→|TO)\s*([A-Z]{3})\b/);
+  const iata = upper.match(/\b([A-Z]{3})\s*(?:-|->|→|TO)\s*([A-Z]{3})\b/);
   const flightNumber = firstMatch(upper, [
     /FLIGHT\s*(?:NO\.?|NUMBER)?\s*[:#-]?\s*([A-Z]{2}\s?\d{2,4})/i,
     /\b([A-Z]{2}\d{2,4})\b/,
