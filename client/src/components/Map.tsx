@@ -86,16 +86,33 @@ declare global {
   }
 }
 
-const API_KEY = import.meta.env.VITE_FRONTEND_FORGE_API_KEY;
-const FORGE_BASE_URL =
-  import.meta.env.VITE_FRONTEND_FORGE_API_URL ||
-  "https://forge.butterfly-effect.dev";
-const MAPS_PROXY_URL = `${FORGE_BASE_URL}/v1/maps/proxy`;
+const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 function loadMapScript() {
   return new Promise(resolve => {
+    if (window.google?.maps) {
+      resolve(null);
+      return;
+    }
+
+    if (!API_KEY) {
+      console.error("VITE_GOOGLE_MAPS_API_KEY is not configured");
+      resolve(null);
+      return;
+    }
+
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[data-google-maps="true"]'
+    );
+    if (existing) {
+      existing.addEventListener("load", () => resolve(null), { once: true });
+      existing.addEventListener("error", () => resolve(null), { once: true });
+      return;
+    }
+
     const script = document.createElement("script");
-    script.src = `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`;
+    script.dataset.googleMaps = "true";
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geometry`;
     script.async = true;
     script.crossOrigin = "anonymous";
     script.onload = () => {
@@ -104,6 +121,7 @@ function loadMapScript() {
     };
     script.onerror = () => {
       console.error("Failed to load Google Maps script");
+      resolve(null);
     };
     document.head.appendChild(script);
   });
@@ -129,6 +147,10 @@ export function MapView({
     await loadMapScript();
     if (!mapContainer.current) {
       console.error("Map container not found");
+      return;
+    }
+    if (!window.google?.maps) {
+      console.error("Google Maps is unavailable. Check API key and billing settings.");
       return;
     }
     map.current = new window.google.maps.Map(mapContainer.current, {
