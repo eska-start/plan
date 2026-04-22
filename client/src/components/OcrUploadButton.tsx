@@ -4,29 +4,37 @@ import { toast } from "sonner";
 
 interface OcrUploadButtonProps {
   onExtracted: (data: Record<string, string | null>) => void;
-  uploadEndpoint?: string;
-  extractEndpoint: (imageUrl: string) => Promise<Record<string, string | null>>;
+  extractEndpoint: (imageDataUrl: string) => Promise<Record<string, string | null>>;
   label?: string;
 }
 
 /**
- * 사진 업로드 → 서버 OCR 추출 → 결과 콜백
+ * 사진 업로드 → Data URL 변환 → OCR 추출 → 결과 콜백
+ * - Manus 스토리지 업로드 없이 브라우저에서 바로 처리
  * - 카메라 촬영 (모바일)
  * - 파일 선택 (갤러리 / 데스크탑 파일)
  */
-export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진으로 자동 입력" }: OcrUploadButtonProps) {
+export function OcrUploadButton({ onExtracted, extractEndpoint }: OcrUploadButtonProps) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+
+  const toDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
   const handleFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast.error("이미지 파일만 업로드할 수 있습니다.");
       return;
     }
-    if (file.size > 16 * 1024 * 1024) {
-      toast.error("파일 크기는 16MB 이하여야 합니다.");
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("파일 크기는 8MB 이하여야 합니다.");
       return;
     }
 
@@ -35,19 +43,8 @@ export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진�
     setPreview(objectUrl);
 
     try {
-      // 1. 서버에 이미지 업로드 (multipart)
-      const formData = new FormData();
-      formData.append("file", file);
-      const uploadRes = await fetch("/api/upload-ocr", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-      if (!uploadRes.ok) throw new Error("이미지 업로드 실패");
-      const { url } = await uploadRes.json() as { url: string };
-
-      // 2. LLM OCR 추출
-      const extracted = await extractEndpoint(url);
+      const imageDataUrl = await toDataUrl(file);
+      const extracted = await extractEndpoint(imageDataUrl);
       onExtracted(extracted);
       toast.success("정보가 자동으로 입력되었습니다. 확인 후 수정해주세요.");
     } catch (e) {
@@ -66,7 +63,6 @@ export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진�
 
   return (
     <div className="mb-4 space-y-2">
-      {/* 숨겨진 인풋 - 카메라 전용 */}
       <input
         ref={cameraRef}
         type="file"
@@ -75,7 +71,6 @@ export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진�
         className="hidden"
         onChange={onInputChange}
       />
-      {/* 숨겨진 인풋 - 파일 선택 전용 (capture 없음) */}
       <input
         ref={fileRef}
         type="file"
@@ -91,7 +86,6 @@ export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진�
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
-          {/* 카메라 촬영 버튼 */}
           <button
             type="button"
             onClick={() => cameraRef.current?.click()}
@@ -101,7 +95,6 @@ export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진�
             <span>카메라 촬영</span>
           </button>
 
-          {/* 파일 선택 버튼 */}
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
@@ -113,7 +106,6 @@ export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진�
         </div>
       )}
 
-      {/* AI 자동 입력 안내 */}
       {!loading && (
         <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
           <Sparkles className="w-3 h-3 text-primary/60" />
@@ -121,7 +113,6 @@ export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진�
         </p>
       )}
 
-      {/* 미리보기 */}
       {preview && !loading && (
         <div className="mt-1 relative inline-block">
           <img
