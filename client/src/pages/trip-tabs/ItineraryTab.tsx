@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CalendarDays, Loader2, MapPin, Clock, CheckCircle2, Circle, Plus, Utensils, Camera, ShoppingBag } from "lucide-react";
+import { CalendarDays, Loader2, MapPin, Clock, CheckCircle2, Circle, Plus, Utensils, Camera, ShoppingBag, Hotel } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,15 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  place: MapPin, food: Utensils, activity: Camera, shopping: ShoppingBag,
+  place: MapPin, food: Utensils, activity: Camera, shopping: ShoppingBag, accommodation: Hotel,
+};
+
+const CATEGORY_COLORS_EXT: Record<string, string> = {
+  place: "bg-blue-50 text-blue-600 border-blue-200",
+  food: "bg-orange-50 text-orange-600 border-orange-200",
+  activity: "bg-green-50 text-green-600 border-green-200",
+  shopping: "bg-purple-50 text-purple-600 border-purple-200",
+  accommodation: "bg-indigo-50 text-indigo-600 border-indigo-200",
 };
 
 export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tripDays: Date[] }) {
@@ -200,7 +208,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${CATEGORY_COLORS[item.category ?? "place"]}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${CATEGORY_COLORS_EXT[item.category ?? "place"] ?? CATEGORY_COLORS[item.category ?? "place"]}`}>
                           <CategoryIcon className="w-3 h-3 inline mr-1" />
                           {CATEGORIES.find(c => c.value === item.category)?.label ?? "장소"}
                         </span>
@@ -223,8 +231,14 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                       )}
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <button onClick={() => openEdit(item)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors">수정</button>
-                      <button onClick={() => deleteMutation.mutate({ id: item.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded hover:bg-destructive/10 transition-colors">삭제</button>
+                      {(item as { sourceType?: string }).sourceType === "accommodation" ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-500 border border-indigo-200 font-medium">숙박 연동</span>
+                      ) : (
+                        <>
+                          <button onClick={() => openEdit(item)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors">수정</button>
+                          <button onClick={() => deleteMutation.mutate({ id: item.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded hover:bg-destructive/10 transition-colors">삭제</button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

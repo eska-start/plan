@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Car, Loader2, MapPin, Hash } from "lucide-react";
@@ -57,6 +58,8 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
     onSuccess: () => { utils.rentals.list.invalidate(); toast.success("렌트카가 삭제되었습니다."); },
     onError: () => toast.error("렌트카 삭제에 실패했습니다."),
   });
+
+  const extractMutation = trpc.rentals.extractFromImage.useMutation();
 
   const openCreate = () => { setEditId(null); setForm(defaultForm); setDialogOpen(true); };
   const openEdit = (r: NonNullable<typeof rentals>[number]) => {
@@ -152,6 +155,25 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
             <DialogTitle className="text-lg font-semibold">{editId ? "렌트카 수정" : "렌트카 추가"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
+            {/* OCR 자동 입력 */}
+            <OcrUploadButton
+              uploadEndpoint="/api/upload-ocr"
+              extractEndpoint={async (url) => extractMutation.mutateAsync({ imageUrl: url })}
+              onExtracted={(data) => {
+                setForm(f => ({
+                  ...f,
+                  company: data.company ?? f.company,
+                  carModel: data.carModel ?? f.carModel,
+                  pickupLocation: data.pickupLocation ?? f.pickupLocation,
+                  dropoffLocation: data.dropoffLocation ?? f.dropoffLocation,
+                  pickupTime: data.pickupTime ?? f.pickupTime,
+                  dropoffTime: data.dropoffTime ?? f.dropoffTime,
+                  bookingRef: data.bookingRef ?? f.bookingRef,
+                  price: data.price ?? f.price,
+                  currency: data.currency ?? f.currency,
+                }));
+              }}
+            />
             {/* 업체 / 차종 */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">

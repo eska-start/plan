@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Plane, Loader2, ArrowRight, Hash, Armchair } from "lucide-react";
@@ -80,6 +81,8 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
     onSuccess: () => { utils.flights.list.invalidate(); toast.success("항공편이 삭제되었습니다."); },
     onError: () => toast.error("항공편 삭제에 실패했습니다."),
   });
+
+  const extractMutation = trpc.flights.extractFromImage.useMutation();
 
   const openCreate = () => { setEditId(null); setForm(defaultForm); setDialogOpen(true); };
   const openEdit = (f: NonNullable<typeof flights>[number]) => {
@@ -171,6 +174,25 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
             <DialogTitle className="text-lg font-semibold">{editId ? "항공편 수정" : "항공편 추가"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
+            {/* OCR 자동 입력 */}
+            <OcrUploadButton
+              uploadEndpoint="/api/upload-ocr"
+              extractEndpoint={async (url) => extractMutation.mutateAsync({ imageUrl: url })}
+              onExtracted={(data) => {
+                setForm(f => ({
+                  ...f,
+                  airline: data.airline ?? f.airline,
+                  flightNumber: data.flightNumber ?? f.flightNumber,
+                  departureAirport: data.departureAirport ?? f.departureAirport,
+                  arrivalAirport: data.arrivalAirport ?? f.arrivalAirport,
+                  departureTime: data.departureTime ?? f.departureTime,
+                  arrivalTime: data.arrivalTime ?? f.arrivalTime,
+                  bookingRef: data.bookingRef ?? f.bookingRef,
+                  seatNumber: data.seatNumber ?? f.seatNumber,
+                  type: (data.type as typeof f.type) ?? f.type,
+                }));
+              }}
+            />
             {/* 구분 */}
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">구분</Label>

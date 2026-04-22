@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
+import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { Loader2, ArrowLeft, Plane, Car, Hotel, StickyNote, CalendarDays, BookOpen, Map } from "lucide-react";
+import { Loader2, ArrowLeft, Plane, Car, Hotel, StickyNote, CalendarDays, BookOpen, Map, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format, parseISO, differenceInDays, eachDayOfInterval } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -11,6 +12,7 @@ import MemosTab from "./trip-tabs/MemosTab";
 import ItineraryTab from "./trip-tabs/ItineraryTab";
 import DiaryTab from "./trip-tabs/DiaryTab";
 import MapTab from "./trip-tabs/MapTab";
+import { ShareDialog } from "@/components/ShareDialog";
 
 const TABS = [
   { id: "flights", label: "항공편", icon: Plane },
@@ -22,15 +24,10 @@ const TABS = [
   { id: "map", label: "지도", icon: Map },
 ];
 
-// Cover colors for trips
-const COVER_COLORS = [
-  "#0f172a", "#1e293b", "#1a1a2e", "#0d1b2a",
-  "#1c1917", "#14532d", "#1e3a5f", "#3b0764",
-];
-
 export default function TripDetail() {
   const params = useParams<{ id: string; tab?: string }>();
   const [, setLocation] = useLocation();
+  const [shareOpen, setShareOpen] = useState(false);
   const tripId = parseInt(params.id);
   const activeTab = params.tab || "flights";
 
@@ -71,13 +68,23 @@ export default function TripDetail() {
 
         {/* Header content */}
         <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-4 pb-4">
-          <button
-            onClick={() => setLocation("/")}
-            className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
-          >
-            <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
-            <span>내 여행</span>
-          </button>
+          <div className="flex items-start justify-between gap-2">
+            <button
+              onClick={() => setLocation("/")}
+              className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
+            >
+              <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
+              <span>내 여행</span>
+            </button>
+            {/* 공유 버튼 */}
+            <button
+              onClick={() => setShareOpen(true)}
+              className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>공유</span>
+            </button>
+          </div>
 
           <div className="space-y-1.5">
             <p className="text-white/50 text-[10px] font-semibold tracking-[0.15em] uppercase">
@@ -143,6 +150,14 @@ export default function TripDetail() {
         {activeTab === "diary" && <DiaryTab tripId={tripId} tripDays={tripDays} />}
         {activeTab === "map" && <MapTab tripId={tripId} tripDays={tripDays} />}
       </div>
+
+      {/* ── Share Dialog ── */}
+      <ShareDialog
+        tripId={tripId}
+        tripName={trip.name}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+      />
     </div>
   );
 }

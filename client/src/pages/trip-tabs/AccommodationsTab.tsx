@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Hotel, Loader2, MapPin, Hash, Calendar } from "lucide-react";
@@ -78,6 +79,8 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
     onError: () => toast.error("숙박 삭제에 실패했습니다."),
   });
 
+  const extractMutation = trpc.accommodations.extractFromImage.useMutation();
+
   const openCreate = () => { setEditId(null); setForm(defaultForm); setDialogOpen(true); };
   const openEdit = (a: NonNullable<typeof accommodations>[number]) => {
     setEditId(a.id);
@@ -113,7 +116,7 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
       memo: form.memo.trim() || undefined,
     };
     if (editId) {
-      updateMutation.mutate({ id: editId, ...payload });
+      updateMutation.mutate({ id: editId, tripId, ...payload });
     } else {
       createMutation.mutate({ tripId, ...payload });
     }
@@ -151,7 +154,7 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <button onClick={() => openEdit(a)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
-                  <button onClick={() => deleteMutation.mutate({ id: a.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors">삭제</button>
+                  <button onClick={() => deleteMutation.mutate({ id: a.id, tripId })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors">삭제</button>
                 </div>
               </div>
 
@@ -192,6 +195,23 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
             <DialogTitle className="text-lg font-semibold">{editId ? "숙박 수정" : "숙박 추가"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
+            {/* OCR 자동 입력 */}
+            <OcrUploadButton
+              uploadEndpoint="/api/upload-ocr"
+              extractEndpoint={async (url) => extractMutation.mutateAsync({ imageUrl: url })}
+              onExtracted={(data) => {
+                setForm(f => ({
+                  ...f,
+                  name: data.name ?? f.name,
+                  address: data.address ?? f.address,
+                  checkIn: data.checkIn ?? f.checkIn,
+                  checkOut: data.checkOut ?? f.checkOut,
+                  bookingRef: data.bookingRef ?? f.bookingRef,
+                  price: data.price ?? f.price,
+                  currency: data.currency ?? f.currency,
+                }));
+              }}
+            />
             {/* 숙소명 */}
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">숙소명 <span className="text-destructive">*</span></Label>

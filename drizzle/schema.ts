@@ -30,8 +30,8 @@ export const trips = mysqlTable("trips", {
   userId: int("userId").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   destination: varchar("destination", { length: 255 }).notNull(),
-  startDate: varchar("startDate", { length: 10 }).notNull(), // YYYY-MM-DD
-  endDate: varchar("endDate", { length: 10 }).notNull(),     // YYYY-MM-DD
+  startDate: varchar("startDate", { length: 10 }).notNull(),
+  endDate: varchar("endDate", { length: 10 }).notNull(),
   coverColor: varchar("coverColor", { length: 32 }).default("#6366f1"),
   description: text("description"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -40,6 +40,31 @@ export const trips = mysqlTable("trips", {
 
 export type Trip = typeof trips.$inferSelect;
 export type InsertTrip = typeof trips.$inferInsert;
+
+// ─── 여행 공유 ────────────────────────────────────────────────────────────────
+export const tripShares = mysqlTable("trip_shares", {
+  id: int("id").autoincrement().primaryKey(),
+  tripId: int("tripId").notNull(),
+  inviteToken: varchar("inviteToken", { length: 64 }).notNull().unique(),
+  createdBy: int("createdBy").notNull(), // owner userId
+  expiresAt: timestamp("expiresAt"),     // null = 만료 없음
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TripShare = typeof tripShares.$inferSelect;
+export type InsertTripShare = typeof tripShares.$inferInsert;
+
+// ─── 공유 멤버 ────────────────────────────────────────────────────────────────
+export const tripMembers = mysqlTable("trip_members", {
+  id: int("id").autoincrement().primaryKey(),
+  tripId: int("tripId").notNull(),
+  userId: int("userId").notNull(),
+  role: mysqlEnum("role", ["owner", "editor"]).default("editor").notNull(),
+  joinedAt: timestamp("joinedAt").defaultNow().notNull(),
+});
+
+export type TripMember = typeof tripMembers.$inferSelect;
+export type InsertTripMember = typeof tripMembers.$inferInsert;
 
 // ─── 항공편 ───────────────────────────────────────────────────────────────────
 export const flights = mysqlTable("flights", {
@@ -51,7 +76,7 @@ export const flights = mysqlTable("flights", {
   flightNumber: varchar("flightNumber", { length: 20 }),
   departureAirport: varchar("departureAirport", { length: 100 }),
   arrivalAirport: varchar("arrivalAirport", { length: 100 }),
-  departureTime: varchar("departureTime", { length: 20 }), // ISO string
+  departureTime: varchar("departureTime", { length: 20 }),
   arrivalTime: varchar("arrivalTime", { length: 20 }),
   bookingRef: varchar("bookingRef", { length: 50 }),
   seatNumber: varchar("seatNumber", { length: 20 }),
@@ -92,7 +117,7 @@ export const accommodations = mysqlTable("accommodations", {
   userId: int("userId").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   address: varchar("address", { length: 500 }),
-  checkIn: varchar("checkIn", { length: 10 }),  // YYYY-MM-DD
+  checkIn: varchar("checkIn", { length: 10 }),
   checkOut: varchar("checkOut", { length: 10 }),
   bookingRef: varchar("bookingRef", { length: 50 }),
   price: decimal("price", { precision: 10, scale: 2 }),
@@ -125,17 +150,20 @@ export const itineraryItems = mysqlTable("itinerary_items", {
   id: int("id").autoincrement().primaryKey(),
   tripId: int("tripId").notNull(),
   userId: int("userId").notNull(),
-  date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
+  date: varchar("date", { length: 10 }).notNull(),
   order: int("order").default(0),
   placeName: varchar("placeName", { length: 255 }).notNull(),
   address: varchar("address", { length: 500 }),
   lat: decimal("lat", { precision: 10, scale: 7 }),
   lng: decimal("lng", { precision: 10, scale: 7 }),
-  visitTime: varchar("visitTime", { length: 10 }), // HH:MM
-  duration: int("duration"), // minutes
+  visitTime: varchar("visitTime", { length: 10 }),
+  duration: int("duration"),
   visited: boolean("visited").default(false),
   memo: text("memo"),
-  category: varchar("category", { length: 50 }).default("place"), // place, food, activity, etc.
+  category: varchar("category", { length: 50 }).default("place"),
+  // 숙박 자동 연동: accommodation 타입이면 accommodationId 참조
+  sourceType: varchar("sourceType", { length: 20 }).default("manual"), // "manual" | "accommodation"
+  sourceId: int("sourceId"),   // accommodationId (sourceType=accommodation 시)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -148,7 +176,7 @@ export const diaryEntries = mysqlTable("diary_entries", {
   id: int("id").autoincrement().primaryKey(),
   tripId: int("tripId").notNull(),
   userId: int("userId").notNull(),
-  date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
+  date: varchar("date", { length: 10 }).notNull(),
   title: varchar("title", { length: 255 }),
   content: text("content"),
   mood: mysqlEnum("mood", ["amazing", "happy", "neutral", "tired", "sad"]).default("happy"),

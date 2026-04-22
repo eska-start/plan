@@ -1,8 +1,12 @@
 import { z } from "zod";
+import { nanoid } from "nanoid";
+import { eachDayOfInterval, parseISO, format } from "date-fns";
+import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { invokeLLM, type Message } from "./_core/llm";
 import {
   getTripsByUser, getTripById, createTrip, updateTrip, deleteTrip,
   getFlightsByTrip, createFlight, updateFlight, deleteFlight,
@@ -10,8 +14,53 @@ import {
   getAccommodationsByTrip, createAccommodation, updateAccommodation, deleteAccommodation,
   getMemosByTrip, createMemo, updateMemo, deleteMemo,
   getItineraryByDate, getItineraryByTrip, createItineraryItem, updateItineraryItem, deleteItineraryItem,
+  deleteItineraryItemsBySource,
   getDiaryEntriesByTrip, getDiaryEntryByDate, upsertDiaryEntry, deleteDiaryEntry,
+  createTripShare, getTripShareByToken, getTripSharesByTrip, deleteTripShare,
+  getTripMembers, addTripMember, removeTripMember,
 } from "./db";
+
+// ─── Helper: 숙박 → 일정 자동 생성 ──────────────────────────────────────────
+async function syncAccommodationToItinerary(
+  tripId: number,
+  userId: number,
+  accommodationId: number,
+  name: string,
+  address: string | undefined | null,
+  checkIn: string | undefined | null,
+  checkOut: string | undefined | null,
+) {
+  if (!checkIn || !checkOut) return;
+  try {
+    // 기존 연동 항목 삭제
+    await deleteItineraryItemsBySource(tripId, accommodationId);
+    // 체크인~체크아웃 날짜 범위 생성 (체크인 날만 추가, 체크아웃 당일은 제외)
+    const days = eachDayOfInterval({ start: parseISO(checkIn), end: parseISO(checkOut) });
+    // 체크인 날: "체크인" 항목, 중간 날: "숙박 중", 체크아웃 날: "체크아웃" 항목
+    for (let i = 0; i < days.length; i++) {
+      const d = days[i];
+      const dateStr = format(d, "yyyy-MM-dd");
+      let label = "";
+      if (i === 0) label = `🏨 체크인 — ${name}`;
+      else if (i === days.length - 1) label = `🏨 체크아웃 — ${name}`;
+      else label = `🏨 숙박 — ${name}`;
+      await createItineraryItem({
+        tripId,
+        userId,
+        date: dateStr,
+        placeName: label,
+        address: address ?? undefined,
+        category: "accommodation",
+        sourceType: "accommodation",
+        sourceId: accommodationId,
+        order: 0,
+        visited: false,
+      });
+    }
+  } catch (e) {
+    console.error("[syncAccommodation] error:", e);
+  }
+}
 
 // ─── Trips Router ─────────────────────────────────────────────────────────────
 const tripsRouter = router({
@@ -96,6 +145,48 @@ const flightsRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(({ ctx, input }) => deleteFlight(input.id, ctx.user.id)),
+
+  // ── OCR: 사진으로 항공편 정보 추출 ──
+  extractFromImage: protectedProcedure
+    .input(z.object({ imageUrl: z.string() }))
+    .mutation(async ({ input }) => {
+      const res = await invokeLLM({
+        messages: [
+          {
+            role: "system" as const,
+            content: `You are a travel document parser. Extract flight information from the image and return JSON only.
+Return this exact JSON schema (use null for missing fields):
+{
+  "airline": string | null,
+  "flightNumber": string | null,
+  "departureAirport": string | null,
+  "arrivalAirport": string | null,
+  "departureTime": string | null,
+  "arrivalTime": string | null,
+  "bookingRef": string | null,
+  "seatNumber": string | null,
+  "type": "departure" | "return" | "transit" | null
+}
+For times, use ISO 8601 format (YYYY-MM-DDTHH:mm) if date is visible, otherwise HH:mm only.`,
+          } as Message,
+          {
+            role: "user" as const,
+            content: [
+              { type: "text" as const, text: "항공권 또는 e-ticket 이미지에서 정보를 추출해주세요." },
+              { type: "image_url" as const, image_url: { url: input.imageUrl, detail: "high" as const } },
+            ],
+          } as Message,
+        ],
+        response_format: { type: "json_object" },
+      });
+      try {
+        const raw = res.choices?.[0]?.message?.content;
+        const content = typeof raw === "string" ? raw : "{}";
+        return JSON.parse(content);
+      } catch {
+        return {};
+      }
+    }),
 });
 
 // ─── Rentals Router ───────────────────────────────────────────────────────────
@@ -142,6 +233,48 @@ const rentalsRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(({ ctx, input }) => deleteRental(input.id, ctx.user.id)),
+
+  // ── OCR: 사진으로 렌트카 정보 추출 ──
+  extractFromImage: protectedProcedure
+    .input(z.object({ imageUrl: z.string() }))
+    .mutation(async ({ input }) => {
+      const res = await invokeLLM({
+        messages: [
+          {
+            role: "system" as const,
+            content: `You are a travel document parser. Extract car rental information from the image and return JSON only.
+Return this exact JSON schema (use null for missing fields):
+{
+  "company": string | null,
+  "carModel": string | null,
+  "pickupLocation": string | null,
+  "dropoffLocation": string | null,
+  "pickupTime": string | null,
+  "dropoffTime": string | null,
+  "bookingRef": string | null,
+  "price": string | null,
+  "currency": string | null
+}
+For times, use ISO 8601 format (YYYY-MM-DDTHH:mm) if date is visible.`,
+          } as Message,
+          {
+            role: "user" as const,
+            content: [
+              { type: "text" as const, text: "렌트카 예약 확인서 이미지에서 정보를 추출해주세요." },
+              { type: "image_url" as const, image_url: { url: input.imageUrl, detail: "high" as const } },
+            ],
+          } as Message,
+        ],
+        response_format: { type: "json_object" },
+      });
+      try {
+        const raw = res.choices?.[0]?.message?.content;
+        const content = typeof raw === "string" ? raw : "{}";
+        return JSON.parse(content);
+      } catch {
+        return {};
+      }
+    }),
 });
 
 // ─── Accommodations Router ────────────────────────────────────────────────────
@@ -162,11 +295,22 @@ const accommodationsRouter = router({
       currency: z.string().optional(),
       memo: z.string().optional(),
     }))
-    .mutation(({ ctx, input }) => createAccommodation({ ...input, userId: ctx.user.id })),
+    .mutation(async ({ ctx, input }) => {
+      const id = await createAccommodation({ ...input, userId: ctx.user.id });
+      // 일정 자동 연동
+      if (id && input.checkIn && input.checkOut) {
+        await syncAccommodationToItinerary(
+          input.tripId, ctx.user.id, id,
+          input.name, input.address, input.checkIn, input.checkOut,
+        );
+      }
+      return { id };
+    }),
 
   update: protectedProcedure
     .input(z.object({
       id: z.number(),
+      tripId: z.number(),
       name: z.string().optional(),
       address: z.string().optional(),
       checkIn: z.string().optional(),
@@ -176,14 +320,68 @@ const accommodationsRouter = router({
       currency: z.string().optional(),
       memo: z.string().optional(),
     }))
-    .mutation(({ ctx, input }) => {
-      const { id, ...data } = input;
-      return updateAccommodation(id, ctx.user.id, data);
+    .mutation(async ({ ctx, input }) => {
+      const { id, tripId, ...data } = input;
+      await updateAccommodation(id, ctx.user.id, data);
+      // 일정 재동기화
+      const accList = await getAccommodationsByTrip(tripId, ctx.user.id);
+      const acc = accList.find(a => a.id === id);
+      if (acc) {
+        const name = data.name ?? acc.name;
+        const address = data.address ?? acc.address;
+        const checkIn = data.checkIn ?? acc.checkIn;
+        const checkOut = data.checkOut ?? acc.checkOut;
+        await syncAccommodationToItinerary(tripId, ctx.user.id, id, name, address, checkIn, checkOut);
+      }
     }),
 
   delete: protectedProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(({ ctx, input }) => deleteAccommodation(input.id, ctx.user.id)),
+    .input(z.object({ id: z.number(), tripId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      await deleteAccommodation(input.id, ctx.user.id);
+      // 연동 일정 삭제
+      await deleteItineraryItemsBySource(input.tripId, input.id);
+    }),
+
+  // ── OCR: 사진으로 숙박 정보 추출 ──
+  extractFromImage: protectedProcedure
+    .input(z.object({ imageUrl: z.string() }))
+    .mutation(async ({ input }) => {
+      const res = await invokeLLM({
+        messages: [
+          {
+            role: "system" as const,
+            content: `You are a travel document parser. Extract hotel/accommodation booking information from the image and return JSON only.
+Return this exact JSON schema (use null for missing fields):
+{
+  "name": string | null,
+  "address": string | null,
+  "checkIn": string | null,
+  "checkOut": string | null,
+  "bookingRef": string | null,
+  "price": string | null,
+  "currency": string | null
+}
+For dates, use YYYY-MM-DD format.`,
+          } as Message,
+          {
+            role: "user" as const,
+            content: [
+              { type: "text" as const, text: "호텔 또는 숙박 예약 확인서 이미지에서 정보를 추출해주세요." },
+              { type: "image_url" as const, image_url: { url: input.imageUrl, detail: "high" as const } },
+            ],
+          } as Message,
+        ],
+        response_format: { type: "json_object" },
+      });
+      try {
+        const raw = res.choices?.[0]?.message?.content;
+        const content = typeof raw === "string" ? raw : "{}";
+        return JSON.parse(content);
+      } catch {
+        return {};
+      }
+    }),
 });
 
 // ─── Memos Router ─────────────────────────────────────────────────────────────
@@ -295,6 +493,68 @@ const diaryRouter = router({
     .mutation(({ ctx, input }) => deleteDiaryEntry(input.id, ctx.user.id)),
 });
 
+// ─── Sharing Router ───────────────────────────────────────────────────────────
+const sharingRouter = router({
+  /** 초대 링크 생성 */
+  createInvite: protectedProcedure
+    .input(z.object({ tripId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const trip = await getTripById(input.tripId, ctx.user.id);
+      if (!trip) throw new TRPCError({ code: "NOT_FOUND" });
+      if (trip.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "오너만 초대 링크를 생성할 수 있습니다." });
+      const token = nanoid(32);
+      await createTripShare({ tripId: input.tripId, inviteToken: token, createdBy: ctx.user.id });
+      return { token };
+    }),
+
+  /** 초대 링크 목록 */
+  listInvites: protectedProcedure
+    .input(z.object({ tripId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const trip = await getTripById(input.tripId, ctx.user.id);
+      if (!trip) throw new TRPCError({ code: "NOT_FOUND" });
+      return getTripSharesByTrip(input.tripId);
+    }),
+
+  /** 초대 링크 삭제 */
+  deleteInvite: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(({ ctx, input }) => deleteTripShare(input.id, ctx.user.id)),
+
+  /** 초대 토큰으로 참여 */
+  joinByToken: protectedProcedure
+    .input(z.object({ token: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const share = await getTripShareByToken(input.token);
+      if (!share) throw new TRPCError({ code: "NOT_FOUND", message: "유효하지 않은 초대 링크입니다." });
+      if (share.expiresAt && share.expiresAt < new Date()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "만료된 초대 링크입니다." });
+      }
+      const trip = await getTripById(share.tripId, share.createdBy);
+      if (!trip) throw new TRPCError({ code: "NOT_FOUND" });
+      // 오너는 멤버로 추가 불필요
+      if (trip.userId !== ctx.user.id) {
+        await addTripMember({ tripId: share.tripId, userId: ctx.user.id, role: "editor" });
+      }
+      return { tripId: share.tripId, tripName: trip.name };
+    }),
+
+  /** 멤버 목록 */
+  listMembers: protectedProcedure
+    .input(z.object({ tripId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const trip = await getTripById(input.tripId, ctx.user.id);
+      if (!trip) throw new TRPCError({ code: "NOT_FOUND" });
+      const members = await getTripMembers(input.tripId);
+      return { ownerId: trip.userId, members };
+    }),
+
+  /** 멤버 제거 */
+  removeMember: protectedProcedure
+    .input(z.object({ tripId: z.number(), userId: z.number() }))
+    .mutation(({ ctx, input }) => removeTripMember(input.tripId, input.userId, ctx.user.id)),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -313,6 +573,7 @@ export const appRouter = router({
   memos: memosRouter,
   itinerary: itineraryRouter,
   diary: diaryRouter,
+  sharing: sharingRouter,
 });
 
 export type AppRouter = typeof appRouter;

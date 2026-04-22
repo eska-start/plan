@@ -15,6 +15,13 @@
       "when": 1776812518300,
       "tag": "0001_charming_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1776817750748,
+      "tag": "0002_spotty_valkyrie",
+      "breakpoints": true
     }
   ]
 }

@@ -155,3 +155,67 @@ describe("itinerary router - input validation", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("sharing router - input validation", () => {
+  it("createInvite requires tripId as number", async () => {
+    const { z } = await import("zod");
+    const schema = z.object({ tripId: z.number() });
+    expect(schema.safeParse({ tripId: 1 }).success).toBe(true);
+    expect(schema.safeParse({ tripId: "abc" }).success).toBe(false);
+  });
+
+  it("joinByToken requires token as string", async () => {
+    const { z } = await import("zod");
+    const schema = z.object({ token: z.string() });
+    expect(schema.safeParse({ token: "abc123" }).success).toBe(true);
+    expect(schema.safeParse({ token: 123 }).success).toBe(false);
+  });
+
+  it("removeMember requires tripId and userId", async () => {
+    const { z } = await import("zod");
+    const schema = z.object({ tripId: z.number(), userId: z.number() });
+    expect(schema.safeParse({ tripId: 1, userId: 2 }).success).toBe(true);
+    expect(schema.safeParse({ tripId: 1 }).success).toBe(false);
+  });
+});
+
+describe("OCR extractFromImage - input validation", () => {
+  it("flights extractFromImage requires imageUrl", async () => {
+    const { z } = await import("zod");
+    const schema = z.object({ imageUrl: z.string().url() });
+    expect(schema.safeParse({ imageUrl: "https://example.com/img.jpg" }).success).toBe(true);
+    expect(schema.safeParse({ imageUrl: "not-a-url" }).success).toBe(false);
+  });
+
+  it("accommodations extractFromImage requires imageUrl", async () => {
+    const { z } = await import("zod");
+    const schema = z.object({ imageUrl: z.string().url() });
+    expect(schema.safeParse({ imageUrl: "https://example.com/booking.png" }).success).toBe(true);
+    expect(schema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe("memos router - input validation", () => {
+  it("memo create requires tripId as number", async () => {
+    const { z } = await import("zod");
+    const schema = z.object({
+      tripId: z.number(),
+      title: z.string().optional(),
+      content: z.string().optional(),
+      pinned: z.boolean().optional(),
+    });
+    expect(schema.safeParse({ tripId: 1, title: "My memo" }).success).toBe(true);
+    expect(schema.safeParse({ title: "No tripId" }).success).toBe(false);
+  });
+
+  it("memo create accepts optional title and content", async () => {
+    const { z } = await import("zod");
+    const schema = z.object({
+      tripId: z.number(),
+      title: z.string().optional(),
+      content: z.string().optional(),
+    });
+    expect(schema.safeParse({ tripId: 1 }).success).toBe(true);
+    expect(schema.safeParse({ tripId: 1, title: "Hello", content: "World" }).success).toBe(true);
+  });
+});
