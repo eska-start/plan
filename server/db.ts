@@ -184,13 +184,22 @@ export async function createFlight(data: InsertFlight) {
 export async function updateFlight(id: number, userId: number, data: Partial<InsertFlight>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(flights).set(data).where(and(eq(flights.id, id), eq(flights.userId, userId)));
+  // Allow owner or trip member to update
+  const row = await db.select().from(flights).where(eq(flights.id, id)).limit(1);
+  if (!row[0]) throw new Error("Not found");
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.update(flights).set(data).where(eq(flights.id, id));
 }
 
 export async function deleteFlight(id: number, userId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.delete(flights).where(and(eq(flights.id, id), eq(flights.userId, userId)));
+  const row = await db.select().from(flights).where(eq(flights.id, id)).limit(1);
+  if (!row[0]) return;
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.delete(flights).where(eq(flights.id, id));
 }
 
 // ─── Rentals ──────────────────────────────────────────────────────────────────
@@ -211,13 +220,21 @@ export async function createRental(data: InsertRental) {
 export async function updateRental(id: number, userId: number, data: Partial<InsertRental>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(rentals).set(data).where(and(eq(rentals.id, id), eq(rentals.userId, userId)));
+  const row = await db.select().from(rentals).where(eq(rentals.id, id)).limit(1);
+  if (!row[0]) throw new Error("Not found");
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.update(rentals).set(data).where(eq(rentals.id, id));
 }
 
 export async function deleteRental(id: number, userId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.delete(rentals).where(and(eq(rentals.id, id), eq(rentals.userId, userId)));
+  const row = await db.select().from(rentals).where(eq(rentals.id, id)).limit(1);
+  if (!row[0]) return;
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.delete(rentals).where(eq(rentals.id, id));
 }
 
 // ─── Accommodations ───────────────────────────────────────────────────────────
@@ -241,13 +258,21 @@ export async function createAccommodation(data: InsertAccommodation) {
 export async function updateAccommodation(id: number, userId: number, data: Partial<InsertAccommodation>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(accommodations).set(data).where(and(eq(accommodations.id, id), eq(accommodations.userId, userId)));
+  const row = await db.select().from(accommodations).where(eq(accommodations.id, id)).limit(1);
+  if (!row[0]) throw new Error("Not found");
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.update(accommodations).set(data).where(eq(accommodations.id, id));
 }
 
 export async function deleteAccommodation(id: number, userId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.delete(accommodations).where(and(eq(accommodations.id, id), eq(accommodations.userId, userId)));
+  const row = await db.select().from(accommodations).where(eq(accommodations.id, id)).limit(1);
+  if (!row[0]) return;
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.delete(accommodations).where(eq(accommodations.id, id));
 }
 
 // ─── Memos ────────────────────────────────────────────────────────────────────
@@ -268,13 +293,21 @@ export async function createMemo(data: InsertMemo) {
 export async function updateMemo(id: number, userId: number, data: Partial<InsertMemo>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(memos).set(data).where(and(eq(memos.id, id), eq(memos.userId, userId)));
+  const row = await db.select().from(memos).where(eq(memos.id, id)).limit(1);
+  if (!row[0]) throw new Error("Not found");
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.update(memos).set(data).where(eq(memos.id, id));
 }
 
 export async function deleteMemo(id: number, userId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.delete(memos).where(and(eq(memos.id, id), eq(memos.userId, userId)));
+  const row = await db.select().from(memos).where(eq(memos.id, id)).limit(1);
+  if (!row[0]) return;
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.delete(memos).where(eq(memos.id, id));
 }
 
 // ─── Itinerary Items ──────────────────────────────────────────────────────────
@@ -307,13 +340,21 @@ export async function createItineraryItem(data: InsertItineraryItem) {
 export async function updateItineraryItem(id: number, userId: number, data: Partial<InsertItineraryItem>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(itineraryItems).set(data).where(and(eq(itineraryItems.id, id), eq(itineraryItems.userId, userId)));
+  const row = await db.select().from(itineraryItems).where(eq(itineraryItems.id, id)).limit(1);
+  if (!row[0]) throw new Error("Not found");
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.update(itineraryItems).set(data).where(eq(itineraryItems.id, id));
 }
 
 export async function deleteItineraryItem(id: number, userId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.delete(itineraryItems).where(and(eq(itineraryItems.id, id), eq(itineraryItems.userId, userId)));
+  const row = await db.select().from(itineraryItems).where(eq(itineraryItems.id, id)).limit(1);
+  if (!row[0]) return;
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.delete(itineraryItems).where(eq(itineraryItems.id, id));
 }
 
 /** 숙박 연동: sourceId로 묶인 일정 항목 전체 삭제 */
