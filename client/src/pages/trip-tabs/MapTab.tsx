@@ -24,7 +24,11 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [geocoding, setGeocoding] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
 
-  const { data: items, isLoading } = trpc.itinerary.listByDate.useQuery({ tripId, date: selectedDate });
+  // order 컬럼 기준으로 서버에서 정렬되어 반환됨 (드래그 순서 변경 즉시 반영)
+  const { data: items, isLoading } = trpc.itinerary.listByDate.useQuery(
+    { tripId, date: selectedDate },
+    { refetchInterval: 5000 } // 5초마다 갱신 - 일정 탭에서 순서 변경 시 지도에도 반영
+  );
 
   // Clear previous markers and routes
   const clearMap = useCallback(() => {

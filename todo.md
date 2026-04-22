@@ -77,3 +77,10 @@
 ## 4차 기능 추가
 
 - [x] OCR 자동 입력에 이미지 파일 직접 업로드 방식 추가 (파일 선택 버튼)
+
+## 5차 기능 추가
+
+- [x] itinerary_items 테이블에 sortOrder 컨럼 추가 및 마이그레이션 (order 컨럼 이미 존재)
+- [x] 서버 라우터에 itinerary.reorder 프로시저 추가
+- [x] ItineraryTab 드래그 앤 드롭 (dnd-kit) 구현 (마우스 + 터치 지원)
+- [x] MapTab에서 sortOrder 기준으로 핀 번호 및 경로 순서 반영 (5초 자동 갱신)

@@ -14,7 +14,7 @@ import {
   getAccommodationsByTrip, createAccommodation, updateAccommodation, deleteAccommodation,
   getMemosByTrip, createMemo, updateMemo, deleteMemo,
   getItineraryByDate, getItineraryByTrip, createItineraryItem, updateItineraryItem, deleteItineraryItem,
-  deleteItineraryItemsBySource,
+  reorderItineraryItems, deleteItineraryItemsBySource,
   getDiaryEntriesByTrip, getDiaryEntryByDate, upsertDiaryEntry, deleteDiaryEntry,
   createTripShare, getTripShareByToken, getTripSharesByTrip, deleteTripShare,
   getTripMembers, addTripMember, removeTripMember,
@@ -462,11 +462,18 @@ const itineraryRouter = router({
       return updateItineraryItem(id, ctx.user.id, data);
     }),
 
-  delete: protectedProcedure
+   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(({ ctx, input }) => deleteItineraryItem(input.id, ctx.user.id)),
+  reorder: protectedProcedure
+    .input(z.object({
+      tripId: z.number(),
+      orderedIds: z.array(z.number()),
+    }))
+    .mutation(({ ctx, input }) =>
+      reorderItineraryItems(input.tripId, ctx.user.id, input.orderedIds)
+    ),
 });
-
 // ─── Diary Router ─────────────────────────────────────────────────────────────
 const diaryRouter = router({
   listByTrip: protectedProcedure

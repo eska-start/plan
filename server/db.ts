@@ -357,6 +357,22 @@ export async function deleteItineraryItem(id: number, userId: number) {
   await db.delete(itineraryItems).where(eq(itineraryItems.id, id));
 }
 
+/** 일정 항목 순서 일괄 업데이트 */
+export async function reorderItineraryItems(tripId: number, userId: number, orderedIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const trip = await getTripById(tripId, userId);
+  if (!trip) throw new Error("No access");
+  // 각 항목의 order를 배열 인덱스 값으로 업데이트
+  await Promise.all(
+    orderedIds.map((id, index) =>
+      db.update(itineraryItems)
+        .set({ order: index })
+        .where(and(eq(itineraryItems.id, id), eq(itineraryItems.tripId, tripId)))
+    )
+  );
+}
+
 /** 숙박 연동: sourceId로 묶인 일정 항목 전체 삭제 */
 export async function deleteItineraryItemsBySource(tripId: number, sourceId: number) {
   const db = await getDb();
