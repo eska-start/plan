@@ -68,11 +68,6 @@ function extractIataCodes(text: string): string[] {
     .filter(code => !/^(THE|AND|FOR|KRW|USD|EUR|JPY|KOR|ENG|PDF|OTA|URL|API)$/.test(code));
 }
 
-// HH:MM 시간 추출
-function extractTimes(text: string): string[] {
-  return Array.from(text.matchAll(/\b(\d{1,2}:\d{2})\b/g), m => m[1]);
-}
-
 // 날짜 추출: "05월 24일" → "MM-DD", "2025-05-24" → as-is
 function extractDate(text: string): string | null {
   const ko = text.match(/(\d{1,2})월\s*(\d{1,2})일/);
@@ -157,10 +152,7 @@ function parseKoreanBookingSection(sectionText: string, type: "departure" | "ret
     if (fn) { flightNumber = fn; break; }
   }
 
-  // 항공사
   const airline = extractAirline(sectionText);
-
-  // 예약번호
   const bookingRef = firstMatch(sectionText, [
     /예약\s*(?:번호|확인번호|번)\s*[:#\s]?\s*([A-Z0-9]{4,12})/i,
     /확인\s*번호\s*[:#\s]?\s*([A-Z0-9]{4,12})/i,
