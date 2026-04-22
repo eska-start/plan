@@ -84,3 +84,10 @@
 - [x] 서버 라우터에 itinerary.reorder 프로시저 추가
 - [x] ItineraryTab 드래그 앤 드롭 (dnd-kit) 구현 (마우스 + 터치 지원)
 - [x] MapTab에서 sortOrder 기준으로 핀 번호 및 경로 순서 반영 (5초 자동 갱신)
+
+## 6차 기능 추가
+
+- [x] MapTab 마커 드래그로 순서 변경 (AdvancedMarkerElement draggable)
+- [x] 마커 드래그 후 동선(경로) 실시간 재계산
+- [x] 마커 순서 변경 시 reorder API 호출 → 일정 탭 즉시 반영
+- [x] ItineraryTab refetch 간격 단축 (3초)

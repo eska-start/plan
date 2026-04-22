@@ -201,7 +201,8 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
   const utils = trpc.useUtils();
 
   const { data: items, isLoading } = trpc.itinerary.listByDate.useQuery(
-    { tripId, date: selectedDate }
+    { tripId, date: selectedDate },
+    { refetchInterval: 3000 } // 3초마다 갱신 - 지도 탭에서 순서 변경 시 일정 탭에도 즉시 반영
   );
 
   // 현재 표시할 순서 (로컬 드래그 반영 우선)
