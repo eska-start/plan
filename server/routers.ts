@@ -7,6 +7,13 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM, type Message } from "./_core/llm";
+import { ENV } from "./_core/env";
+import {
+  extractTextWithFreeOcr,
+  parseAccommodationFromText,
+  parseFlightFromText,
+  parseRentalFromText,
+} from "./_core/freeOcr";
 import {
   getTripsByUser, getTripById, createTrip, updateTrip, deleteTrip,
   getFlightsByTrip, createFlight, updateFlight, deleteFlight,
@@ -150,6 +157,11 @@ const flightsRouter = router({
   extractFromImage: protectedProcedure
     .input(z.object({ imageUrl: z.string() }))
     .mutation(async ({ input }) => {
+      if (!ENV.forgeApiKey) {
+        const text = await extractTextWithFreeOcr(input.imageUrl);
+        return parseFlightFromText(text);
+      }
+
       const res = await invokeLLM({
         messages: [
           {
@@ -238,6 +250,11 @@ const rentalsRouter = router({
   extractFromImage: protectedProcedure
     .input(z.object({ imageUrl: z.string() }))
     .mutation(async ({ input }) => {
+      if (!ENV.forgeApiKey) {
+        const text = await extractTextWithFreeOcr(input.imageUrl);
+        return parseRentalFromText(text);
+      }
+
       const res = await invokeLLM({
         messages: [
           {
@@ -347,6 +364,11 @@ const accommodationsRouter = router({
   extractFromImage: protectedProcedure
     .input(z.object({ imageUrl: z.string() }))
     .mutation(async ({ input }) => {
+      if (!ENV.forgeApiKey) {
+        const text = await extractTextWithFreeOcr(input.imageUrl);
+        return parseAccommodationFromText(text);
+      }
+
       const res = await invokeLLM({
         messages: [
           {
