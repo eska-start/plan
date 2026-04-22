@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: travel-planner
+    runtime: node
+    plan: free
+    autoDeploy: true
+    buildCommand: corepack enable && pnpm install --no-frozen-lockfile && pnpm build
+    startCommand: pnpm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: OCR_SPACE_API_KEY
+        value: helloworld
+      - key: VITE_GOOGLE_MAPS_API_KEY
+        sync: false
+      # Optional: if you still want to use Forge-backed AI/OAuth features.
+      - key: BUILT_IN_FORGE_API_URL
+        sync: false
+      - key: BUILT_IN_FORGE_API_KEY
+        sync: false
+      - key: OAUTH_SERVER_URL
+        sync: false
+      - key: VITE_OAUTH_PORTAL_URL
+        sync: false
+      - key: VITE_APP_ID
+        sync: false

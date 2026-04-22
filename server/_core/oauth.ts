@@ -20,6 +20,13 @@ function parseStateOrigin(state: string): { origin: string; returnPath: string }
   }
 }
 
+function sanitizeRedirectPath(redirect: string | undefined): string {
+  if (!redirect || redirect.trim().length === 0) return "/";
+  if (!redirect.startsWith("/")) return "/";
+  if (redirect.startsWith("//")) return "/";
+  return redirect;
+}
+
 export function registerOAuthRoutes(app: Express) {
   // Trust the proxy so req.protocol reflects the real HTTPS upstream
   app.set("trust proxy", 1);
@@ -73,7 +80,9 @@ export function registerOAuthRoutes(app: Express) {
   });
 
   app.get("/api/auth/guest-login", async (req: Request, res: Response) => {
-    const redirect = typeof req.query.redirect === "string" ? req.query.redirect : "/";
+    const redirect = sanitizeRedirectPath(
+      typeof req.query.redirect === "string" ? req.query.redirect : undefined
+    );
     try {
       const openId = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const name = `게스트-${openId.slice(-4)}`;
