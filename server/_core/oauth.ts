@@ -25,6 +25,19 @@ export function registerOAuthRoutes(app: Express) {
   // Trust the proxy so req.protocol reflects the real HTTPS upstream
   app.set("trust proxy", 1);
 
+  app.get("/api/auth/login", async (req: Request, res: Response) => {
+    try {
+      const protocol = req.protocol;
+      const host = req.get("host") ?? "";
+      const redirectUri = `${protocol}://${host}/api/oauth/callback`;
+      const redirectUrl = await sdk.getGoogleLoginUrl(redirectUri);
+      res.redirect(302, redirectUrl);
+    } catch (error) {
+      console.error("[OAuth] Failed to initiate Google login", error);
+      res.redirect(302, "/?error=login_failed");
+    }
+  });
+
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
     const state = getQueryParam(req, "state");

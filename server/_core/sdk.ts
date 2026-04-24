@@ -8,6 +8,8 @@ import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
 import type {
+  AuthorizeRequest,
+  AuthorizeResponse,
   ExchangeTokenRequest,
   ExchangeTokenResponse,
   GetUserInfoResponse,
@@ -24,6 +26,7 @@ export type SessionPayload = {
   name: string;
 };
 
+const AUTHORIZE_PATH = `/webdev.v1.WebDevAuthPublicService/Authorize`;
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
 const GET_USER_INFO_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfo`;
 const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfoWithJwt`;
@@ -41,6 +44,14 @@ class OAuthService {
   private decodeState(state: string): string {
     const redirectUri = atob(state);
     return redirectUri;
+  }
+
+  async authorize(params: AuthorizeRequest): Promise<AuthorizeResponse> {
+    const { data } = await this.client.post<AuthorizeResponse>(
+      AUTHORIZE_PATH,
+      params
+    );
+    return data;
   }
 
   async getTokenByCode(
@@ -111,6 +122,23 @@ class SDKServer {
     if (set.has("REGISTERED_PLATFORM_GITHUB")) return "github";
     const first = Array.from(set)[0];
     return first ? first.toLowerCase() : null;
+  }
+
+  /**
+   * Get the Google OAuth login URL from the OAuth server
+   * @example
+   * const url = await sdk.getGoogleLoginUrl("https://myapp.com/api/oauth/callback");
+   */
+  async getGoogleLoginUrl(redirectUri: string): Promise<string> {
+    const state = btoa(redirectUri);
+    const response = await this.oauthService.authorize({
+      redirectUri,
+      projectId: ENV.appId,
+      state,
+      responseType: "code",
+      scope: "openid email profile",
+    });
+    return response.redirectUrl;
   }
 
   /**
