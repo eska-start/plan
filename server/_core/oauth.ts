@@ -75,6 +75,7 @@ export function registerOAuthRoutes(app: Express) {
 
     const redirectUri = buildCallbackUri(req);
     const state = btoa(redirectUri);
+    console.log("[OAuth] Initiating Google login, redirectUri:", redirectUri);
 
     const params = new URLSearchParams({
       client_id: ENV.googleClientId,
@@ -108,8 +109,10 @@ export function registerOAuthRoutes(app: Express) {
       if (ENV.googleClientId && ENV.googleClientSecret) {
         // Direct Google OAuth flow
         const redirectUri = buildCallbackUri(req);
+        console.log("[OAuth] Exchanging code, redirectUri:", redirectUri);
         const { accessToken } = await exchangeGoogleCode(code, redirectUri);
         const userInfo = await getGoogleUserInfo(accessToken);
+        console.log("[OAuth] Google user:", userInfo.email);
         openId = `google_${userInfo.sub}`;
         name = userInfo.name ?? null;
         email = userInfo.email ?? null;
