@@ -63,6 +63,19 @@ export async function getUserById(id: number) {
   return r[0];
 }
 
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const r = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return r[0];
+}
+
+export async function setUserPasswordHash(openId: string, passwordHash: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ passwordHash }).where(eq(users.openId, openId));
+}
+
 // ─── Trips ────────────────────────────────────────────────────────────────────
 export async function getTripsByUser(userId: number) {
   const db = await getDb();
