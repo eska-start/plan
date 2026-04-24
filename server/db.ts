@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import {
   InsertUser, users,
   trips, InsertTrip,
@@ -18,7 +19,12 @@ let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
-    try { _db = drizzle(process.env.DATABASE_URL); }
+    try {
+      // Strip ssl-mode query param (not supported by mysql2) and enable SSL explicitly
+      const uri = process.env.DATABASE_URL.replace(/[?&]ssl-mode=[^&]*/i, "").replace(/\?$/, "");
+      const pool = mysql.createPool({ uri, ssl: { rejectUnauthorized: false }, waitForConnections: true, connectionLimit: 5 });
+      _db = drizzle(pool);
+    }
     catch (e) { console.warn("[Database] Failed to connect:", e); _db = null; }
   }
   return _db;
