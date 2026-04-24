@@ -30,7 +30,7 @@ function parseStateOrigin(state: string): { origin: string; returnPath: string }
 function buildCallbackUri(req: Request): string {
   const protocol = req.protocol;
   const host = req.get("host") ?? "";
-  return `${protocol}://${host}/api/oauth/callback`;
+  return `${protocol}://${host}/api/auth/google-callback`;
 }
 
 async function exchangeGoogleCode(
@@ -88,7 +88,7 @@ export function registerOAuthRoutes(app: Express) {
     res.redirect(302, `${GOOGLE_AUTH_URL}?${params.toString()}`);
   });
 
-  app.get("/api/oauth/callback", async (req: Request, res: Response) => {
+  app.get("/api/auth/google-callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
     const state = getQueryParam(req, "state");
 
