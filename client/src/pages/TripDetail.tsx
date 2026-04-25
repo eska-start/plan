@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { Loader2, ArrowLeft, Plane, Car, Hotel, StickyNote, CalendarDays, BookOpen, Map, Users } from "lucide-react";
+import { Loader2, ArrowLeft, Plane, Car, Hotel, StickyNote, CalendarDays, BookOpen, Map, Users, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format, parseISO, differenceInDays, eachDayOfInterval } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -76,14 +76,26 @@ export default function TripDetail() {
               <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
               <span>내 여행</span>
             </button>
-            {/* 공유 버튼 */}
-            <button
-              onClick={() => setShareOpen(true)}
-              className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>공유</span>
-            </button>
+            <div className="flex items-center gap-3">
+              {/* 내보내기 버튼 */}
+              <a
+                href={`/api/trips/${tripId}/export`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>내보내기</span>
+              </a>
+              {/* 공유 버튼 */}
+              <button
+                onClick={() => setShareOpen(true)}
+                className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>공유</span>
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1.5">
