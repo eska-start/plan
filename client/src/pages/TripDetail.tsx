@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { Loader2, ArrowLeft, Plane, Car, Hotel, StickyNote, CalendarDays, BookOpen, Map, Users, Download, ImagePlus } from "lucide-react";
+import { Loader2, ArrowLeft, Plane, Car, Hotel, StickyNote, CalendarDays, BookOpen, Map, Users, Download, ImagePlus, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format, parseISO, differenceInDays, eachDayOfInterval } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -14,6 +14,7 @@ import DiaryTab from "./trip-tabs/DiaryTab";
 import MapTab from "./trip-tabs/MapTab";
 import { ShareDialog } from "@/components/ShareDialog";
 import { ImportAllDialog } from "@/components/ImportAllDialog";
+import { AiImportDialog } from "@/components/AiImportDialog";
 
 const TABS = [
   { id: "flights", label: "항공편", icon: Plane },
@@ -30,6 +31,7 @@ export default function TripDetail() {
   const [, setLocation] = useLocation();
   const [shareOpen, setShareOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [aiImportOpen, setAiImportOpen] = useState(false);
   const tripId = parseInt(params.id);
   const activeTab = params.tab || "flights";
 
@@ -79,6 +81,14 @@ export default function TripDetail() {
               <span>내 여행</span>
             </button>
             <div className="flex items-center gap-3">
+              {/* AI 자동 입력 */}
+              <button
+                onClick={() => setAiImportOpen(true)}
+                className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
+              >
+                <Bot className="w-3.5 h-3.5" />
+                <span>AI 입력</span>
+              </button>
               {/* 이미지 통합 가져오기 */}
               <button
                 onClick={() => setImportOpen(true)}
@@ -183,6 +193,12 @@ export default function TripDetail() {
         tripId={tripId}
         open={importOpen}
         onOpenChange={setImportOpen}
+        onSaved={() => {}}
+      />
+      <AiImportDialog
+        tripId={tripId}
+        open={aiImportOpen}
+        onOpenChange={setAiImportOpen}
         onSaved={() => {}}
       />
     </div>
