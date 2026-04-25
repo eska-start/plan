@@ -181,7 +181,15 @@ const tripsRouter = router({
       });
       try {
         const raw = res.choices?.[0]?.message?.content;
-        return JSON.parse(typeof raw === "string" ? raw : "{}");
+        const parsed = JSON.parse(typeof raw === "string" ? raw : "{}") as Record<string, unknown>;
+        return {
+          flights: Array.isArray(parsed.flights) ? parsed.flights : [],
+          accommodations: Array.isArray(parsed.accommodations) ? parsed.accommodations
+            : parsed.accommodation ? [parsed.accommodation] : [],
+          rentals: Array.isArray(parsed.rentals) ? parsed.rentals
+            : parsed.rental ? [parsed.rental] : [],
+          reply: typeof parsed.reply === "string" ? parsed.reply : "",
+        };
       } catch {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI 응답 파싱에 실패했습니다." });
       }
@@ -223,7 +231,16 @@ const tripsRouter = router({
       });
       try {
         const raw = res.choices?.[0]?.message?.content;
-        return JSON.parse(typeof raw === "string" ? raw : "{}");
+        const parsed = JSON.parse(typeof raw === "string" ? raw : "{}") as Record<string, unknown>;
+        // AI가 singular key로 반환하는 경우 배열로 정규화
+        return {
+          flights: Array.isArray(parsed.flights) ? parsed.flights : [],
+          accommodations: Array.isArray(parsed.accommodations) ? parsed.accommodations
+            : parsed.accommodation ? [parsed.accommodation] : [],
+          rentals: Array.isArray(parsed.rentals) ? parsed.rentals
+            : parsed.rental ? [parsed.rental] : [],
+          reply: typeof parsed.reply === "string" ? parsed.reply : "",
+        };
       } catch {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI 응답 파싱에 실패했습니다." });
       }

@@ -91,7 +91,28 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
   const createAccommodation = trpc.accommodations.create.useMutation();
   const createRental = trpc.rentals.create.useMutation();
 
-  const applyResult = (data: ExtractResult) => {
+  const applyResult = (raw: unknown) => {
+    const d = raw as Record<string, unknown>;
+    // AI가 singular key나 null을 반환하는 경우 방어
+    const flights: FlightData[] = Array.isArray(d.flights) ? d.flights as FlightData[]
+      : Array.isArray(d.flight) ? [d.flight as FlightData] : [];
+    const accommodations: AccommodationData[] = Array.isArray(d.accommodations) ? d.accommodations as AccommodationData[]
+      : d.accommodation && typeof d.accommodation === "object" ? [d.accommodation as AccommodationData]
+      : Array.isArray(d.hotel) ? d.hotel as AccommodationData[] : [];
+    const rentals: RentalData[] = Array.isArray(d.rentals) ? d.rentals as RentalData[]
+      : d.rental && typeof d.rental === "object" ? [d.rental as RentalData] : [];
+
+    const data: ExtractResult = {
+      flights,
+      accommodations: accommodations.map(a => ({
+        ...a,
+        // checkIn/checkOut은 DB varchar(10) 제한 - YYYY-MM-DD 부분만 사용
+        checkIn: a.checkIn ? a.checkIn.slice(0, 10) : null,
+        checkOut: a.checkOut ? a.checkOut.slice(0, 10) : null,
+      })),
+      rentals,
+      reply: typeof d.reply === "string" ? d.reply : "",
+    };
     setResult(data);
     setSelectedFlights(new Set(data.flights.map((_, i) => i)));
     setSelectedAccommodations(new Set(data.accommodations.map((_, i) => i)));
@@ -162,7 +183,7 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
       toast.success(`${saved}건 저장됐습니다.`);
       onSaved();
       handleClose();
-    } catch { toast.error("저장 중 오류가 발생했습니다."); }
+    } catch (e) { console.error("[AiImportDialog] save error:", e); toast.error("저장 중 오류가 발생했습니다."); }
     finally { setSaving(false); }
   };
 
