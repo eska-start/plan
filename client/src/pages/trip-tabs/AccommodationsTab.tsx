@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Hotel, Loader2, MapPin, Hash, Calendar } from "lucide-react";
+import { Hotel, Loader2, MapPin, Hash, Calendar, Map } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -153,6 +153,15 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
                   )}
                 </div>
                 <div className="flex gap-1 shrink-0">
+                  <a
+                    href={`https://maps.google.com/?q=${encodeURIComponent([a.name, a.address].filter(Boolean).join(" "))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors flex items-center gap-1"
+                    title="구글 지도에서 보기"
+                  >
+                    <Map className="w-3 h-3" />
+                  </a>
                   <button onClick={() => openEdit(a)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
                   <button onClick={() => deleteMutation.mutate({ id: a.id, tripId })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors">삭제</button>
                 </div>

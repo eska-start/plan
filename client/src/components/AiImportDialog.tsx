@@ -1,12 +1,9 @@
-import { useState } from "react";
-import { Loader2, Plane, Hotel, Car, CheckCircle2, Circle, Sparkles, Bot } from "lucide-react";
+import { useRef, useState } from "react";
+import { Camera, FolderOpen, Loader2, Plane, Hotel, Car, CheckCircle2, Circle, Sparkles, Bot, Type, Image as ImageIcon } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,51 +16,29 @@ interface Props {
 }
 
 type FlightData = {
-  airline: string | null;
-  flightNumber: string | null;
-  departureAirport: string | null;
-  arrivalAirport: string | null;
-  departureTime: string | null;
-  arrivalTime: string | null;
-  bookingRef: string | null;
-  seatNumber: string | null;
+  airline: string | null; flightNumber: string | null;
+  departureAirport: string | null; arrivalAirport: string | null;
+  departureTime: string | null; arrivalTime: string | null;
+  bookingRef: string | null; seatNumber: string | null;
   type: "departure" | "return" | "transit" | null;
 };
-
 type AccommodationData = {
-  name: string | null;
-  address: string | null;
-  checkIn: string | null;
-  checkOut: string | null;
-  bookingRef: string | null;
-  price: string | null;
-  currency: string | null;
+  name: string | null; address: string | null;
+  checkIn: string | null; checkOut: string | null;
+  bookingRef: string | null; price: string | null; currency: string | null;
 };
-
 type RentalData = {
-  company: string | null;
-  carModel: string | null;
-  pickupLocation: string | null;
-  dropoffLocation: string | null;
-  pickupTime: string | null;
-  dropoffTime: string | null;
-  bookingRef: string | null;
-  price: string | null;
-  currency: string | null;
+  company: string | null; carModel: string | null;
+  pickupLocation: string | null; dropoffLocation: string | null;
+  pickupTime: string | null; dropoffTime: string | null;
+  bookingRef: string | null; price: string | null; currency: string | null;
 };
-
 type ExtractResult = {
-  flights: FlightData[];
-  accommodations: AccommodationData[];
-  rentals: RentalData[];
-  reply: string;
+  flights: FlightData[]; accommodations: AccommodationData[];
+  rentals: RentalData[]; reply: string;
 };
 
-const FLIGHT_TYPE_LABEL: Record<string, string> = {
-  departure: "가는편",
-  return: "오는편",
-  transit: "경유",
-};
+const FLIGHT_TYPE_LABEL: Record<string, string> = { departure: "가는편", return: "오는편", transit: "경유" };
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
@@ -75,13 +50,32 @@ function Row({ label, value }: { label: string; value: string | null | undefined
   );
 }
 
-const SUGGESTED = [
-  "제주항공 7C1603, 5월 24일 14:55 ICN→FSZ, 오는편 7C1602 30일 10:00 FSZ→ICN 등록해줘",
-  "예약 확인서 내용을 여기에 붙여넣으세요",
-  "호텔 이름, 체크인/아웃 날짜를 알려주세요",
-];
+function resizeToBase64(file: File, maxPx = 1400, quality = 0.88): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxPx || height > maxPx) {
+        if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
+        else { width = Math.round(width * maxPx / height); height = maxPx; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
 
 export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const [mode, setMode] = useState<"text" | "image">("text");
   const [step, setStep] = useState<"input" | "preview">("input");
   const [text, setText] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -91,31 +85,52 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
   const [selectedAccommodations, setSelectedAccommodations] = useState<Set<number>>(new Set());
   const [selectedRentals, setSelectedRentals] = useState<Set<number>>(new Set());
 
-  const extractMutation = trpc.trips.aiExtract.useMutation();
+  const textExtract = trpc.trips.aiExtract.useMutation();
+  const imageExtract = trpc.trips.aiExtractFromImage.useMutation();
   const createFlight = trpc.flights.create.useMutation();
   const createAccommodation = trpc.accommodations.create.useMutation();
   const createRental = trpc.rentals.create.useMutation();
 
-  const handleAnalyze = async () => {
+  const applyResult = (data: ExtractResult) => {
+    setResult(data);
+    setSelectedFlights(new Set(data.flights.map((_, i) => i)));
+    setSelectedAccommodations(new Set(data.accommodations.map((_, i) => i)));
+    setSelectedRentals(new Set(data.rentals.map((_, i) => i)));
+    setStep("preview");
+  };
+
+  const handleText = async () => {
     if (!text.trim()) return;
     setAnalyzing(true);
     try {
-      const data = await extractMutation.mutateAsync({ tripId, text: text.trim() }) as ExtractResult;
-      setResult(data);
-      setSelectedFlights(new Set(data.flights.map((_, i) => i)));
-      setSelectedAccommodations(new Set(data.accommodations.map((_, i) => i)));
-      setSelectedRentals(new Set(data.rentals.map((_, i) => i)));
-      setStep("preview");
+      const data = await textExtract.mutateAsync({ tripId, text: text.trim() }) as ExtractResult;
+      applyResult(data);
     } catch (e: any) {
-      const msg = e?.message ?? "";
-      if (msg.includes("LLM_API_KEY")) {
-        toast.error("AI 기능을 사용하려면 서버에 LLM_API_KEY 환경변수를 설정해야 합니다.");
-      } else {
-        toast.error("AI 분석에 실패했습니다. 잠시 후 다시 시도해보세요.");
-      }
-    } finally {
-      setAnalyzing(false);
-    }
+      toast.error(e?.message?.includes("LLM_API_KEY")
+        ? "서버에 LLM_API_KEY 환경변수를 설정해야 합니다."
+        : "AI 분석에 실패했습니다.");
+    } finally { setAnalyzing(false); }
+  };
+
+  const handleImage = async (file: File) => {
+    if (!file.type.startsWith("image/")) { toast.error("이미지 파일만 업로드할 수 있습니다."); return; }
+    if (file.size > 15 * 1024 * 1024) { toast.error("파일 크기는 15MB 이하여야 합니다."); return; }
+    setAnalyzing(true);
+    try {
+      const base64 = await resizeToBase64(file);
+      const data = await imageExtract.mutateAsync({ tripId, imageBase64: base64 }) as ExtractResult;
+      applyResult(data);
+    } catch (e: any) {
+      toast.error(e?.message?.includes("LLM_API_KEY")
+        ? "서버에 LLM_API_KEY 환경변수를 설정해야 합니다."
+        : "이미지 분석에 실패했습니다. 더 선명한 이미지로 다시 시도해보세요.");
+    } finally { setAnalyzing(false); }
+  };
+
+  const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) handleImage(f);
+    e.target.value = "";
   };
 
   const handleSave = async () => {
@@ -123,61 +138,41 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
     setSaving(true);
     let saved = 0;
     try {
-      for (let i = 0; i < result.flights.length; i++) {
+      const flights = result.flights;
+      for (let i = 0; i < flights.length; i++) {
         if (!selectedFlights.has(i)) continue;
-        const f = result.flights[i];
-        await createFlight.mutateAsync({
-          tripId, type: f.type ?? "departure",
-          airline: f.airline ?? "", flightNumber: f.flightNumber ?? "",
-          departureAirport: f.departureAirport ?? "", arrivalAirport: f.arrivalAirport ?? "",
-          departureTime: f.departureTime ?? "", arrivalTime: f.arrivalTime ?? "",
-          bookingRef: f.bookingRef ?? "", seatNumber: f.seatNumber ?? "", memo: "",
-        });
+        const f = flights[i];
+        await createFlight.mutateAsync({ tripId, type: f.type ?? "departure", airline: f.airline ?? "", flightNumber: f.flightNumber ?? "", departureAirport: f.departureAirport ?? "", arrivalAirport: f.arrivalAirport ?? "", departureTime: f.departureTime ?? "", arrivalTime: f.arrivalTime ?? "", bookingRef: f.bookingRef ?? "", seatNumber: f.seatNumber ?? "", memo: "" });
         saved++;
       }
-      for (let i = 0; i < result.accommodations.length; i++) {
+      const accomms = result.accommodations;
+      for (let i = 0; i < accomms.length; i++) {
         if (!selectedAccommodations.has(i)) continue;
-        const a = result.accommodations[i];
-        await createAccommodation.mutateAsync({
-          tripId, name: a.name ?? "숙소",
-          address: a.address ?? "", checkIn: a.checkIn ?? "", checkOut: a.checkOut ?? "",
-          bookingRef: a.bookingRef ?? "", price: a.price ?? undefined,
-          currency: a.currency ?? "KRW", memo: "",
-        });
+        const a = accomms[i];
+        await createAccommodation.mutateAsync({ tripId, name: a.name ?? "숙소", address: a.address ?? "", checkIn: a.checkIn ?? "", checkOut: a.checkOut ?? "", bookingRef: a.bookingRef ?? "", price: a.price ?? undefined, currency: a.currency ?? "KRW", memo: "" });
         saved++;
       }
-      for (let i = 0; i < result.rentals.length; i++) {
+      const rentals = result.rentals;
+      for (let i = 0; i < rentals.length; i++) {
         if (!selectedRentals.has(i)) continue;
-        const r = result.rentals[i];
-        await createRental.mutateAsync({
-          tripId, company: r.company ?? "", carModel: r.carModel ?? "",
-          pickupLocation: r.pickupLocation ?? "", dropoffLocation: r.dropoffLocation ?? "",
-          pickupTime: r.pickupTime ?? "", dropoffTime: r.dropoffTime ?? "",
-          bookingRef: r.bookingRef ?? "", price: r.price ?? undefined,
-          currency: r.currency ?? "KRW", memo: "",
-        });
+        const r = rentals[i];
+        await createRental.mutateAsync({ tripId, company: r.company ?? "", carModel: r.carModel ?? "", pickupLocation: r.pickupLocation ?? "", dropoffLocation: r.dropoffLocation ?? "", pickupTime: r.pickupTime ?? "", dropoffTime: r.dropoffTime ?? "", bookingRef: r.bookingRef ?? "", price: r.price ?? undefined, currency: r.currency ?? "KRW", memo: "" });
         saved++;
       }
       toast.success(`${saved}건 저장됐습니다.`);
       onSaved();
       handleClose();
-    } catch {
-      toast.error("저장 중 오류가 발생했습니다.");
-    } finally {
-      setSaving(false);
-    }
+    } catch { toast.error("저장 중 오류가 발생했습니다."); }
+    finally { setSaving(false); }
   };
 
   const handleClose = () => {
-    setStep("input");
-    setText("");
-    setResult(null);
-    setAnalyzing(false);
-    setSaving(false);
+    setStep("input"); setText(""); setResult(null);
+    setAnalyzing(false); setSaving(false);
     onOpenChange(false);
   };
 
-  const toggle = (set: Set<number>, i: number): Set<number> => {
+  const toggle = (set: Set<number>, i: number) => {
     const next = new Set(set);
     next.has(i) ? next.delete(i) : next.add(i);
     return next;
@@ -198,66 +193,80 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
 
         {step === "input" && (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              예약 확인서 텍스트를 붙여넣거나, 자연어로 여행 정보를 입력하면 AI가 항공편·숙박·렌트카를 자동으로 등록합니다.
-            </p>
+            {/* 모드 탭 */}
+            <div className="flex gap-1 p-1 bg-muted rounded-lg">
+              <button
+                onClick={() => setMode("text")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === "text" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <Type className="w-3.5 h-3.5" />텍스트 입력
+              </button>
+              <button
+                onClick={() => setMode("image")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === "image" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <ImageIcon className="w-3.5 h-3.5" />이미지 분석
+              </button>
+            </div>
 
-            <Textarea
-              value={text}
-              onChange={e => setText(e.target.value)}
-              placeholder={"예) 제주항공 7C1603, 5월 24일 14:55 ICN→FSZ 등록해줘\n\n또는 예약 확인서 전체 내용을 붙여넣기"}
-              className="min-h-[160px] resize-none text-sm"
-              autoFocus
-            />
-
-            {!text && (
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground font-medium">예시</p>
-                <div className="space-y-1.5">
-                  {SUGGESTED.map((s, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setText(s)}
-                      className="w-full text-left text-xs px-3 py-2 rounded-lg border border-dashed border-border hover:bg-muted/50 transition-colors text-muted-foreground"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
+            {analyzing ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <p className="text-sm">AI 분석 중...</p>
               </div>
+            ) : mode === "text" ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  예약 확인서 텍스트를 붙여넣거나 자연어로 입력하세요.
+                </p>
+                <Textarea
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                  placeholder={"예) 제주항공 7C1603, 5월 24일 14:55 ICN→FSZ 등록해줘\n\n또는 예약 확인서 전체 내용을 붙여넣기"}
+                  className="min-h-[140px] resize-none text-sm"
+                  autoFocus
+                />
+                <Button onClick={handleText} disabled={!text.trim()} className="w-full">
+                  <Sparkles className="w-4 h-4 mr-2" />AI로 분석하기
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  항공권·예약 확인서 이미지를 올리면 Gemini가 내용을 직접 읽어 분석합니다.
+                </p>
+                <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFileInput} />
+                <input ref={fileRef} type="file" accept="image/*,image/heic,image/heif" className="hidden" onChange={onFileInput} />
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={() => cameraRef.current?.click()}
+                    className="flex flex-col items-center gap-2 py-8 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 transition-all text-primary">
+                    <Camera className="w-6 h-6" />
+                    <span className="text-sm font-medium">카메라 촬영</span>
+                  </button>
+                  <button onClick={() => fileRef.current?.click()}
+                    className="flex flex-col items-center gap-2 py-8 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 hover:bg-indigo-100 transition-all text-indigo-600">
+                    <FolderOpen className="w-6 h-6" />
+                    <span className="text-sm font-medium">파일 선택</span>
+                  </button>
+                </div>
+              </>
             )}
-
-            <Button
-              onClick={handleAnalyze}
-              disabled={!text.trim() || analyzing}
-              className="w-full"
-            >
-              {analyzing ? (
-                <><Loader2 className="w-4 h-4 animate-spin mr-2" />AI 분석 중...</>
-              ) : (
-                <><Sparkles className="w-4 h-4 mr-2" />AI로 분석하기</>
-              )}
-            </Button>
           </div>
         )}
 
         {step === "preview" && result && (
           <div className="space-y-4">
-            {/* AI 응답 */}
             {result.reply && (
               <div className="flex gap-2 p-3 rounded-xl bg-primary/5 border border-primary/15">
                 <Sparkles className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                <p className="text-sm text-foreground">{result.reply}</p>
+                <p className="text-sm">{result.reply}</p>
               </div>
             )}
 
             {!hasAny ? (
               <div className="py-6 text-center text-sm text-muted-foreground">
                 <p>추출된 여행 정보가 없습니다.</p>
-                <p className="text-xs mt-1">더 구체적인 정보를 입력해보세요.</p>
-                <Button variant="outline" size="sm" className="mt-4" onClick={() => setStep("input")}>
-                  다시 입력
-                </Button>
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => setStep("input")}>다시 시도</Button>
               </div>
             ) : (
               <>
@@ -326,11 +335,8 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
                 ))}
 
                 <p className="text-xs text-muted-foreground">저장 후 각 탭에서 수정할 수 있습니다.</p>
-
                 <div className="flex gap-2 pt-1">
-                  <Button variant="outline" size="sm" onClick={() => setStep("input")} className="flex-1">
-                    다시 입력
-                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setStep("input")} className="flex-1">다시 입력</Button>
                   <Button size="sm" onClick={handleSave} disabled={!anySelected || saving} className="flex-1">
                     {saving && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
                     저장

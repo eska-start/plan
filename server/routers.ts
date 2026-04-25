@@ -187,7 +187,49 @@ const tripsRouter = router({
       }
     }),
 
-  // 이미지 한 장에서 항공편·숙박·렌트카 동시 추출 (무료 OCR)
+  // AI 이미지 분석으로 여행 데이터 추출 (Gemini 비전)
+  aiExtractFromImage: protectedProcedure
+    .input(z.object({ tripId: z.number(), imageBase64: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await getTripById(input.tripId, ctx.user.id);
+      if (!ENV.llmApiKey) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 설정되지 않았습니다." });
+      }
+      const dataUri = input.imageBase64.startsWith("data:")
+        ? input.imageBase64
+        : `data:image/jpeg;base64,${input.imageBase64}`;
+      const systemPrompt = `당신은 여행 예약 이미지 분석 전문가입니다. 이미지에서 여행 예약 정보를 추출해 JSON만 반환합니다.
+
+반환 스키마:
+{
+  "flights": [{ "airline": string|null, "flightNumber": string|null, "departureAirport": string|null, "arrivalAirport": string|null, "departureTime": string|null, "arrivalTime": string|null, "bookingRef": string|null, "seatNumber": string|null, "type": "departure"|"return"|"transit"|null }],
+  "accommodations": [{ "name": string|null, "address": string|null, "checkIn": string|null, "checkOut": string|null, "bookingRef": string|null, "price": string|null, "currency": string|null }],
+  "rentals": [{ "company": string|null, "carModel": string|null, "pickupLocation": string|null, "dropoffLocation": string|null, "pickupTime": string|null, "dropoffTime": string|null, "bookingRef": string|null, "price": string|null, "currency": string|null }],
+  "reply": string
+}
+규칙: 날짜=YYYY-MM-DD, 시간=HH:mm, 날짜+시간=YYYY-MM-DDTHH:mm, 공항=IATA 3자리, 가는편=departure, 오는편=return, reply는 한국어로 추출 내용 요약, 빈배열=[]`;
+      const res = await invokeLLM({
+        messages: [
+          { role: "system" as const, content: systemPrompt },
+          {
+            role: "user" as const,
+            content: [
+              { type: "text" as const, text: "이 예약 확인서 이미지에서 여행 정보를 추출해주세요." },
+              { type: "image_url" as const, image_url: { url: dataUri, detail: "high" as const } },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+      });
+      try {
+        const raw = res.choices?.[0]?.message?.content;
+        return JSON.parse(typeof raw === "string" ? raw : "{}");
+      } catch {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI 응답 파싱에 실패했습니다." });
+      }
+    }),
+
+  // 이미지 한 장에서 항공편·숙박·렌트카 동시 추출 (무료 OCR 폴백)
   importAllFromImage: protectedProcedure
     .input(z.object({ tripId: z.number(), imageBase64: z.string() }))
     .mutation(async ({ ctx, input }) => {

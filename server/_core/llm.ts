@@ -296,10 +296,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
+  // max_tokens: Gemini 기본값으로 충분, thinking은 OpenAI 호환 엔드포인트에서 미지원
+  payload.max_tokens = 4096;
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
