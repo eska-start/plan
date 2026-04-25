@@ -10,9 +10,13 @@ import { invokeLLM, type Message } from "./_core/llm";
 import { ENV } from "./_core/env";
 import {
   extractTextWithFreeOcr,
+  extractTextWithFreeOcrBase64,
   parseAccommodationFromText,
   parseFlightFromText,
   parseRentalFromText,
+  hasFlight,
+  hasAccommodation,
+  hasRental,
 } from "./_core/freeOcr";
 import {
   getTripsByUser, getTripById, createTrip, updateTrip, deleteTrip,
@@ -106,6 +110,23 @@ const tripsRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(({ ctx, input }) => deleteTrip(input.id, ctx.user.id)),
+
+  // 이미지 한 장에서 항공편·숙박·렌트카 동시 추출 (무료 OCR)
+  importAllFromImage: protectedProcedure
+    .input(z.object({ tripId: z.number(), imageBase64: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await getTripById(input.tripId, ctx.user.id); // 접근 권한 확인
+      const text = await extractTextWithFreeOcrBase64(input.imageBase64);
+      const flight = parseFlightFromText(text);
+      const accommodation = parseAccommodationFromText(text);
+      const rental = parseRentalFromText(text);
+      return {
+        rawText: text,
+        flight: hasFlight(flight) ? flight : null,
+        accommodation: hasAccommodation(accommodation) ? accommodation : null,
+        rental: hasRental(rental) ? rental : null,
+      };
+    }),
 });
 
 // ─── Flights Router ───────────────────────────────────────────────────────────

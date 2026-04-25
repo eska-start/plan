@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { Loader2, ArrowLeft, Plane, Car, Hotel, StickyNote, CalendarDays, BookOpen, Map, Users, Download } from "lucide-react";
+import { Loader2, ArrowLeft, Plane, Car, Hotel, StickyNote, CalendarDays, BookOpen, Map, Users, Download, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format, parseISO, differenceInDays, eachDayOfInterval } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -13,6 +13,7 @@ import ItineraryTab from "./trip-tabs/ItineraryTab";
 import DiaryTab from "./trip-tabs/DiaryTab";
 import MapTab from "./trip-tabs/MapTab";
 import { ShareDialog } from "@/components/ShareDialog";
+import { ImportAllDialog } from "@/components/ImportAllDialog";
 
 const TABS = [
   { id: "flights", label: "항공편", icon: Plane },
@@ -28,6 +29,7 @@ export default function TripDetail() {
   const params = useParams<{ id: string; tab?: string }>();
   const [, setLocation] = useLocation();
   const [shareOpen, setShareOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const tripId = parseInt(params.id);
   const activeTab = params.tab || "flights";
 
@@ -77,6 +79,14 @@ export default function TripDetail() {
               <span>내 여행</span>
             </button>
             <div className="flex items-center gap-3">
+              {/* 이미지 통합 가져오기 */}
+              <button
+                onClick={() => setImportOpen(true)}
+                className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
+              >
+                <ImagePlus className="w-3.5 h-3.5" />
+                <span>가져오기</span>
+              </button>
               {/* 내보내기 버튼 */}
               <a
                 href={`/api/trips/${tripId}/export`}
@@ -163,12 +173,17 @@ export default function TripDetail() {
         {activeTab === "map" && <MapTab tripId={tripId} tripDays={tripDays} />}
       </div>
 
-      {/* ── Share Dialog ── */}
       <ShareDialog
         tripId={tripId}
         tripName={trip.name}
         open={shareOpen}
         onOpenChange={setShareOpen}
+      />
+      <ImportAllDialog
+        tripId={tripId}
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onSaved={() => {}}
       />
     </div>
   );
