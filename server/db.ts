@@ -22,7 +22,13 @@ export async function getDb() {
     try {
       // Strip ssl-mode query param (not supported by mysql2) and enable SSL explicitly
       const uri = process.env.DATABASE_URL.replace(/[?&]ssl-mode=[^&]*/i, "").replace(/\?$/, "");
-      const pool = mysql.createPool({ uri, ssl: { rejectUnauthorized: false }, waitForConnections: true, connectionLimit: 5 });
+      const pool = mysql.createPool({
+        uri,
+        ssl: { rejectUnauthorized: false },
+        waitForConnections: true,
+        connectionLimit: 5,
+        connectTimeout: 5000,   // 5초 안에 연결 못 하면 즉시 실패
+      });
       _db = drizzle(pool);
     }
     catch (e) { console.warn("[Database] Failed to connect:", e); _db = null; }
