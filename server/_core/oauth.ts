@@ -157,6 +157,12 @@ export function registerOAuthRoutes(app: Express) {
     }
   });
 
+  app.get("/api/auth/clear", (req: Request, res: Response) => {
+    const cookieOptions = getSessionCookieOptions(req);
+    res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+    res.redirect(302, "/");
+  });
+
   app.get("/api/auth/guest-login", async (req: Request, res: Response) => {
     const redirect = sanitizeGuestRedirect(
       typeof req.query.redirect === "string" ? req.query.redirect : undefined
