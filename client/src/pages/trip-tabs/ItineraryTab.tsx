@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { loadMapScript } from "@/components/Map";
 import { toast } from "sonner";
 import {
   CalendarDays, Loader2, MapPin, Clock, CheckCircle2, Circle,
@@ -43,6 +44,8 @@ type ItineraryItem = {
   category?: string | null;
   sourceType?: string | null;
   order?: number | null;
+  lat?: string | null;
+  lng?: string | null;
 };
 
 type FormData = {
@@ -52,10 +55,13 @@ type FormData = {
   duration: string;
   memo: string;
   category: string;
+  lat: string;
+  lng: string;
 };
 
 const defaultForm: FormData = {
   placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place",
+  lat: "", lng: "",
 };
 
 const CATEGORIES = [
@@ -198,6 +204,8 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
   const [form, setForm] = useState<FormData>(defaultForm);
   // 낙관적 순서 상태 (드래그 중 즉시 반영)
   const [localOrder, setLocalOrder] = useState<number[] | null>(null);
+  const placeInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const utils = trpc.useUtils();
 
   const { data: items, isLoading } = trpc.itinerary.listByDate.useQuery(
@@ -212,6 +220,47 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
     const map = new Map((items as ItineraryItem[]).map(i => [i.id, i]));
     return localOrder.map(id => map.get(id)).filter((x): x is ItineraryItem => x !== undefined);
   })();
+
+  // Google Places Autocomplete 초기화 (다이얼로그 열릴 때마다)
+  useEffect(() => {
+    if (!dialogOpen) return;
+    let destroyed = false;
+
+    async function init() {
+      if (!window.google?.maps?.places) await loadMapScript();
+      if (destroyed || !placeInputRef.current || !window.google?.maps?.places) return;
+
+      if (autocompleteRef.current) {
+        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
+
+      const ac = new window.google.maps.places.Autocomplete(placeInputRef.current, {
+        fields: ["name", "formatted_address", "geometry"],
+      });
+
+      ac.addListener("place_changed", () => {
+        const place = ac.getPlace();
+        if (!place) return;
+        setForm(f => ({
+          ...f,
+          placeName: place.name ?? f.placeName,
+          address: place.formatted_address ?? f.address,
+          lat: place.geometry?.location?.lat().toString() ?? f.lat,
+          lng: place.geometry?.location?.lng().toString() ?? f.lng,
+        }));
+      });
+
+      autocompleteRef.current = ac;
+    }
+
+    init();
+    return () => {
+      destroyed = true;
+      if (autocompleteRef.current && window.google?.maps) {
+        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
+    };
+  }, [dialogOpen]);
 
   const createMutation = trpc.itinerary.create.useMutation({
     onSuccess: () => {
@@ -284,13 +333,24 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
       duration: item.duration?.toString() ?? "",
       memo: item.memo ?? "",
       category: item.category ?? "place",
+      lat: item.lat ?? "",
+      lng: item.lng ?? "",
     });
     setDialogOpen(true);
   };
 
   const handleSubmit = () => {
     if (!form.placeName) { toast.error("장소명을 입력해주세요."); return; }
-    const data = { ...form, duration: form.duration ? parseInt(form.duration) : undefined };
+    const data = {
+      placeName: form.placeName,
+      address: form.address || undefined,
+      visitTime: form.visitTime || undefined,
+      duration: form.duration ? parseInt(form.duration) : undefined,
+      memo: form.memo || undefined,
+      category: form.category,
+      lat: form.lat || undefined,
+      lng: form.lng || undefined,
+    };
     if (editId) updateMutation.mutate({ id: editId, ...data });
     else createMutation.mutate({ tripId, date: selectedDate, order: (items?.length ?? 0), ...data });
   };
@@ -430,11 +490,22 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">장소명 <span className="text-destructive">*</span></Label>
-              <Input className="h-10" placeholder="아사쿠사 센소지" value={form.placeName} onChange={e => setForm(f => ({ ...f, placeName: e.target.value }))} />
+              <Input
+                ref={placeInputRef}
+                className="h-10"
+                placeholder="장소를 검색하세요 (예: 센소지, 에펠탑…)"
+                value={form.placeName}
+                onChange={e => setForm(f => ({ ...f, placeName: e.target.value, lat: "", lng: "" }))}
+              />
+              {form.lat && form.lng && (
+                <p className="text-xs text-green-600 flex items-center gap-1">
+                  <MapPin className="w-3 h-3" />위치 좌표 저장됨
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">주소</Label>
-              <Input className="h-10" placeholder="도쿄 다이토구 아사쿠사 2-3-1" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
+              <Input className="h-10" placeholder="자동 입력되거나 직접 입력" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">방문 시간</Label>

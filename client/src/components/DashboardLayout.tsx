@@ -19,10 +19,8 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
-  Plane,
   LogOut,
   PanelLeft,
   MapPin,
@@ -31,7 +29,6 @@ import {
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
-import { Button } from "./ui/button";
 
 const menuItems = [
   { icon: Compass, label: "내 여행", path: "/" },
@@ -62,30 +59,7 @@ export default function DashboardLayout({
   }
 
   if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-accent/20 flex items-center justify-center">
-              <Plane className="w-8 h-8 text-accent" />
-            </div>
-            <h1 className="text-3xl font-serif font-semibold tracking-tight text-center text-foreground">
-              Travel Journal
-            </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-xs leading-relaxed">
-              나만의 여행을 기록하고 추억을 간직하세요. 로그인하여 시작하세요.
-            </p>
-          </div>
-          <Button
-            onClick={() => { window.location.href = getLoginUrl(); }}
-            size="lg"
-            className="w-full shadow-md hover:shadow-lg transition-all bg-primary text-primary-foreground"
-          >
-            로그인하여 시작하기
-          </Button>
-        </div>
-      </div>
-    );
+    return <>{children}</>;
   }
 
   return (
