@@ -294,11 +294,10 @@ const flightsRouter = router({
 
   // ── OCR: 사진으로 항공편 정보 추출 ──
   extractFromImage: protectedProcedure
-    .input(z.object({ imageUrl: z.string() }))
+    .input(z.object({ imageBase64: z.string() }))
     .mutation(async ({ input }) => {
       if (!ENV.llmApiKey) {
-        const text = await extractTextWithFreeOcr(input.imageUrl);
-        return parseFlightFromText(text);
+        return {};
       }
 
       const res = await invokeLLM({
@@ -324,7 +323,7 @@ For times, use ISO 8601 format (YYYY-MM-DDTHH:mm) if date is visible, otherwise 
             role: "user" as const,
             content: [
               { type: "text" as const, text: "항공권 또는 e-ticket 이미지에서 정보를 추출해주세요." },
-              { type: "image_url" as const, image_url: { url: input.imageUrl, detail: "high" as const } },
+              { type: "image_url" as const, image_url: { url: input.imageBase64, detail: "high" as const } },
             ],
           } as Message,
         ],
@@ -387,11 +386,10 @@ const rentalsRouter = router({
 
   // ── OCR: 사진으로 렌트카 정보 추출 ──
   extractFromImage: protectedProcedure
-    .input(z.object({ imageUrl: z.string() }))
+    .input(z.object({ imageBase64: z.string() }))
     .mutation(async ({ input }) => {
       if (!ENV.llmApiKey) {
-        const text = await extractTextWithFreeOcr(input.imageUrl);
-        return parseRentalFromText(text);
+        return {};
       }
 
       const res = await invokeLLM({
@@ -417,7 +415,7 @@ For times, use ISO 8601 format (YYYY-MM-DDTHH:mm) if date is visible.`,
             role: "user" as const,
             content: [
               { type: "text" as const, text: "렌트카 예약 확인서 이미지에서 정보를 추출해주세요." },
-              { type: "image_url" as const, image_url: { url: input.imageUrl, detail: "high" as const } },
+              { type: "image_url" as const, image_url: { url: input.imageBase64, detail: "high" as const } },
             ],
           } as Message,
         ],
@@ -501,11 +499,10 @@ const accommodationsRouter = router({
 
   // ── OCR: 사진으로 숙박 정보 추출 ──
   extractFromImage: protectedProcedure
-    .input(z.object({ imageUrl: z.string() }))
+    .input(z.object({ imageBase64: z.string() }))
     .mutation(async ({ input }) => {
       if (!ENV.llmApiKey) {
-        const text = await extractTextWithFreeOcr(input.imageUrl);
-        return parseAccommodationFromText(text);
+        return {};
       }
 
       const res = await invokeLLM({
@@ -529,7 +526,7 @@ For dates, use YYYY-MM-DD format.`,
             role: "user" as const,
             content: [
               { type: "text" as const, text: "호텔 또는 숙박 예약 확인서 이미지에서 정보를 추출해주세요." },
-              { type: "image_url" as const, image_url: { url: input.imageUrl, detail: "high" as const } },
+              { type: "image_url" as const, image_url: { url: input.imageBase64, detail: "high" as const } },
             ],
           } as Message,
         ],

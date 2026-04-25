@@ -176,8 +176,7 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
             {/* OCR 자동 입력 */}
             <OcrUploadButton
-              uploadEndpoint="/api/upload-ocr"
-              extractEndpoint={async (url) => extractMutation.mutateAsync({ imageUrl: url })}
+              extractEndpoint={async (base64) => extractMutation.mutateAsync({ imageBase64: base64 })}
               onExtracted={(data) => {
                 setForm(f => ({
                   ...f,
