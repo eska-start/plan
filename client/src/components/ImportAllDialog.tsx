@@ -17,14 +17,25 @@ interface Props {
   onSaved: () => void;
 }
 
+type FlightData = {
+  airline: string | null;
+  flightNumber: string | null;
+  departureAirport: string | null;
+  arrivalAirport: string | null;
+  departureTime: string | null;
+  arrivalTime: string | null;
+  bookingRef: string | null;
+  seatNumber: string | null;
+  type: "departure" | "return" | "transit" | null;
+};
+
 type ExtractResult = {
   rawText: string;
-  flight: Record<string, string | null> | null;
+  flights: FlightData[] | null;
   accommodation: Record<string, string | null> | null;
   rental: Record<string, string | null> | null;
 };
 
-// 이미지를 최대 1200px로 리사이즈 후 JPEG base64 반환 (OCR.space 1MB 제한 대응)
 function resizeAndToBase64(file: File, maxPx = 1200, quality = 0.82): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -47,15 +58,6 @@ function resizeAndToBase64(file: File, maxPx = 1200, quality = 0.82): Promise<st
   });
 }
 
-function toBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
   return (
@@ -66,6 +68,12 @@ function Row({ label, value }: { label: string; value: string | null | undefined
   );
 }
 
+const FLIGHT_TYPE_LABEL: Record<string, string> = {
+  departure: "가는편",
+  return: "오는편",
+  transit: "경유",
+};
+
 export function ImportAllDialog({ tripId, open, onOpenChange, onSaved }: Props) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -74,7 +82,10 @@ export function ImportAllDialog({ tripId, open, onOpenChange, onSaved }: Props) 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<ExtractResult | null>(null);
-  const [selected, setSelected] = useState({ flight: true, accommodation: true, rental: true });
+  // 항공편은 인덱스 Set으로 선택 관리
+  const [selectedFlights, setSelectedFlights] = useState<Set<number>>(new Set());
+  const [selectedAccommodation, setSelectedAccommodation] = useState(true);
+  const [selectedRental, setSelectedRental] = useState(true);
 
   const extractMutation = trpc.trips.importAllFromImage.useMutation();
   const createFlight = trpc.flights.create.useMutation();
@@ -82,28 +93,21 @@ export function ImportAllDialog({ tripId, open, onOpenChange, onSaved }: Props) 
   const createRental = trpc.rentals.create.useMutation();
 
   const handleFile = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      toast.error("이미지 파일만 업로드할 수 있습니다.");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("파일 크기는 10MB 이하여야 합니다.");
-      return;
-    }
+    if (!file.type.startsWith("image/")) { toast.error("이미지 파일만 업로드할 수 있습니다."); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error("파일 크기는 10MB 이하여야 합니다."); return; }
     setLoading(true);
     try {
       const base64 = await resizeAndToBase64(file);
       const data = await extractMutation.mutateAsync({ tripId, imageBase64: base64 });
-      setResult(data as ExtractResult);
-      setSelected({
-        flight: !!data.flight,
-        accommodation: !!data.accommodation,
-        rental: !!data.rental,
-      });
+      const r = data as ExtractResult;
+      setResult(r);
+      setSelectedFlights(new Set((r.flights ?? []).map((_, i) => i)));
+      setSelectedAccommodation(!!r.accommodation);
+      setSelectedRental(!!r.rental);
       setStep("preview");
     } catch (e) {
       console.error(e);
-      toast.error("이미지 분석에 실패했습니다.");
+      toast.error("이미지 분석에 실패했습니다. 더 선명한 이미지로 다시 시도해보세요.");
     } finally {
       setLoading(false);
     }
@@ -120,23 +124,26 @@ export function ImportAllDialog({ tripId, open, onOpenChange, onSaved }: Props) 
     setSaving(true);
     let saved = 0;
     try {
-      if (selected.flight && result.flight) {
+      const flights = result.flights ?? [];
+      for (let i = 0; i < flights.length; i++) {
+        const f = flights[i];
+        if (!selectedFlights.has(i)) continue;
         await createFlight.mutateAsync({
           tripId,
-          type: (result.flight.type as any) ?? "departure",
-          airline: result.flight.airline ?? "",
-          flightNumber: result.flight.flightNumber ?? "",
-          departureAirport: result.flight.departureAirport ?? "",
-          arrivalAirport: result.flight.arrivalAirport ?? "",
-          departureTime: result.flight.departureTime ?? "",
-          arrivalTime: result.flight.arrivalTime ?? "",
-          bookingRef: result.flight.bookingRef ?? "",
-          seatNumber: result.flight.seatNumber ?? "",
+          type: f.type ?? "departure",
+          airline: f.airline ?? "",
+          flightNumber: f.flightNumber ?? "",
+          departureAirport: f.departureAirport ?? "",
+          arrivalAirport: f.arrivalAirport ?? "",
+          departureTime: f.departureTime ?? "",
+          arrivalTime: f.arrivalTime ?? "",
+          bookingRef: f.bookingRef ?? "",
+          seatNumber: f.seatNumber ?? "",
           memo: "",
         });
         saved++;
       }
-      if (selected.accommodation && result.accommodation) {
+      if (selectedAccommodation && result.accommodation) {
         await createAccommodation.mutateAsync({
           tripId,
           name: result.accommodation.name ?? "숙소",
@@ -150,7 +157,7 @@ export function ImportAllDialog({ tripId, open, onOpenChange, onSaved }: Props) 
         });
         saved++;
       }
-      if (selected.rental && result.rental) {
+      if (selectedRental && result.rental) {
         await createRental.mutateAsync({
           tripId,
           company: result.rental.company ?? "",
@@ -185,11 +192,15 @@ export function ImportAllDialog({ tripId, open, onOpenChange, onSaved }: Props) 
     onOpenChange(false);
   };
 
-  const toggle = (key: keyof typeof selected) =>
-    setSelected(s => ({ ...s, [key]: !s[key] }));
+  const toggleFlight = (i: number) =>
+    setSelectedFlights(prev => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
 
-  const anySelected = selected.flight || selected.accommodation || selected.rental;
-  const hasAny = result && (result.flight || result.accommodation || result.rental);
+  const hasAny = result && (result.flights?.length || result.accommodation || result.rental);
+  const anySelected = selectedFlights.size > 0 || selectedAccommodation || selectedRental;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -213,17 +224,13 @@ export function ImportAllDialog({ tripId, open, onOpenChange, onSaved }: Props) 
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => cameraRef.current?.click()}
-                  className="flex flex-col items-center gap-2 py-6 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 transition-all text-primary"
-                >
+                <button onClick={() => cameraRef.current?.click()}
+                  className="flex flex-col items-center gap-2 py-6 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 transition-all text-primary">
                   <Camera className="w-6 h-6" />
                   <span className="text-sm font-medium">카메라 촬영</span>
                 </button>
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  className="flex flex-col items-center gap-2 py-6 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 hover:bg-indigo-100 transition-all text-indigo-600"
-                >
+                <button onClick={() => fileRef.current?.click()}
+                  className="flex flex-col items-center gap-2 py-6 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 hover:bg-indigo-100 transition-all text-indigo-600">
                   <FolderOpen className="w-6 h-6" />
                   <span className="text-sm font-medium">파일 선택</span>
                 </button>
@@ -238,46 +245,43 @@ export function ImportAllDialog({ tripId, open, onOpenChange, onSaved }: Props) 
               <div className="py-6 text-center text-sm text-muted-foreground">
                 <p>인식된 예약 정보가 없습니다.</p>
                 <p className="text-xs mt-1">더 선명한 이미지로 다시 시도해보세요.</p>
-                <Button variant="outline" size="sm" className="mt-4" onClick={() => setStep("upload")}>
-                  다시 시도
-                </Button>
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => setStep("upload")}>다시 시도</Button>
               </div>
             ) : (
               <>
                 <p className="text-sm text-muted-foreground">저장할 항목을 선택하세요.</p>
 
-                {/* 항공편 */}
-                {result.flight && (
-                  <div
-                    className={`rounded-xl border p-4 cursor-pointer transition-colors ${selected.flight ? "border-blue-400 bg-blue-50" : "border-border bg-muted/30"}`}
-                    onClick={() => toggle("flight")}
-                  >
+                {/* 항공편 (복수) */}
+                {(result.flights ?? []).map((f, i) => (
+                  <div key={i}
+                    className={`rounded-xl border p-4 cursor-pointer transition-colors ${selectedFlights.has(i) ? "border-blue-400 bg-blue-50" : "border-border bg-muted/30"}`}
+                    onClick={() => toggleFlight(i)}>
                     <div className="flex items-center gap-2 mb-3">
-                      {selected.flight ? <CheckCircle2 className="w-4 h-4 text-blue-500" /> : <Circle className="w-4 h-4 text-muted-foreground" />}
+                      {selectedFlights.has(i) ? <CheckCircle2 className="w-4 h-4 text-blue-500" /> : <Circle className="w-4 h-4 text-muted-foreground" />}
                       <Plane className="w-4 h-4 text-blue-500" />
-                      <span className="font-medium text-sm">항공편</span>
+                      <span className="font-medium text-sm">
+                        항공편 {f.type ? `— ${FLIGHT_TYPE_LABEL[f.type] ?? f.type}` : ""}
+                      </span>
                     </div>
                     <div className="space-y-1 pl-6">
-                      <Row label="항공사" value={result.flight.airline} />
-                      <Row label="편명" value={result.flight.flightNumber} />
-                      <Row label="출발" value={result.flight.departureAirport} />
-                      <Row label="도착" value={result.flight.arrivalAirport} />
-                      <Row label="출발시간" value={result.flight.departureTime} />
-                      <Row label="도착시간" value={result.flight.arrivalTime} />
-                      <Row label="예약번호" value={result.flight.bookingRef} />
-                      <Row label="좌석" value={result.flight.seatNumber} />
+                      <Row label="항공사" value={f.airline} />
+                      <Row label="편명" value={f.flightNumber} />
+                      <Row label="출발" value={f.departureAirport} />
+                      <Row label="도착" value={f.arrivalAirport} />
+                      <Row label="출발시간" value={f.departureTime} />
+                      <Row label="도착시간" value={f.arrivalTime} />
+                      <Row label="예약번호" value={f.bookingRef} />
                     </div>
                   </div>
-                )}
+                ))}
 
                 {/* 숙박 */}
                 {result.accommodation && (
                   <div
-                    className={`rounded-xl border p-4 cursor-pointer transition-colors ${selected.accommodation ? "border-indigo-400 bg-indigo-50" : "border-border bg-muted/30"}`}
-                    onClick={() => toggle("accommodation")}
-                  >
+                    className={`rounded-xl border p-4 cursor-pointer transition-colors ${selectedAccommodation ? "border-indigo-400 bg-indigo-50" : "border-border bg-muted/30"}`}
+                    onClick={() => setSelectedAccommodation(v => !v)}>
                     <div className="flex items-center gap-2 mb-3">
-                      {selected.accommodation ? <CheckCircle2 className="w-4 h-4 text-indigo-500" /> : <Circle className="w-4 h-4 text-muted-foreground" />}
+                      {selectedAccommodation ? <CheckCircle2 className="w-4 h-4 text-indigo-500" /> : <Circle className="w-4 h-4 text-muted-foreground" />}
                       <Hotel className="w-4 h-4 text-indigo-500" />
                       <span className="font-medium text-sm">숙박</span>
                     </div>
@@ -295,11 +299,10 @@ export function ImportAllDialog({ tripId, open, onOpenChange, onSaved }: Props) 
                 {/* 렌트카 */}
                 {result.rental && (
                   <div
-                    className={`rounded-xl border p-4 cursor-pointer transition-colors ${selected.rental ? "border-green-400 bg-green-50" : "border-border bg-muted/30"}`}
-                    onClick={() => toggle("rental")}
-                  >
+                    className={`rounded-xl border p-4 cursor-pointer transition-colors ${selectedRental ? "border-green-400 bg-green-50" : "border-border bg-muted/30"}`}
+                    onClick={() => setSelectedRental(v => !v)}>
                     <div className="flex items-center gap-2 mb-3">
-                      {selected.rental ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-muted-foreground" />}
+                      {selectedRental ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-muted-foreground" />}
                       <Car className="w-4 h-4 text-green-500" />
                       <span className="font-medium text-sm">렌트카</span>
                     </div>
@@ -317,11 +320,9 @@ export function ImportAllDialog({ tripId, open, onOpenChange, onSaved }: Props) 
                 <p className="text-xs text-muted-foreground">저장 후 각 탭에서 수정할 수 있습니다.</p>
 
                 <div className="flex gap-2 pt-1">
-                  <Button variant="outline" size="sm" onClick={() => setStep("upload")} className="flex-1">
-                    다시 찍기
-                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setStep("upload")} className="flex-1">다시 찍기</Button>
                   <Button size="sm" onClick={handleSave} disabled={!anySelected || saving} className="flex-1">
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                    {saving && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
                     저장
                   </Button>
                 </div>

@@ -13,6 +13,7 @@ import {
   extractTextWithFreeOcrBase64,
   parseAccommodationFromText,
   parseFlightFromText,
+  parseFlightsFromText,
   parseRentalFromText,
   hasFlight,
   hasAccommodation,
@@ -117,12 +118,12 @@ const tripsRouter = router({
     .mutation(async ({ ctx, input }) => {
       await getTripById(input.tripId, ctx.user.id); // 접근 권한 확인
       const text = await extractTextWithFreeOcrBase64(input.imageBase64);
-      const flight = parseFlightFromText(text);
+      const flights = parseFlightsFromText(text);
       const accommodation = parseAccommodationFromText(text);
       const rental = parseRentalFromText(text);
       return {
         rawText: text,
-        flight: hasFlight(flight) ? flight : null,
+        flights: flights.length > 0 ? flights : null,
         accommodation: hasAccommodation(accommodation) ? accommodation : null,
         rental: hasRental(rental) ? rental : null,
       };
