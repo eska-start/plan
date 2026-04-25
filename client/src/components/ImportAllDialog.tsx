@@ -24,6 +24,29 @@ type ExtractResult = {
   rental: Record<string, string | null> | null;
 };
 
+// 이미지를 최대 1200px로 리사이즈 후 JPEG base64 반환 (OCR.space 1MB 제한 대응)
+function resizeAndToBase64(file: File, maxPx = 1200, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxPx || height > maxPx) {
+        if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
+        else { width = Math.round(width * maxPx / height); height = maxPx; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 function toBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -69,7 +92,7 @@ export function ImportAllDialog({ tripId, open, onOpenChange, onSaved }: Props) 
     }
     setLoading(true);
     try {
-      const base64 = await toBase64(file);
+      const base64 = await resizeAndToBase64(file);
       const data = await extractMutation.mutateAsync({ tripId, imageBase64: base64 });
       setResult(data as ExtractResult);
       setSelected({

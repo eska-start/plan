@@ -50,13 +50,27 @@ export async function extractTextWithFreeOcr(imageUrl: string): Promise<string> 
 }
 
 export async function extractTextWithFreeOcrBase64(base64: string): Promise<string> {
-  const form = new URLSearchParams();
-  // OCR.space expects "data:image/...;base64,..." or just the raw base64
-  form.set("base64Image", base64.startsWith("data:") ? base64 : `data:image/jpeg;base64,${base64}`);
-  form.set("language", "kor+eng");
-  form.set("isOverlayRequired", "false");
-  form.set("OCREngine", "2");
-  return callOcrSpace(form);
+  const dataUri = base64.startsWith("data:") ? base64 : `data:image/jpeg;base64,${base64}`;
+
+  // OCR.space는 한/영 혼합 언어 코드 미지원 → 영어로 시도 후 결과 없으면 한국어 재시도
+  const tryOcr = async (lang: string) => {
+    const form = new URLSearchParams();
+    form.set("base64Image", dataUri);
+    form.set("language", lang);
+    form.set("isOverlayRequired", "false");
+    form.set("OCREngine", "2");
+    return callOcrSpace(form);
+  };
+
+  const text = await tryOcr("eng");
+  if (text.trim().length > 20) return text;
+
+  // 영어로 텍스트가 거의 없으면 한국어로 재시도
+  try {
+    return await tryOcr("kor");
+  } catch {
+    return text;
+  }
 }
 
 const firstMatch = (text: string, patterns: RegExp[]) => {
