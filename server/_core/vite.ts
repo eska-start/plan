@@ -58,10 +58,12 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // index: false → express.static이 index.html을 직접 서빙하지 않도록 함
+  // (직접 서빙하면 아래 no-cache 헤더가 우회되어 Safari가 index.html을 캐시함)
+  app.use(express.static(distPath, { index: false }));
 
-  // fall through to index.html if the file doesn't exist
-  // index.html must never be cached — stale cache breaks chunk loading after redeploy
+  // 모든 요청을 index.html로 fallback — no-cache 헤더 필수
+  // 배포 시 JS 청크 파일명이 바뀌므로 index.html이 캐시되면 흰 화면 발생
   app.use("*", (_req, res) => {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.setHeader("Pragma", "no-cache");
