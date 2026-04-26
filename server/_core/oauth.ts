@@ -147,7 +147,11 @@ export function registerOAuthRoutes(app: Express) {
 
       const redirectTarget = frontendOrigin ? `${frontendOrigin}${returnPath}` : "/";
       console.log("[OAuth] Redirecting to", redirectTarget);
-      res.redirect(302, redirectTarget);
+      // iOS Safari: JS redirect ensures cookie is stored before navigation
+      const safeTarget = JSON.stringify(redirectTarget);
+      res.type("html").send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<script>window.location.replace(${safeTarget});</script>
+</head><body></body></html>`);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       const errorTarget = frontendOrigin
@@ -186,10 +190,18 @@ export function registerOAuthRoutes(app: Express) {
 
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
-      res.redirect(302, redirect);
+
+      // iOS Safari: HTTP 302 + Set-Cookie 동시 처리 시 쿠키가 무시되는 버그.
+      // HTML 응답 후 JS로 이동하면 쿠키가 먼저 저장된 뒤 navigate → 안정적.
+      const safeRedirect = JSON.stringify(redirect);
+      res.type("html").send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<script>window.location.replace(${safeRedirect});</script>
+</head><body></body></html>`);
     } catch (error) {
       console.error("[GuestAuth] Login failed", error);
-      res.redirect(302, "/?error=guest_auth_failed");
+      res.type("html").send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<script>window.location.replace("/");</script>
+</head><body></body></html>`);
     }
   });
 }
