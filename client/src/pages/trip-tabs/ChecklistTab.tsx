@@ -1,8 +1,9 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useEffect } from "react";
-import { Plus, Trash2, Loader2, CheckSquare } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 interface Props {
   tripId: number;
@@ -25,6 +26,71 @@ export default function ChecklistTab({ tripId }: Props) {
 
   const [newLabel, setNewLabel] = useState("");
   const [newGroup, setNewGroup] = useState("기타");
+  const [aiMode, setAiMode] = useState<"text" | "image" | null>(null);
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiItems, setAiItems] = useState<Array<{ group: string; label: string; selected: boolean }>>([]);
+  const aiFileRef = useRef<HTMLInputElement>(null);
+
+  const aiExtractMutation = trpc.checklist.aiExtract.useMutation();
+  const aiExtractImageMutation = trpc.checklist.aiExtractFromImage.useMutation();
+
+  async function handleAiText() {
+    if (!aiText.trim()) return;
+    setAiLoading(true);
+    try {
+      const res = await aiExtractMutation.mutateAsync({ tripId, text: aiText });
+      const extracted = (res.items as Array<Record<string, unknown>>).map(i => ({
+        group: (i.group as string) ?? "기타",
+        label: (i.label as string) ?? "",
+        selected: true,
+      })).filter(i => i.label);
+      if (!extracted.length) { toast.error("항목을 찾지 못했습니다."); return; }
+      setAiItems(extracted);
+    } catch (e: any) {
+      toast.error(e?.message?.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "AI 분석 실패");
+    } finally { setAiLoading(false); }
+  }
+
+  async function handleAiImage(file: File) {
+    setAiLoading(true);
+    try {
+      const img = new Image(); const url = URL.createObjectURL(file);
+      const b64 = await new Promise<string>((resolve, reject) => {
+        img.onload = () => {
+          const MAX = 1400; let { width, height } = img;
+          if (width > MAX || height > MAX) {
+            if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+            else { width = Math.round(width * MAX / height); height = MAX; }
+          }
+          const c = document.createElement("canvas"); c.width = width; c.height = height;
+          c.getContext("2d")!.drawImage(img, 0, 0, width, height);
+          URL.revokeObjectURL(url);
+          resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
+        };
+        img.onerror = reject; img.src = url;
+      });
+      const res = await aiExtractImageMutation.mutateAsync({ tripId, imageBase64: b64 });
+      const extracted = (res.items as Array<Record<string, unknown>>).map(i => ({
+        group: (i.group as string) ?? "기타",
+        label: (i.label as string) ?? "",
+        selected: true,
+      })).filter(i => i.label);
+      if (!extracted.length) { toast.error("항목을 찾지 못했습니다."); return; }
+      setAiItems(extracted);
+    } catch (e: any) {
+      toast.error(e?.message?.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "이미지 분석 실패");
+    } finally { setAiLoading(false); }
+  }
+
+  async function handleAiSave() {
+    const toSave = aiItems.filter(i => i.selected && i.label);
+    for (const item of toSave) {
+      await create.mutateAsync({ tripId, group: item.group, label: item.label });
+    }
+    toast.success(`${toSave.length}개 항목이 추가됐습니다.`);
+    setAiItems([]); setAiMode(null); setAiText("");
+  }
 
   useEffect(() => {
     if (!isLoading && items && items.length === 0) {
@@ -66,7 +132,12 @@ export default function ChecklistTab({ tripId }: Props) {
             <CheckSquare className="w-4 h-4 text-[#7CC8B0]" />
             <span className="text-sm font-semibold">준비물 체크리스트</span>
           </div>
-          <span className="text-sm font-semibold text-[#7CC8B0]">{done} / {total}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-[#7CC8B0]">{done} / {total}</span>
+            <Button size="sm" variant="outline" onClick={() => { setAiMode(aiMode ? null : "text"); setAiItems([]); }} className="gap-1.5 h-7 text-xs px-2">
+              <Sparkles className="w-3 h-3" />AI
+            </Button>
+          </div>
         </div>
         <div className="h-2 bg-muted rounded-full overflow-hidden">
           <div
@@ -78,6 +149,66 @@ export default function ChecklistTab({ tripId }: Props) {
           <p className="text-xs text-[#5DA88F] font-medium">모든 준비 완료!</p>
         )}
       </div>
+
+      {/* AI 입력 패널 */}
+      {aiMode && (
+        <div className="rounded-2xl border bg-card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1 p-1 bg-muted rounded-lg">
+              <button onClick={() => setAiMode("text")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${aiMode === "text" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+                <FileText className="w-3.5 h-3.5" />텍스트
+              </button>
+              <button onClick={() => setAiMode("image")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${aiMode === "image" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+                <Camera className="w-3.5 h-3.5" />이미지
+              </button>
+            </div>
+            <button onClick={() => { setAiMode(null); setAiItems([]); setAiText(""); }}><X className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+
+          {aiLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
+              <Loader2 className="w-4 h-4 animate-spin" /> AI 분석 중…
+            </div>
+          ) : aiItems.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">추가할 항목을 선택하세요.</p>
+              {aiItems.map((item, i) => (
+                <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${item.selected ? "border-primary/40 bg-primary/5" : "border-border bg-muted/30"}`}
+                  onClick={() => setAiItems(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}>
+                  <input type="checkbox" checked={item.selected} readOnly className="accent-primary" />
+                  <div>
+                    <p className="text-sm font-medium">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">{item.group}</p>
+                  </div>
+                </div>
+              ))}
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={() => setAiItems([])} className="flex-1">다시 입력</Button>
+                <Button size="sm" onClick={handleAiSave} disabled={!aiItems.some(i => i.selected)} className="flex-1">저장</Button>
+              </div>
+            </div>
+          ) : aiMode === "text" ? (
+            <>
+              <textarea className="w-full rounded-xl border bg-background px-3 py-2 text-sm resize-none h-24 focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="준비물을 입력하세요. 예: '여권, 엔화 환전 5만엔, 방한 자켓, 포켓 와이파이'"
+                value={aiText} onChange={e => setAiText(e.target.value)} />
+              <Button size="sm" onClick={handleAiText} disabled={!aiText.trim()} className="gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />분석하기
+              </Button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => aiFileRef.current?.click()}
+                className="w-full border-2 border-dashed border-border rounded-xl py-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                <Camera className="w-6 h-6" />
+                <span className="text-sm">사진 선택 또는 카메라 촬영</span>
+              </button>
+              <input ref={aiFileRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
+            </>
+          )}
+        </div>
+      )}
 
       {/* Group sections */}
       {Object.entries(groups).map(([group, groupItems]) => {

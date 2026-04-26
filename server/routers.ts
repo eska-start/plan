@@ -641,9 +641,61 @@ const itineraryRouter = router({
       return updateItineraryItem(id, ctx.user.id, data);
     }),
 
-   delete: protectedProcedure
+  delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(({ ctx, input }) => deleteItineraryItem(input.id, ctx.user.id)),
+
+  aiExtract: protectedProcedure
+    .input(z.object({ tripId: z.number(), text: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await getTripById(input.tripId, ctx.user.id);
+      if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
+      const res = await invokeLLM({
+        messages: [
+          {
+            role: "system" as const,
+            content: `여행 일정 파서입니다. 텍스트에서 방문 장소·일정 정보를 추출해 JSON만 반환합니다.\n반환 스키마: { "items": [{ "date": "YYYY-MM-DD|null", "placeName": "string", "visitTime": "HH:mm|null", "category": "place|food|activity|shopping", "memo": "string|null", "address": "string|null" }], "reply": "한국어 요약" }\n규칙: category는 반드시 place|food|activity|shopping 중 하나, date 모를 경우 null`,
+          },
+          { role: "user" as const, content: input.text },
+        ],
+        response_format: { type: "json_object" },
+      });
+      try {
+        const raw = res.choices?.[0]?.message?.content;
+        const p = JSON.parse(typeof raw === "string" ? raw : "{}") as Record<string, unknown>;
+        return { items: Array.isArray(p.items) ? p.items : [], reply: typeof p.reply === "string" ? p.reply : "" };
+      } catch { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI 응답 파싱 실패" }); }
+    }),
+
+  aiExtractFromImage: protectedProcedure
+    .input(z.object({ tripId: z.number(), imageBase64: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await getTripById(input.tripId, ctx.user.id);
+      if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
+      const dataUri = input.imageBase64.startsWith("data:") ? input.imageBase64 : `data:image/jpeg;base64,${input.imageBase64}`;
+      const res = await invokeLLM({
+        messages: [
+          {
+            role: "system" as const,
+            content: `여행 일정 이미지 파서. JSON만 반환: { "items": [{ "date": "YYYY-MM-DD|null", "placeName": "string", "visitTime": "HH:mm|null", "category": "place|food|activity|shopping", "memo": "string|null", "address": "string|null" }], "reply": "한국어요약" }`,
+          },
+          {
+            role: "user" as const,
+            content: [
+              { type: "text" as const, text: "이 이미지에서 여행 일정 정보를 추출해주세요." },
+              { type: "image_url" as const, image_url: { url: dataUri, detail: "high" as const } },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+      });
+      try {
+        const raw = res.choices?.[0]?.message?.content;
+        const p = JSON.parse(typeof raw === "string" ? raw : "{}") as Record<string, unknown>;
+        return { items: Array.isArray(p.items) ? p.items : [], reply: typeof p.reply === "string" ? p.reply : "" };
+      } catch { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI 응답 파싱 실패" }); }
+    }),
+
   reorder: protectedProcedure
     .input(z.object({
       tripId: z.number(),
@@ -871,6 +923,57 @@ const checklistRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(({ ctx, input }) => deleteChecklistItem(input.id, ctx.user.id)),
+
+  aiExtract: protectedProcedure
+    .input(z.object({ tripId: z.number(), text: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await getTripById(input.tripId, ctx.user.id);
+      if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
+      const res = await invokeLLM({
+        messages: [
+          {
+            role: "system" as const,
+            content: `여행 준비물 파서입니다. 텍스트에서 체크리스트 항목을 추출해 JSON만 반환합니다.\n반환 스키마: { "items": [{ "group": "필수서류|돈·통신|옷·가방|기타", "label": "string" }], "reply": "한국어 요약" }\n규칙: group은 반드시 위 4가지 중 하나, label은 간결하게`,
+          },
+          { role: "user" as const, content: input.text },
+        ],
+        response_format: { type: "json_object" },
+      });
+      try {
+        const raw = res.choices?.[0]?.message?.content;
+        const p = JSON.parse(typeof raw === "string" ? raw : "{}") as Record<string, unknown>;
+        return { items: Array.isArray(p.items) ? p.items : [], reply: typeof p.reply === "string" ? p.reply : "" };
+      } catch { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI 응답 파싱 실패" }); }
+    }),
+
+  aiExtractFromImage: protectedProcedure
+    .input(z.object({ tripId: z.number(), imageBase64: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await getTripById(input.tripId, ctx.user.id);
+      if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
+      const dataUri = input.imageBase64.startsWith("data:") ? input.imageBase64 : `data:image/jpeg;base64,${input.imageBase64}`;
+      const res = await invokeLLM({
+        messages: [
+          {
+            role: "system" as const,
+            content: `여행 준비물 이미지 파서. JSON만 반환: { "items": [{ "group": "필수서류|돈·통신|옷·가방|기타", "label": "string" }], "reply": "한국어요약" }`,
+          },
+          {
+            role: "user" as const,
+            content: [
+              { type: "text" as const, text: "이 이미지에서 여행 준비물 목록을 추출해주세요." },
+              { type: "image_url" as const, image_url: { url: dataUri, detail: "high" as const } },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+      });
+      try {
+        const raw = res.choices?.[0]?.message?.content;
+        const p = JSON.parse(typeof raw === "string" ? raw : "{}") as Record<string, unknown>;
+        return { items: Array.isArray(p.items) ? p.items : [], reply: typeof p.reply === "string" ? p.reply : "" };
+      } catch { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI 응답 파싱 실패" }); }
+    }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────

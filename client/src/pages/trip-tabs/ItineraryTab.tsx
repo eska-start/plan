@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   CalendarDays, Loader2, MapPin, Clock, CheckCircle2, Circle,
   Plus, Utensils, Camera, ShoppingBag, Hotel, GripVertical,
+  Sparkles, FileText, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -299,6 +300,91 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
     },
   });
 
+  const aiExtractMutation = trpc.itinerary.aiExtract.useMutation();
+  const aiExtractImageMutation = trpc.itinerary.aiExtractFromImage.useMutation();
+  const [aiMode, setAiMode] = useState<"text" | "image" | null>(null);
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiItems, setAiItems] = useState<Array<{ date: string | null; placeName: string; visitTime: string | null; category: string; memo: string | null; address: string | null; selected: boolean }>>([]);
+  const aiFileRef = useRef<HTMLInputElement>(null);
+
+  async function handleAiText() {
+    if (!aiText.trim()) return;
+    setAiLoading(true);
+    try {
+      const res = await aiExtractMutation.mutateAsync({ tripId, text: aiText });
+      const items = (res.items as Array<Record<string, unknown>>).map(i => ({
+        date: (i.date as string | null) ?? null,
+        placeName: (i.placeName as string) ?? "",
+        visitTime: (i.visitTime as string | null) ?? null,
+        category: (i.category as string) ?? "place",
+        memo: (i.memo as string | null) ?? null,
+        address: (i.address as string | null) ?? null,
+        selected: true,
+      }));
+      if (items.length === 0) { toast.error("일정 정보를 찾지 못했습니다."); return; }
+      setAiItems(items);
+    } catch (e: any) {
+      toast.error(e?.message?.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "AI 분석 실패");
+    } finally { setAiLoading(false); }
+  }
+
+  async function handleAiImage(file: File) {
+    setAiLoading(true);
+    try {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      const b64 = await new Promise<string>((resolve, reject) => {
+        img.onload = () => {
+          const MAX = 1400; let { width, height } = img;
+          if (width > MAX || height > MAX) {
+            if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+            else { width = Math.round(width * MAX / height); height = MAX; }
+          }
+          const c = document.createElement("canvas"); c.width = width; c.height = height;
+          c.getContext("2d")!.drawImage(img, 0, 0, width, height);
+          URL.revokeObjectURL(url);
+          resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
+        };
+        img.onerror = reject; img.src = url;
+      });
+      const res = await aiExtractImageMutation.mutateAsync({ tripId, imageBase64: b64 });
+      const items = (res.items as Array<Record<string, unknown>>).map(i => ({
+        date: (i.date as string | null) ?? null,
+        placeName: (i.placeName as string) ?? "",
+        visitTime: (i.visitTime as string | null) ?? null,
+        category: (i.category as string) ?? "place",
+        memo: (i.memo as string | null) ?? null,
+        address: (i.address as string | null) ?? null,
+        selected: true,
+      }));
+      if (items.length === 0) { toast.error("일정 정보를 찾지 못했습니다."); return; }
+      setAiItems(items);
+    } catch (e: any) {
+      toast.error(e?.message?.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "이미지 분석 실패");
+    } finally { setAiLoading(false); }
+  }
+
+  async function handleAiSave() {
+    const toSave = aiItems.filter(i => i.selected && i.placeName);
+    for (const item of toSave) {
+      await createMutation.mutateAsync({
+        tripId,
+        date: item.date ?? selectedDate,
+        placeName: item.placeName,
+        visitTime: item.visitTime ?? undefined,
+        category: item.category,
+        memo: item.memo ?? undefined,
+        address: item.address ?? undefined,
+        order: (items?.length ?? 0),
+      });
+    }
+    toast.success(`${toSave.length}개 일정이 추가됐습니다.`);
+    setAiItems([]);
+    setAiMode(null);
+    setAiText("");
+  }
+
   // dnd-kit 센서 설정 (마우스 + 터치 모두 지원)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -366,10 +452,76 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
           <h2 className="text-lg sm:text-xl font-semibold text-foreground tracking-tight">하루별 일정</h2>
           <p className="text-sm text-muted-foreground mt-0.5">날짜를 선택하고 방문 장소를 관리하세요. 드래그로 순서를 변경할 수 있습니다.</p>
         </div>
-        <Button onClick={openCreate} size="sm" className="gap-1.5 self-start sm:self-auto shrink-0">
-          <Plus className="w-3.5 h-3.5" />장소 추가
-        </Button>
+        <div className="flex gap-2 self-start sm:self-auto shrink-0">
+          <Button onClick={() => { setAiMode(aiMode ? null : "text"); setAiItems([]); }} size="sm" variant="outline" className="gap-1.5">
+            <Sparkles className="w-3.5 h-3.5" />AI 입력
+          </Button>
+          <Button onClick={openCreate} size="sm" className="gap-1.5">
+            <Plus className="w-3.5 h-3.5" />장소 추가
+          </Button>
+        </div>
       </div>
+
+      {/* AI 입력 패널 */}
+      {aiMode && (
+        <div className="rounded-2xl border bg-card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1 p-1 bg-muted rounded-lg">
+              <button onClick={() => setAiMode("text")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${aiMode === "text" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+                <FileText className="w-3.5 h-3.5" />텍스트
+              </button>
+              <button onClick={() => setAiMode("image")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${aiMode === "image" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+                <Camera className="w-3.5 h-3.5" />이미지
+              </button>
+            </div>
+            <button onClick={() => { setAiMode(null); setAiItems([]); setAiText(""); }}><X className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+
+          {aiLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
+              <Loader2 className="w-4 h-4 animate-spin" /> AI 분석 중…
+            </div>
+          ) : aiItems.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">저장할 항목을 선택하세요. 날짜가 없으면 선택한 날짜로 저장됩니다.</p>
+              {aiItems.map((item, i) => (
+                <div key={i} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${item.selected ? "border-primary/40 bg-primary/5" : "border-border bg-muted/30"}`}
+                  onClick={() => setAiItems(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}>
+                  <input type="checkbox" checked={item.selected} readOnly className="mt-0.5 accent-primary" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{item.placeName}</p>
+                    <p className="text-xs text-muted-foreground">{[item.date ?? selectedDate, item.visitTime, item.category].filter(Boolean).join(" · ")}</p>
+                    {item.memo && <p className="text-xs text-muted-foreground italic">{item.memo}</p>}
+                  </div>
+                </div>
+              ))}
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={() => setAiItems([])} className="flex-1">다시 입력</Button>
+                <Button size="sm" onClick={handleAiSave} disabled={!aiItems.some(i => i.selected)} className="flex-1">저장</Button>
+              </div>
+            </div>
+          ) : aiMode === "text" ? (
+            <>
+              <textarea className="w-full rounded-xl border bg-background px-3 py-2 text-sm resize-none h-28 focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="일정을 텍스트로 입력하세요. 예: '5월 24일 오후 2시 닛폰다이라 로프웨이, 5월 25일 오전 마키노하라 차밭'"
+                value={aiText} onChange={e => setAiText(e.target.value)} />
+              <Button size="sm" onClick={handleAiText} disabled={!aiText.trim()} className="gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />분석하기
+              </Button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => aiFileRef.current?.click()}
+                className="w-full border-2 border-dashed border-border rounded-xl py-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                <Camera className="w-6 h-6" />
+                <span className="text-sm">사진 선택 또는 카메라 촬영</span>
+              </button>
+              <input ref={aiFileRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
+            </>
+          )}
+        </div>
+      )}
 
       {/* 날짜 선택 */}
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
