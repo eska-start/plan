@@ -646,15 +646,16 @@ const itineraryRouter = router({
     .mutation(({ ctx, input }) => deleteItineraryItem(input.id, ctx.user.id)),
 
   aiExtract: protectedProcedure
-    .input(z.object({ tripId: z.number(), text: z.string() }))
+    .input(z.object({ tripId: z.number(), text: z.string(), tripStartDate: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       await getTripById(input.tripId, ctx.user.id);
       if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
+      const year = input.tripStartDate ? new Date(input.tripStartDate).getFullYear() : new Date().getFullYear();
       const res = await invokeLLM({
         messages: [
           {
             role: "system" as const,
-            content: `여행 일정 파서입니다. 텍스트에서 방문 장소·일정 정보를 추출해 JSON만 반환합니다.\n반환 스키마: { "items": [{ "date": "YYYY-MM-DD|null", "placeName": "string", "visitTime": "HH:mm|null", "category": "place|food|activity|shopping", "memo": "string|null", "address": "string|null" }], "reply": "한국어 요약" }\n규칙: category는 반드시 place|food|activity|shopping 중 하나, date 모를 경우 null`,
+            content: `여행 일정 파서입니다. 텍스트에서 방문 장소·일정 정보를 추출해 JSON만 반환합니다.\n반환 스키마: { "items": [{ "date": "YYYY-MM-DD|null", "placeName": "string", "visitTime": "HH:mm|null", "category": "place|food|activity|shopping", "memo": "string|null", "address": "string|null" }], "reply": "한국어 요약" }\n규칙: category는 반드시 place|food|activity|shopping 중 하나, date 모를 경우 null, 연도 미기재 시 ${year}년 기준으로 추정`,
           },
           { role: "user" as const, content: input.text },
         ],
@@ -668,16 +669,17 @@ const itineraryRouter = router({
     }),
 
   aiExtractFromImage: protectedProcedure
-    .input(z.object({ tripId: z.number(), imageBase64: z.string() }))
+    .input(z.object({ tripId: z.number(), imageBase64: z.string(), tripStartDate: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       await getTripById(input.tripId, ctx.user.id);
       if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
       const dataUri = input.imageBase64.startsWith("data:") ? input.imageBase64 : `data:image/jpeg;base64,${input.imageBase64}`;
+      const year = input.tripStartDate ? new Date(input.tripStartDate).getFullYear() : new Date().getFullYear();
       const res = await invokeLLM({
         messages: [
           {
             role: "system" as const,
-            content: `여행 일정 이미지 파서. JSON만 반환: { "items": [{ "date": "YYYY-MM-DD|null", "placeName": "string", "visitTime": "HH:mm|null", "category": "place|food|activity|shopping", "memo": "string|null", "address": "string|null" }], "reply": "한국어요약" }`,
+            content: `여행 일정 이미지 파서. JSON만 반환: { "items": [{ "date": "YYYY-MM-DD|null", "placeName": "string", "visitTime": "HH:mm|null", "category": "place|food|activity|shopping", "memo": "string|null", "address": "string|null" }], "reply": "한국어요약" }\n연도 미기재 시 ${year}년 기준으로 추정`,
           },
           {
             role: "user" as const,

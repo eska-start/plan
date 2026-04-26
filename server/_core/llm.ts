@@ -273,16 +273,25 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     tools,
     toolChoice,
     tool_choice,
+    maxTokens,
+    max_tokens,
     outputSchema,
     output_schema,
     responseFormat,
     response_format,
   } = params;
 
+  // LLM_MODEL 환경변수로 오버라이드 가능, 기본값은 thinking 없는 빠른 모델
+  const modelName = process.env.LLM_MODEL ?? "gemini-2.0-flash";
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: modelName,
     messages: messages.map(normalizeMessage),
   };
+
+  // gemini-2.5-* 계열: thinking 비활성화로 응답 지연 방지
+  if (modelName.startsWith("gemini-2.5")) {
+    payload.thinking = { type: "disabled" };
+  }
 
   if (tools && tools.length > 0) {
     payload.tools = tools;
@@ -296,8 +305,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  // max_tokens: Gemini 기본값으로 충분, thinking은 OpenAI 호환 엔드포인트에서 미지원
-  payload.max_tokens = 4096;
+  // 파라미터로 넘긴 값 우선, 기본값은 1024로 낮춰 응답 속도 개선
+  payload.max_tokens = maxTokens ?? max_tokens ?? 1024;
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
@@ -310,20 +319,46 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.llmApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  const apiUrl = resolveApiUrl();
+  const bodyStr = JSON.stringify(payload);
+
+  // Render 30초 idle timeout보다 먼저 abort (25초), 실패 시 1회 재시도
+  async function attempt(): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25_000);
+    try {
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${ENV.llmApiKey}`,
+        },
+        body: bodyStr,
+        signal: controller.signal,
+      });
+      return res;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  let response: Response;
+  try {
+    response = await attempt();
+  } catch (err: unknown) {
+    // 첫 번째 시도 실패 → 1회 재시도
+    console.warn("[LLM] First attempt failed, retrying:", err instanceof Error ? err.message : err);
+    try {
+      response = await attempt();
+    } catch (err2: unknown) {
+      const msg = err2 instanceof Error ? err2.message : String(err2);
+      throw new Error(`AI 응답 시간 초과. 다시 시도해주세요. (${msg})`);
+    }
+  }
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`AI 호출 실패: ${response.status} ${response.statusText}${errorText ? ` – ${errorText.slice(0, 200)}` : ""}`);
   }
 
   return (await response.json()) as InvokeResult;
