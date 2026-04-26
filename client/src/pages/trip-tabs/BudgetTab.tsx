@@ -80,10 +80,10 @@ export default function BudgetTab({ tripId, trip }: Props) {
   // 비KRW 지출이 있을 때 환율 조회 (합계 계산에도 필요)
   useEffect(() => {
     if (!expenses) return;
-    const hasNonKrw = expenses.some(e => e.currency && e.currency !== currency);
+    const hasNonKrw = expenses.some(e => (e.currency ?? currency) !== "KRW");
     if (!hasNonKrw || krwRates) return;
     fetchRates("KRW").then(r => setKrwRates(r)).catch(() => {});
-  }, [expenses]);
+  }, [expenses, currency, krwRates]);
 
   // 지출 금액을 여행 기준 통화(KRW)로 환산
   function toBase(amount: number, expCurrency: string): number {
@@ -107,6 +107,13 @@ export default function BudgetTab({ tripId, trip }: Props) {
 
   const totalSpent = (expenses ?? []).reduce((s, e) =>
     s + toBase(parseFloat(e.amount ?? "0"), e.currency ?? currency), 0);
+  const totalSpentKrw = (expenses ?? []).reduce((s, e) => {
+    const amount = parseFloat(e.amount ?? "0");
+    const expCurrency = e.currency ?? currency;
+    if (expCurrency === "KRW") return s + amount;
+    const rate = krwRates?.[expCurrency.toLowerCase()];
+    return rate ? s + (amount / rate) : s + amount;
+  }, 0);
   const remaining = budgetNum != null ? budgetNum - totalSpent : null;
   const budgetPct = budgetNum && budgetNum > 0 ? Math.min((totalSpent / budgetNum) * 100, 100) : 0;
 
@@ -218,8 +225,9 @@ export default function BudgetTab({ tripId, trip }: Props) {
         <FadeIn delay={0.07}>
           <div className="rounded-2xl border bg-[#142033] p-4 space-y-1">
             <div className="flex items-center gap-1.5 text-xs text-white/60"><TrendingUp className="w-3.5 h-3.5" /> 현재 지출</div>
-            <p className="text-xl font-semibold text-white">{fmt(Math.round(totalSpent), currency)}</p>
-            <p className="text-xs text-white/50">{budgetNum ? `${Math.round(budgetPct)}% 사용` : currency}</p>
+            <p className="text-xl font-semibold text-white">{fmt(Math.round(totalSpentKrw), "KRW")}</p>
+            <p className="text-[11px] text-white/60">원화 합계 · ₩{fmt(Math.round(totalSpentKrw), "KRW")}</p>
+            <p className="text-xs text-white/50">{budgetNum ? `${Math.round(budgetPct)}% 사용` : "KRW 기준"}</p>
           </div>
         </FadeIn>
         <FadeIn delay={0.14}>
