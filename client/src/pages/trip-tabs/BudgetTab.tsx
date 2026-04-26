@@ -447,6 +447,12 @@ export default function BudgetTab({ tripId, trip }: Props) {
             const dayExpenses = byDate[date] ?? [];
             const dayTotal = dayExpenses.reduce((s, e) =>
               s + toBase(parseFloat(e.amount ?? "0"), e.currency ?? currency), 0);
+            // 외화 원본 합계 (통화별)
+            const foreignTotals: Record<string, number> = {};
+            dayExpenses.forEach(e => {
+              const ec = e.currency ?? currency;
+              if (ec !== currency) foreignTotals[ec] = (foreignTotals[ec] ?? 0) + parseFloat(e.amount ?? "0");
+            });
             let displayDate = date;
             try { displayDate = format(parseISO(date), "MM월 dd일 (EEE)", { locale: ko }); } catch {}
             return (
@@ -454,7 +460,12 @@ export default function BudgetTab({ tripId, trip }: Props) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold text-muted-foreground">{displayDate}</p>
-                    <p className="text-xs text-muted-foreground">{fmt(Math.round(dayTotal), currency)} {currency}</p>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">{fmt(Math.round(dayTotal), currency)} {currency}</p>
+                      {Object.entries(foreignTotals).map(([cur, amt]) => (
+                        <p key={cur} className="text-[10px] text-muted-foreground/60">{fmt(Math.round(amt), cur)} {cur}</p>
+                      ))}
+                    </div>
                   </div>
                   <div className="rounded-2xl border bg-card divide-y divide-border">
                     {dayExpenses.map(exp => {

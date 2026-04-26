@@ -4,6 +4,8 @@ import { format, parseISO, differenceInDays, isAfter, isBefore } from "date-fns"
 import { ko } from "date-fns/locale";
 import { useLocation } from "wouter";
 import FadeIn from "@/components/FadeIn";
+import { useEffect, useState } from "react";
+import { fetchRates } from "@/utils/currency";
 
 interface Trip {
   id: number;
@@ -49,6 +51,7 @@ function ProgressCard({ icon, label, value, sub, pct, tint }: { icon: React.Reac
 
 export default function OverviewTab({ tripId, trip, tripDays }: Props) {
   const [, setLocation] = useLocation();
+  const [krwRates, setKrwRates] = useState<Record<string, number> | null>(null);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -64,6 +67,25 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
   const { data: expenses } = trpc.expenses.list.useQuery({ tripId });
   const { data: checklist } = trpc.checklist.list.useQuery({ tripId });
 
+  const budgetCurrency = trip.budgetCurrency ?? "KRW";
+
+  useEffect(() => {
+    if (!expenses) return;
+    const hasNonBase = expenses.some(e => e.currency && e.currency !== budgetCurrency);
+    if (!hasNonBase || krwRates) return;
+    fetchRates("KRW").then(r => setKrwRates(r)).catch(() => {});
+  }, [expenses, budgetCurrency]);
+
+  function toBase(amount: number, expCurrency: string): number {
+    if (expCurrency === budgetCurrency) return amount;
+    if (!krwRates) return amount;
+    if (budgetCurrency === "KRW") {
+      const rate = krwRates[expCurrency.toLowerCase()];
+      return rate ? Math.round(amount / rate) : amount;
+    }
+    return amount;
+  }
+
   const upcomingItems = (itinerary ?? [])
     .filter(item => !item.visited && !isBefore(parseISO(item.date), today))
     .sort((a, b) => {
@@ -75,9 +97,9 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
     .slice(0, 4);
 
   const pinnedMemo = (memos ?? []).find(m => m.pinned);
-  const totalSpent = (expenses ?? []).reduce((s, e) => s + parseFloat(e.amount ?? "0"), 0);
+  const totalSpent = (expenses ?? []).reduce((s, e) =>
+    s + toBase(parseFloat(e.amount ?? "0"), e.currency ?? budgetCurrency), 0);
   const budgetNum = trip.budget ? parseFloat(trip.budget) : null;
-  const budgetCurrency = trip.budgetCurrency ?? "KRW";
   const budgetPct = budgetNum && budgetNum > 0 ? Math.min((totalSpent / budgetNum) * 100, 100) : 0;
   const checkDone = (checklist ?? []).filter(i => i.done).length;
   const checkTotal = (checklist ?? []).length;
