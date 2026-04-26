@@ -18,7 +18,7 @@ export const CURRENCY_FLAGS: Record<string, string> = {
 
 export function detectCurrency(destination: string): string {
   const d = destination.toLowerCase();
-  if (/일본|도쿄|오사카|교토|후쿠오카|삿포로|나라|히로시마|나고야|japan|tokyo|osaka|kyoto/.test(d)) return "JPY";
+  if (/일본|도쿄|오사카|교토|후쿠오카|삿포로|나라|히로시마|나고야|시즈오카|요코하마|고베|나하|오키나와|센다이|니가타|가나자와|마쓰야마|하코다테|아사히카와|구마모토|가고시마|미야자키|마쓰모토|나가노|japan|tokyo|osaka|kyoto|shizuoka|yokohama|kobe|naha|okinawa|sapporo|sendai|hiroshima|nagoya|fukuoka|nara/.test(d)) return "JPY";
   if (/미국|뉴욕|로스앤젤레스|샌프란|하와이|라스베이거스|시카고|워싱턴|usa|new york|los angeles/.test(d)) return "USD";
   if (/영국|런던|맨체스터|에든버러|uk|london|england/.test(d)) return "GBP";
   if (/유럽|프랑스|파리|독일|베를린|이탈리아|로마|스페인|바르셀로나|네덜란드|암스테르담|europe|paris/.test(d)) return "EUR";
