@@ -1,28 +1,30 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { Loader2, ArrowLeft, Plane, Car, Hotel, StickyNote, CalendarDays, BookOpen, Map, Users, Download, Bot } from "lucide-react";
+import { Loader2, ArrowLeft, Plane, Hotel, CalendarDays, BookOpen, Map, Users, Download, Bot, LayoutDashboard, Wallet, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format, parseISO, differenceInDays, eachDayOfInterval } from "date-fns";
 import { ko } from "date-fns/locale";
+import OverviewTab from "./trip-tabs/OverviewTab";
 import FlightsTab from "./trip-tabs/FlightsTab";
-import RentalsTab from "./trip-tabs/RentalsTab";
-import AccommodationsTab from "./trip-tabs/AccommodationsTab";
-import MemosTab from "./trip-tabs/MemosTab";
+import StaysTab from "./trip-tabs/StaysTab";
 import ItineraryTab from "./trip-tabs/ItineraryTab";
 import DiaryTab from "./trip-tabs/DiaryTab";
 import MapTab from "./trip-tabs/MapTab";
+import BudgetTab from "./trip-tabs/BudgetTab";
+import ChecklistTab from "./trip-tabs/ChecklistTab";
 import { ShareDialog } from "@/components/ShareDialog";
 import { AiImportDialog } from "@/components/AiImportDialog";
 
 const TABS = [
+  { id: "overview", label: "오버뷰", icon: LayoutDashboard },
+  { id: "journey", label: "여정", icon: CalendarDays },
   { id: "flights", label: "항공편", icon: Plane },
-  { id: "rentals", label: "렌트카", icon: Car },
-  { id: "accommodations", label: "숙박", icon: Hotel },
-  { id: "memos", label: "메모", icon: StickyNote },
-  { id: "itinerary", label: "일정", icon: CalendarDays },
-  { id: "diary", label: "일기", icon: BookOpen },
+  { id: "stays", label: "숙박·이동", icon: Hotel },
   { id: "map", label: "지도", icon: Map },
+  { id: "budget", label: "예산", icon: Wallet },
+  { id: "checklist", label: "체크리스트", icon: ClipboardList },
+  { id: "memory", label: "기억", icon: BookOpen },
 ];
 
 export default function TripDetail() {
@@ -164,13 +166,14 @@ export default function TripDetail() {
 
       {/* ── Tab Content ── */}
       <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-5 sm:py-6">
+        {activeTab === "overview" && <OverviewTab tripId={tripId} trip={trip} tripDays={tripDays} />}
+        {activeTab === "journey" && <ItineraryTab tripId={tripId} tripDays={tripDays} />}
         {activeTab === "flights" && <FlightsTab tripId={tripId} />}
-        {activeTab === "rentals" && <RentalsTab tripId={tripId} />}
-        {activeTab === "accommodations" && <AccommodationsTab tripId={tripId} />}
-        {activeTab === "memos" && <MemosTab tripId={tripId} />}
-        {activeTab === "itinerary" && <ItineraryTab tripId={tripId} tripDays={tripDays} />}
-        {activeTab === "diary" && <DiaryTab tripId={tripId} tripDays={tripDays} />}
+        {activeTab === "stays" && <StaysTab tripId={tripId} />}
         {activeTab === "map" && <MapTab tripId={tripId} tripDays={tripDays} />}
+        {activeTab === "budget" && <BudgetTab tripId={tripId} trip={trip} />}
+        {activeTab === "checklist" && <ChecklistTab tripId={tripId} />}
+        {activeTab === "memory" && <DiaryTab tripId={tripId} tripDays={tripDays} />}
       </div>
 
       <ShareDialog

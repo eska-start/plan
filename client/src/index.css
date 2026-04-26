@@ -41,62 +41,80 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --font-sans: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-serif: 'Playfair Display', ui-serif, Georgia, serif;
+  --font-serif: 'Fraunces', 'Playfair Display', 'Noto Serif KR', ui-serif, Georgia, serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
 }
 
 :root {
-  --radius: 0.75rem;
+  --radius: 0.875rem; /* 14px — Voya md radius */
 
-  /* ── Light: Pure White + Zinc + Blue-Indigo ── */
-  --background:           oklch(0.98 0.002 240);
-  --foreground:           oklch(0.13 0.015 255);
+  /* ── Voya · journal palette ── */
+  --background:           oklch(0.978 0.006 213);   /* #F4F8FB sky-tinted */
+  --foreground:           oklch(0.146 0.042 247);   /* #142033 ink */
   --card:                 oklch(1 0 0);
-  --card-foreground:      oklch(0.13 0.015 255);
+  --card-foreground:      oklch(0.146 0.042 247);
   --popover:              oklch(1 0 0);
-  --popover-foreground:   oklch(0.13 0.015 255);
+  --popover-foreground:   oklch(0.146 0.042 247);
 
-  /* Primary: Vivid Indigo */
-  --primary:              oklch(0.45 0.18 265);
-  --primary-foreground:   oklch(0.99 0 0);
+  /* Primary: Sky */
+  --primary:              oklch(0.672 0.097 221);   /* #5BB4D8 */
+  --primary-foreground:   oklch(1 0 0);
 
-  /* Secondary */
-  --secondary:            oklch(0.95 0.005 250);
-  --secondary-foreground: oklch(0.45 0.18 265);
+  /* Secondary: surface-alt */
+  --secondary:            oklch(0.955 0.020 213);   /* #EAF2F7 */
+  --secondary-foreground: oklch(0.505 0.098 230);   /* #2B7FA6 sky-deep */
 
   /* Muted */
-  --muted:                oklch(0.96 0.003 240);
-  --muted-foreground:     oklch(0.52 0.012 255);
+  --muted:                oklch(0.955 0.020 213);
+  --muted-foreground:     oklch(0.644 0.027 232);   /* #8A99AA ink-muted */
 
-  /* Accent: Sky Blue */
-  --accent:               oklch(0.60 0.18 230);
-  --accent-foreground:    oklch(0.99 0 0);
+  /* Accent: Coral */
+  --accent:               oklch(0.672 0.115 40);    /* #F18A6A */
+  --accent-foreground:    oklch(1 0 0);
 
   /* Destructive */
   --destructive:          oklch(0.58 0.22 25);
   --destructive-foreground: oklch(0.99 0 0);
 
   /* Border / Input */
-  --border:               oklch(0.91 0.005 240);
-  --input:                oklch(0.91 0.005 240);
-  --ring:                 oklch(0.45 0.18 265);
+  --border:               oklch(0.920 0.016 213);   /* #E1E9EF */
+  --input:                oklch(0.920 0.016 213);
+  --ring:                 oklch(0.672 0.097 221);   /* sky */
 
-  /* Charts */
-  --chart-1:              oklch(0.60 0.18 230);
-  --chart-2:              oklch(0.62 0.14 155);
-  --chart-3:              oklch(0.75 0.14 65);
-  --chart-4:              oklch(0.60 0.14 15);
-  --chart-5:              oklch(0.55 0.10 290);
+  /* Charts — Voya palette */
+  --chart-1:              oklch(0.672 0.097 221);   /* sky */
+  --chart-2:              oklch(0.744 0.083 169);   /* mint */
+  --chart-3:              oklch(0.819 0.124 83);    /* sun */
+  --chart-4:              oklch(0.672 0.115 40);    /* coral */
+  --chart-5:              oklch(0.505 0.098 230);   /* sky-deep */
 
-  /* Sidebar: Deep Navy */
-  --sidebar:              oklch(0.14 0.028 260);
+  /* Sidebar: ink-dark */
+  --sidebar:              oklch(0.146 0.042 247);
   --sidebar-foreground:   oklch(0.88 0.008 240);
-  --sidebar-primary:      oklch(0.60 0.18 230);
-  --sidebar-primary-foreground: oklch(0.14 0.028 260);
-  --sidebar-accent:       oklch(0.20 0.030 260);
+  --sidebar-primary:      oklch(0.672 0.097 221);
+  --sidebar-primary-foreground: oklch(0.146 0.042 247);
+  --sidebar-accent:       oklch(0.22 0.035 250);
   --sidebar-accent-foreground: oklch(0.92 0.006 240);
-  --sidebar-border:       oklch(0.22 0.028 260);
-  --sidebar-ring:         oklch(0.60 0.18 230);
+  --sidebar-border:       oklch(0.24 0.035 252);
+  --sidebar-ring:         oklch(0.672 0.097 221);
+
+  /* ── Voya custom tokens (use in className with arbitrary values) ── */
+  --voya-sky:             #5BB4D8;
+  --voya-sky-deep:        #2B7FA6;
+  --voya-sky-soft:        #DBEEF6;
+  --voya-coral:           #F18A6A;
+  --voya-coral-soft:      #FDE2D7;
+  --voya-mint:            #7CC8B0;
+  --voya-mint-soft:       #DEF1EA;
+  --voya-sun:             #F2C75A;
+  --voya-sun-soft:        #FBEFCC;
+  --voya-ink:             #142033;
+  --voya-ink-soft:        #516274;
+  --voya-ink-muted:       #8A99AA;
+  --voya-line:            #E1E9EF;
+  --voya-surface-alt:     #EAF2F7;
+  --voya-bg-warm:         #FBF7F1;
+  --voya-cream:           #FBF6EC;
 }
 
 .dark {
@@ -198,9 +216,12 @@
     @apply bg-card border border-border rounded-xl;
   }
   .card-hover {
-    @apply bg-card border border-border rounded-xl transition-all duration-200 hover:shadow-md hover:border-border/80;
+    @apply bg-card border border-border rounded-xl transition-all duration-200 hover:shadow-[0_16px_32px_-16px_rgba(20,40,60,0.18)] hover:-translate-y-px;
   }
   .card-elevated {
-    @apply bg-card border border-border rounded-2xl shadow-sm;
+    @apply bg-card border border-border rounded-2xl shadow-[0_6px_20px_-10px_rgba(20,40,60,0.12)];
+  }
+  .font-display {
+    font-family: var(--font-serif);
   }
 }

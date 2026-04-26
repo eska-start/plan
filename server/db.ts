@@ -12,6 +12,8 @@ import {
   diaryEntries, InsertDiaryEntry,
   tripShares, InsertTripShare,
   tripMembers, InsertTripMember,
+  expenses, InsertExpense,
+  checklistItems, InsertChecklistItem,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -440,4 +442,87 @@ export async function deleteDiaryEntry(id: number, userId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.delete(diaryEntries).where(and(eq(diaryEntries.id, id), eq(diaryEntries.userId, userId)));
+}
+
+// ─── Expenses ─────────────────────────────────────────────────────────────────
+export async function getExpensesByTrip(tripId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const trip = await getTripById(tripId, userId);
+  if (!trip) return [];
+  return db.select().from(expenses)
+    .where(eq(expenses.tripId, tripId))
+    .orderBy(desc(expenses.date), desc(expenses.createdAt));
+}
+
+export async function createExpense(data: InsertExpense) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const r = await db.insert(expenses).values(data);
+  return (r[0] as any).insertId as number;
+}
+
+export async function updateExpense(id: number, userId: number, data: Partial<InsertExpense>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const row = await db.select().from(expenses).where(eq(expenses.id, id)).limit(1);
+  if (!row[0]) throw new Error("Not found");
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.update(expenses).set(data).where(eq(expenses.id, id));
+}
+
+export async function deleteExpense(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const row = await db.select().from(expenses).where(eq(expenses.id, id)).limit(1);
+  if (!row[0]) return;
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.delete(expenses).where(eq(expenses.id, id));
+}
+
+// ─── Checklist Items ──────────────────────────────────────────────────────────
+export async function getChecklistByTrip(tripId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const trip = await getTripById(tripId, userId);
+  if (!trip) return [];
+  return db.select().from(checklistItems)
+    .where(eq(checklistItems.tripId, tripId))
+    .orderBy(asc(checklistItems.group), asc(checklistItems.order), asc(checklistItems.id));
+}
+
+export async function createChecklistItem(data: InsertChecklistItem) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const r = await db.insert(checklistItems).values(data);
+  return (r[0] as any).insertId as number;
+}
+
+export async function updateChecklistItem(id: number, userId: number, data: Partial<InsertChecklistItem>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const row = await db.select().from(checklistItems).where(eq(checklistItems.id, id)).limit(1);
+  if (!row[0]) throw new Error("Not found");
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.update(checklistItems).set(data).where(eq(checklistItems.id, id));
+}
+
+export async function deleteChecklistItem(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const row = await db.select().from(checklistItems).where(eq(checklistItems.id, id)).limit(1);
+  if (!row[0]) return;
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.delete(checklistItems).where(eq(checklistItems.id, id));
+}
+
+export async function bulkCreateChecklistItems(items: InsertChecklistItem[]) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  if (items.length === 0) return;
+  await db.insert(checklistItems).values(items);
 }

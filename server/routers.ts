@@ -30,6 +30,8 @@ import {
   getDiaryEntriesByTrip, getDiaryEntryByDate, upsertDiaryEntry, deleteDiaryEntry,
   createTripShare, getTripShareByToken, getTripSharesByTrip, deleteTripShare,
   getTripMembers, addTripMember, removeTripMember,
+  getExpensesByTrip, createExpense, updateExpense, deleteExpense,
+  getChecklistByTrip, createChecklistItem, updateChecklistItem, deleteChecklistItem, bulkCreateChecklistItems,
 } from "./db";
 
 // ─── Helper: 숙박 → 일정 자동 생성 ──────────────────────────────────────────
@@ -102,6 +104,8 @@ const tripsRouter = router({
       endDate: z.string().optional(),
       coverColor: z.string().optional(),
       description: z.string().optional(),
+      budget: z.string().optional().nullable(),
+      budgetCurrency: z.string().optional(),
     }))
     .mutation(({ ctx, input }) => {
       const { id, ...data } = input;
@@ -737,6 +741,138 @@ const sharingRouter = router({
     .mutation(({ ctx, input }) => removeTripMember(input.tripId, input.userId, ctx.user.id)),
 });
 
+// ─── Expenses Router ──────────────────────────────────────────────────────────
+const expensesRouter = router({
+  list: protectedProcedure
+    .input(z.object({ tripId: z.number() }))
+    .query(({ ctx, input }) => getExpensesByTrip(input.tripId, ctx.user.id)),
+
+  create: protectedProcedure
+    .input(z.object({
+      tripId: z.number(),
+      date: z.string(),
+      amount: z.string(),
+      currency: z.string().optional(),
+      category: z.string().optional(),
+      description: z.string().optional(),
+    }))
+    .mutation(({ ctx, input }) => createExpense({ ...input, userId: ctx.user.id })),
+
+  update: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      date: z.string().optional(),
+      amount: z.string().optional(),
+      currency: z.string().optional(),
+      category: z.string().optional(),
+      description: z.string().optional(),
+    }))
+    .mutation(({ ctx, input }) => {
+      const { id, ...data } = input;
+      return updateExpense(id, ctx.user.id, data);
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(({ ctx, input }) => deleteExpense(input.id, ctx.user.id)),
+
+  aiExtract: protectedProcedure
+    .input(z.object({ tripId: z.number(), text: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await getTripById(input.tripId, ctx.user.id);
+      if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
+      const res = await invokeLLM({
+        messages: [
+          {
+            role: "system" as const,
+            content: `여행 지출 파서입니다. 텍스트에서 지출 정보를 추출해 JSON만 반환합니다.\n반환 스키마: { "expenses": [{ "date": "YYYY-MM-DD|null", "amount": "숫자문자열", "currency": "KRW|JPY|USD|EUR|...", "category": "항공|숙박|식비|교통|쇼핑|액티비티|기타", "description": "string" }], "reply": "한국어 요약" }\n규칙: amount는 숫자만(쉼표·통화기호 제거), date 모를 경우 null, category는 반드시 위 목록 중 하나`,
+          },
+          { role: "user" as const, content: input.text },
+        ],
+        response_format: { type: "json_object" },
+      });
+      try {
+        const raw = res.choices?.[0]?.message?.content;
+        const p = JSON.parse(typeof raw === "string" ? raw : "{}") as Record<string, unknown>;
+        return { expenses: Array.isArray(p.expenses) ? p.expenses : [], reply: typeof p.reply === "string" ? p.reply : "" };
+      } catch { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI 응답 파싱 실패" }); }
+    }),
+
+  aiExtractFromImage: protectedProcedure
+    .input(z.object({ tripId: z.number(), imageBase64: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await getTripById(input.tripId, ctx.user.id);
+      if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
+      const dataUri = input.imageBase64.startsWith("data:") ? input.imageBase64 : `data:image/jpeg;base64,${input.imageBase64}`;
+      const res = await invokeLLM({
+        messages: [
+          {
+            role: "system" as const,
+            content: `영수증/결제 내역 이미지 파서. JSON만 반환: { "expenses": [{ "date": "YYYY-MM-DD|null", "amount": "숫자문자열", "currency": "KRW|JPY|USD|EUR|...", "category": "항공|숙박|식비|교통|쇼핑|액티비티|기타", "description": "string" }], "reply": "한국어요약" }`,
+          },
+          {
+            role: "user" as const,
+            content: [
+              { type: "text" as const, text: "이 영수증/결제 내역에서 지출 정보를 추출해주세요." },
+              { type: "image_url" as const, image_url: { url: dataUri, detail: "high" as const } },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+      });
+      try {
+        const raw = res.choices?.[0]?.message?.content;
+        const p = JSON.parse(typeof raw === "string" ? raw : "{}") as Record<string, unknown>;
+        return { expenses: Array.isArray(p.expenses) ? p.expenses : [], reply: typeof p.reply === "string" ? p.reply : "" };
+      } catch { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI 응답 파싱 실패" }); }
+    }),
+});
+
+// ─── Checklist Router ─────────────────────────────────────────────────────────
+const DEFAULT_CHECKLIST_ITEMS = [
+  { group: "필수서류", label: "여권", order: 0 },
+  { group: "필수서류", label: "비자 (해당 시)", order: 1 },
+  { group: "필수서류", label: "항공권 / 예약 확인서", order: 2 },
+  { group: "돈·통신", label: "현금 환전", order: 0 },
+  { group: "돈·통신", label: "신용/체크카드", order: 1 },
+  { group: "돈·통신", label: "해외 유심 / 포켓와이파이", order: 2 },
+  { group: "옷·가방", label: "여행 가방 / 캐리어", order: 0 },
+  { group: "옷·가방", label: "여행 옷", order: 1 },
+  { group: "옷·가방", label: "편한 신발", order: 2 },
+  { group: "기타", label: "보조배터리", order: 0 },
+  { group: "기타", label: "카메라", order: 1 },
+  { group: "기타", label: "상비약", order: 2 },
+] as const;
+
+const checklistRouter = router({
+  list: protectedProcedure
+    .input(z.object({ tripId: z.number() }))
+    .query(({ ctx, input }) => getChecklistByTrip(input.tripId, ctx.user.id)),
+
+  seed: protectedProcedure
+    .input(z.object({ tripId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const trip = await getTripById(input.tripId, ctx.user.id);
+      if (!trip) throw new TRPCError({ code: "NOT_FOUND" });
+      const existing = await getChecklistByTrip(input.tripId, ctx.user.id);
+      if (existing.length > 0) return { seeded: false };
+      await bulkCreateChecklistItems(DEFAULT_CHECKLIST_ITEMS.map(item => ({ ...item, tripId: input.tripId, userId: ctx.user.id })));
+      return { seeded: true };
+    }),
+
+  create: protectedProcedure
+    .input(z.object({ tripId: z.number(), group: z.string().optional(), label: z.string().min(1), order: z.number().optional() }))
+    .mutation(({ ctx, input }) => createChecklistItem({ ...input, userId: ctx.user.id })),
+
+  toggle: protectedProcedure
+    .input(z.object({ id: z.number(), done: z.boolean() }))
+    .mutation(({ ctx, input }) => updateChecklistItem(input.id, ctx.user.id, { done: input.done })),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(({ ctx, input }) => deleteChecklistItem(input.id, ctx.user.id)),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -756,6 +892,9 @@ export const appRouter = router({
   itinerary: itineraryRouter,
   diary: diaryRouter,
   sharing: sharingRouter,
+  expenses: expensesRouter,
+  checklist: checklistRouter,
 });
 
 export type AppRouter = typeof appRouter;
+
