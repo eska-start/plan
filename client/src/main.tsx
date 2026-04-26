@@ -37,14 +37,19 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
-        // 30s client-side timeout — aborts if server is unresponsive (cold start, network issue)
+        // 30s timeout + React Query's own cancellation signal combined
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 30_000);
+        const onRQAbort = () => ctrl.abort();
+        init?.signal?.addEventListener("abort", onRQAbort, { once: true });
         return globalThis.fetch(input, {
           ...(init ?? {}),
           credentials: "include",
           signal: ctrl.signal,
-        }).finally(() => clearTimeout(t));
+        }).finally(() => {
+          clearTimeout(t);
+          init?.signal?.removeEventListener("abort", onRQAbort);
+        });
       },
     }),
   ],

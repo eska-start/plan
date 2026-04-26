@@ -16,23 +16,29 @@ export function useAuth(options?: UseAuthOptions) {
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
+    refetchInterval: false,
+    staleTime: Infinity,
   });
 
   // 5초 이상 로딩 → 콜드스타트 안내 메시지 표시
   const [slowLoading, setSlowLoading] = useState(false);
-  // 32초 이상 로딩 → tRPC AbortController가 abort했어도 isLoading이 안 꺼질 때 강제 비인증 처리
+  // 마운트 32초 후 강제 비인증 처리 — isLoading 사이클에 묶으면 abort 루프 시 타이머가 리셋되는 버그
   const [authTimedOut, setAuthTimedOut] = useState(false);
 
   useEffect(() => {
-    if (!meQuery.isLoading) {
-      setSlowLoading(false);
-      setAuthTimedOut(false);
-      return;
-    }
-    const t1 = setTimeout(() => setSlowLoading(true), 5_000);
-    const t2 = setTimeout(() => setAuthTimedOut(true), 32_000);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    if (!meQuery.isLoading) { setSlowLoading(false); return; }
+    const t = setTimeout(() => setSlowLoading(true), 5_000);
+    return () => clearTimeout(t);
   }, [meQuery.isLoading]);
+
+  // authTimedOut: 마운트 기준 1회 발동, 데이터 도착 시 리셋
+  useEffect(() => {
+    const t = setTimeout(() => setAuthTimedOut(true), 32_000);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    if (meQuery.data) setAuthTimedOut(false);
+  }, [meQuery.data]);
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
