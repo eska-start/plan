@@ -13,7 +13,9 @@ export default function FadeIn({ children, delay = 0, className, direction = "up
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    // Fallback: always show after 500ms in case IntersectionObserver doesn't fire (iOS Safari timing)
+    const fallback = setTimeout(() => setVisible(true), 500);
+    if (!el) return () => clearTimeout(fallback);
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) { setVisible(true); observer.unobserve(el); }
@@ -21,7 +23,7 @@ export default function FadeIn({ children, delay = 0, className, direction = "up
       { threshold: 0.04 }
     );
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); clearTimeout(fallback); };
   }, []);
 
   const initTransform =
