@@ -15,8 +15,21 @@ export function useAuth(options?: UseAuthOptions) {
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
+
+
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  useEffect(() => {
+    if (!meQuery.isLoading) {
+      setLoadingTimedOut(false);
+      return;
+    }
+
+    const t = setTimeout(() => setLoadingTimedOut(true), 8000);
+    return () => clearTimeout(t);
+  }, [meQuery.isLoading]);
 
   // 5초 이상 로딩 중 → Render 서버 콜드스타트 안내
   const [slowLoading, setSlowLoading] = useState(false);
@@ -60,7 +73,7 @@ export function useAuth(options?: UseAuthOptions) {
 
   const state = useMemo(() => ({
     user: meQuery.data ?? null,
-    loading: meQuery.isLoading || logoutMutation.isPending,
+    loading: (meQuery.isLoading && !loadingTimedOut) || logoutMutation.isPending,
     error: meQuery.error ?? logoutMutation.error ?? null,
     isAuthenticated: Boolean(meQuery.data),
   }), [
@@ -69,6 +82,7 @@ export function useAuth(options?: UseAuthOptions) {
     meQuery.isLoading,
     logoutMutation.error,
     logoutMutation.isPending,
+    loadingTimedOut,
   ]);
 
   useEffect(() => {
@@ -86,6 +100,25 @@ export function useAuth(options?: UseAuthOptions) {
     meQuery.isLoading,
     state.user,
   ]);
+
+  useEffect(() => {
+    const refetchMe = () => {
+      void meQuery.refetch();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refetchMe();
+    };
+
+    window.addEventListener("online", refetchMe);
+    window.addEventListener("pageshow", refetchMe);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("online", refetchMe);
+      window.removeEventListener("pageshow", refetchMe);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [meQuery.refetch]);
 
   return {
     ...state,
