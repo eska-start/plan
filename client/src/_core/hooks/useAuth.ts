@@ -18,12 +18,20 @@ export function useAuth(options?: UseAuthOptions) {
     refetchOnWindowFocus: false,
   });
 
-  // 5초 이상 로딩 중 → Render 서버 콜드스타트 안내
+  // 5초 이상 로딩 → 콜드스타트 안내 메시지 표시
   const [slowLoading, setSlowLoading] = useState(false);
+  // 32초 이상 로딩 → tRPC AbortController가 abort했어도 isLoading이 안 꺼질 때 강제 비인증 처리
+  const [authTimedOut, setAuthTimedOut] = useState(false);
+
   useEffect(() => {
-    if (!meQuery.isLoading) { setSlowLoading(false); return; }
-    const t = setTimeout(() => setSlowLoading(true), 5000);
-    return () => clearTimeout(t);
+    if (!meQuery.isLoading) {
+      setSlowLoading(false);
+      setAuthTimedOut(false);
+      return;
+    }
+    const t1 = setTimeout(() => setSlowLoading(true), 5_000);
+    const t2 = setTimeout(() => setAuthTimedOut(true), 32_000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [meQuery.isLoading]);
 
   const logoutMutation = trpc.auth.logout.useMutation({
@@ -60,10 +68,12 @@ export function useAuth(options?: UseAuthOptions) {
 
   const state = useMemo(() => ({
     user: meQuery.data ?? null,
-    loading: meQuery.isLoading || logoutMutation.isPending,
+    // authTimedOut 시 로딩 강제 종료 → AuthScreen 표시
+    loading: authTimedOut ? false : (meQuery.isLoading || logoutMutation.isPending),
     error: meQuery.error ?? logoutMutation.error ?? null,
-    isAuthenticated: Boolean(meQuery.data),
+    isAuthenticated: authTimedOut ? false : Boolean(meQuery.data),
   }), [
+    authTimedOut,
     meQuery.data,
     meQuery.error,
     meQuery.isLoading,

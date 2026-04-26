@@ -2,7 +2,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
-import { useEffect } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
@@ -22,19 +21,6 @@ function Router() {
 }
 
 function App() {
-  useEffect(() => {
-    // iOS Safari bfcache: page restored from cache freezes React state.
-    // sessionStorage flag prevents reload loops (flag cleared on fresh loads).
-    const handler = (e: PageTransitionEvent) => {
-      if (!e.persisted) { sessionStorage.removeItem("_bfr"); return; }
-      if (sessionStorage.getItem("_bfr")) return; // already reloaded once
-      sessionStorage.setItem("_bfr", "1");
-      window.location.reload();
-    };
-    window.addEventListener("pageshow", handler);
-    return () => window.removeEventListener("pageshow", handler);
-  }, []);
-
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">

@@ -37,10 +37,14 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
+        // 30s client-side timeout — aborts if server is unresponsive (cold start, network issue)
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 30_000);
         return globalThis.fetch(input, {
           ...(init ?? {}),
           credentials: "include",
-        });
+          signal: ctrl.signal,
+        }).finally(() => clearTimeout(t));
       },
     }),
   ],
