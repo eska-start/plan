@@ -12,11 +12,7 @@ import JoinTrip from "./pages/JoinTrip";
 function Router() {
   return (
     <Switch>
-      <Route path="/">
-        <DashboardLayout>
-          <Home />
-        </DashboardLayout>
-      </Route>
+      <Route path="/" component={Home} />
       <Route path="/trips/:id/:tab?" component={TripDetail} />
       <Route path="/join/:token" component={JoinTrip} />
       <Route path="/404" component={NotFound} />
