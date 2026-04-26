@@ -17,31 +17,15 @@ import { format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
 
 type ItineraryItem = {
-  id: number;
-  date: string;
-  placeName: string;
-  address?: string | null;
-  visitTime?: string | null;
-  duration?: number | null;
-  visited?: boolean | null;
-  memo?: string | null;
-  category?: string | null;
-  sourceType?: string | null;
-  order?: number | null;
-  lat?: string | null;
-  lng?: string | null;
+  id: number; date: string; placeName: string;
+  address?: string | null; visitTime?: string | null; duration?: number | null;
+  visited?: boolean | null; memo?: string | null; category?: string | null;
+  sourceType?: string | null; order?: number | null; lat?: string | null; lng?: string | null;
 };
 
 type FormData = {
-  date: string;
-  placeName: string;
-  address: string;
-  visitTime: string;
-  duration: string;
-  memo: string;
-  category: string;
-  lat: string;
-  lng: string;
+  date: string; placeName: string; address: string; visitTime: string;
+  duration: string; memo: string; category: string; lat: string; lng: string;
 };
 
 const CATEGORIES = [
@@ -63,9 +47,7 @@ function CategoryPill({ category }: { category: string }) {
   const s = CAT_STYLE[category] ?? CAT_STYLE.place;
   return (
     <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
-      style={{ background: s.bg, color: s.color }}>
-      {s.label}
-    </span>
+      style={{ background: s.bg, color: s.color }}>{s.label}</span>
   );
 }
 
@@ -73,25 +55,38 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
   const utils = trpc.useUtils();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
-  const defaultDate = tripDays[0] ? format(tripDays[0], "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+  const tripStartDate = tripDays[0] ? format(tripDays[0], "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
   const [form, setForm] = useState<FormData>({
-    date: defaultDate, placeName: "", address: "", visitTime: "",
+    date: tripStartDate, placeName: "", address: "", visitTime: "",
     duration: "", memo: "", category: "place", lat: "", lng: "",
   });
 
-  // AI state
   const [aiMode, setAiMode] = useState<"text" | "image" | null>(null);
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiItems, setAiItems] = useState<Array<{ date: string | null; placeName: string; visitTime: string | null; category: string; memo: string | null; address: string | null; selected: boolean }>>([]);
+  const [aiItems, setAiItems] = useState<Array<{
+    date: string | null; placeName: string; visitTime: string | null;
+    category: string; memo: string | null; address: string | null; selected: boolean;
+  }>>([]);
   const aiFileRef = useRef<HTMLInputElement>(null);
   const placeInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
+  // Animation state
+  const dayRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [visibleDays, setVisibleDays] = useState<Set<string>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
   const { data: allItems, isLoading } = trpc.itinerary.listByTrip.useQuery({ tripId });
 
   const createMutation = trpc.itinerary.create.useMutation({
-    onSuccess: () => { utils.itinerary.listByTrip.invalidate(); utils.itinerary.listByDate.invalidate(); setDialogOpen(false); setForm(f => ({ ...f, placeName: "", address: "", visitTime: "", duration: "", memo: "", lat: "", lng: "" })); toast.success("장소가 추가됐습니다."); },
+    onSuccess: () => {
+      utils.itinerary.listByTrip.invalidate();
+      utils.itinerary.listByDate.invalidate();
+      setDialogOpen(false);
+      setForm(f => ({ ...f, placeName: "", address: "", visitTime: "", duration: "", memo: "", lat: "", lng: "" }));
+      toast.success("장소가 추가됐습니다.");
+    },
     onError: () => toast.error("장소 추가에 실패했습니다."),
   });
   const updateMutation = trpc.itinerary.update.useMutation({
@@ -105,7 +100,31 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
   const aiExtractMutation = trpc.itinerary.aiExtract.useMutation();
   const aiExtractImageMutation = trpc.itinerary.aiExtractFromImage.useMutation();
 
-  // Google Places
+  // IntersectionObserver for timeline animations
+  useEffect(() => {
+    if (isLoading) return;
+    observerRef.current?.disconnect();
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        setVisibleDays(prev => {
+          const next = new Set(prev);
+          let changed = false;
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const d = (entry.target as HTMLElement).dataset.date;
+              if (d && !next.has(d)) { next.add(d); changed = true; observerRef.current?.unobserve(entry.target); }
+            }
+          });
+          return changed ? next : prev;
+        });
+      },
+      { threshold: 0.04, rootMargin: "0px 0px -20px 0px" }
+    );
+    Object.values(dayRefs.current).forEach(el => { if (el) observerRef.current!.observe(el); });
+    return () => observerRef.current?.disconnect();
+  }, [isLoading, tripDays.length]);
+
+  // Google Places Autocomplete
   useEffect(() => {
     if (!dialogOpen) return;
     let destroyed = false;
@@ -131,11 +150,9 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
     if (!byDate[item.date]) byDate[item.date] = [];
     byDate[item.date].push(item);
   });
-  // Sort items within each day by visitTime then order
   Object.values(byDate).forEach(arr => arr.sort((a, b) => {
     if (a.visitTime && b.visitTime) return a.visitTime.localeCompare(b.visitTime);
-    if (a.visitTime) return -1;
-    if (b.visitTime) return 1;
+    if (a.visitTime) return -1; if (b.visitTime) return 1;
     return (a.order ?? 0) - (b.order ?? 0);
   }));
 
@@ -144,7 +161,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
 
   function openCreate(date?: string) {
     setEditId(null);
-    setForm(f => ({ ...f, date: date ?? defaultDate, placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "" }));
+    setForm(f => ({ ...f, date: date ?? tripStartDate, placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "" }));
     setDialogOpen(true);
   }
   function openEdit(item: ItineraryItem) {
@@ -159,37 +176,56 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
     else createMutation.mutate({ tripId, date: form.date, order: (byDate[form.date]?.length ?? 0), ...data });
   }
 
-  // AI handlers
   async function handleAiText() {
     if (!aiText.trim()) return;
     setAiLoading(true);
     try {
-      const res = await aiExtractMutation.mutateAsync({ tripId, text: aiText });
-      const items = (res.items as Array<Record<string, unknown>>).map(i => ({ date: (i.date as string | null) ?? null, placeName: (i.placeName as string) ?? "", visitTime: (i.visitTime as string | null) ?? null, category: (i.category as string) ?? "place", memo: (i.memo as string | null) ?? null, address: (i.address as string | null) ?? null, selected: true }));
+      const res = await aiExtractMutation.mutateAsync({ tripId, text: aiText, tripStartDate });
+      const items = (res.items as Array<Record<string, unknown>>).map(i => ({
+        date: (i.date as string | null) ?? null, placeName: (i.placeName as string) ?? "",
+        visitTime: (i.visitTime as string | null) ?? null, category: (i.category as string) ?? "place",
+        memo: (i.memo as string | null) ?? null, address: (i.address as string | null) ?? null, selected: true,
+      }));
       if (!items.length) { toast.error("일정 정보를 찾지 못했습니다."); return; }
       setAiItems(items);
-    } catch (e: any) { toast.error(e?.message?.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "AI 분석 실패"); }
-    finally { setAiLoading(false); }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      toast.error(msg.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "AI 분석 실패");
+    } finally { setAiLoading(false); }
   }
+
   async function handleAiImage(file: File) {
     setAiLoading(true);
     try {
       const img = new Image(); const url = URL.createObjectURL(file);
       const b64 = await new Promise<string>((resolve, reject) => {
-        img.onload = () => { const MAX = 1400; let { width, height } = img; if (width > MAX || height > MAX) { if (width > height) { height = Math.round(height * MAX / width); width = MAX; } else { width = Math.round(width * MAX / height); height = MAX; } } const c = document.createElement("canvas"); c.width = width; c.height = height; c.getContext("2d")!.drawImage(img, 0, 0, width, height); URL.revokeObjectURL(url); resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]); };
+        img.onload = () => {
+          const MAX = 1400; let { width, height } = img;
+          if (width > MAX || height > MAX) { if (width > height) { height = Math.round(height * MAX / width); width = MAX; } else { width = Math.round(width * MAX / height); height = MAX; } }
+          const c = document.createElement("canvas"); c.width = width; c.height = height;
+          c.getContext("2d")!.drawImage(img, 0, 0, width, height); URL.revokeObjectURL(url);
+          resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
+        };
         img.onerror = reject; img.src = url;
       });
-      const res = await aiExtractImageMutation.mutateAsync({ tripId, imageBase64: b64 });
-      const items = (res.items as Array<Record<string, unknown>>).map(i => ({ date: (i.date as string | null) ?? null, placeName: (i.placeName as string) ?? "", visitTime: (i.visitTime as string | null) ?? null, category: (i.category as string) ?? "place", memo: (i.memo as string | null) ?? null, address: (i.address as string | null) ?? null, selected: true }));
+      const res = await aiExtractImageMutation.mutateAsync({ tripId, imageBase64: b64, tripStartDate });
+      const items = (res.items as Array<Record<string, unknown>>).map(i => ({
+        date: (i.date as string | null) ?? null, placeName: (i.placeName as string) ?? "",
+        visitTime: (i.visitTime as string | null) ?? null, category: (i.category as string) ?? "place",
+        memo: (i.memo as string | null) ?? null, address: (i.address as string | null) ?? null, selected: true,
+      }));
       if (!items.length) { toast.error("일정 정보를 찾지 못했습니다."); return; }
       setAiItems(items);
-    } catch (e: any) { toast.error(e?.message?.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "이미지 분석 실패"); }
-    finally { setAiLoading(false); }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      toast.error(msg.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "이미지 분석 실패");
+    } finally { setAiLoading(false); }
   }
+
   async function handleAiSave() {
     const toSave = aiItems.filter(i => i.selected && i.placeName);
     for (const item of toSave) {
-      await createMutation.mutateAsync({ tripId, date: item.date ?? defaultDate, placeName: item.placeName, visitTime: item.visitTime ?? undefined, category: item.category, memo: item.memo ?? undefined, address: item.address ?? undefined, order: (byDate[item.date ?? defaultDate]?.length ?? 0) });
+      await createMutation.mutateAsync({ tripId, date: item.date ?? tripStartDate, placeName: item.placeName, visitTime: item.visitTime ?? undefined, category: item.category, memo: item.memo ?? undefined, address: item.address ?? undefined, order: (byDate[item.date ?? tripStartDate]?.length ?? 0) });
     }
     toast.success(`${toSave.length}개 일정이 추가됐습니다.`);
     setAiItems([]); setAiMode(null); setAiText("");
@@ -216,7 +252,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
         </div>
       </div>
 
-      {/* AI 입력 패널 */}
+      {/* AI Panel */}
       {aiMode && (
         <div className="rounded-2xl border bg-card p-4 space-y-3 mb-5">
           <div className="flex items-center justify-between">
@@ -231,9 +267,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
             <button onClick={() => { setAiMode(null); setAiItems([]); setAiText(""); }}><X className="w-4 h-4 text-muted-foreground" /></button>
           </div>
           {aiLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
-              <Loader2 className="w-4 h-4 animate-spin" /> AI 분석 중…
-            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center"><Loader2 className="w-4 h-4 animate-spin" /> AI 분석 중…</div>
           ) : aiItems.length > 0 ? (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">저장할 항목을 선택하세요.</p>
@@ -268,8 +302,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
             <>
               <button onClick={() => aiFileRef.current?.click()}
                 className="w-full border-2 border-dashed border-border rounded-xl py-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-                <Camera className="w-6 h-6" />
-                <span className="text-sm">사진 선택 또는 카메라 촬영</span>
+                <Camera className="w-6 h-6" /><span className="text-sm">사진 선택 또는 카메라 촬영</span>
               </button>
               <input ref={aiFileRef} type="file" accept="image/*" capture="environment" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
@@ -278,26 +311,41 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
         </div>
       )}
 
-      {/* Loading */}
       {isLoading && (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-        </div>
+        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
       )}
 
-      {/* Full timeline */}
+      {/* Timeline */}
       {!isLoading && (
         <div>
           {tripDays.map((day, idx) => {
             const dateStr = format(day, "yyyy-MM-dd");
             const dayItems = byDate[dateStr] ?? [];
             const dayDone = dayItems.filter(i => i.visited).length;
+            const visible = visibleDays.has(dateStr);
 
             return (
-              <div key={dateStr} className="flex gap-0 mb-1">
-                {/* Left date column */}
+              <div
+                key={dateStr}
+                ref={el => { dayRefs.current[dateStr] = el; }}
+                data-date={dateStr}
+                className="flex gap-0 mb-1"
+                style={{
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? "translateY(0)" : "translateY(20px)",
+                  transition: "opacity 0.5s ease, transform 0.5s ease",
+                }}
+              >
+                {/* Date column */}
                 <div className="w-[88px] shrink-0 pt-5 pr-4 text-right">
-                  <div className="font-display text-[2.2rem] font-semibold leading-none text-foreground">
+                  <div
+                    className="font-display text-[2.2rem] font-semibold leading-none text-foreground"
+                    style={{
+                      opacity: visible ? 1 : 0,
+                      transform: visible ? "translateX(0)" : "translateX(-8px)",
+                      transition: "opacity 0.4s ease 0.1s, transform 0.4s ease 0.1s",
+                    }}
+                  >
                     {format(day, "d")}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1 leading-tight">
@@ -309,13 +357,29 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                   )}
                 </div>
 
-                {/* Vertical line + items */}
-                <div className="flex gap-0 flex-1 min-w-0 border-l border-border ml-0 pl-5 pt-4 pb-2">
-                  {/* Day title + add button */}
+                {/* Timeline right column */}
+                <div className="relative flex-1 min-w-0 pl-5 pt-4 pb-2">
+                  {/* Animated vertical line */}
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-px bg-border"
+                    style={{
+                      transformOrigin: "top",
+                      transform: visible ? "scaleY(1)" : "scaleY(0)",
+                      transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.05s",
+                    }}
+                  />
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-primary -ml-[22px] ring-2 ring-background" />
+                        {/* Animated dot */}
+                        <div
+                          className="w-2 h-2 rounded-full bg-primary -ml-[22px] ring-2 ring-background"
+                          style={{
+                            transform: visible ? "scale(1)" : "scale(0)",
+                            transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s",
+                          }}
+                        />
                         {dayItems.length === 0 ? (
                           <span className="text-sm text-muted-foreground">일정 없음</span>
                         ) : (
@@ -335,26 +399,30 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                     ) : (
                       <div className="rounded-2xl border bg-card overflow-hidden mb-4">
                         {dayItems.map((item, k) => (
-                          <div key={item.id} className={`flex items-start gap-3 px-4 py-3.5 border-t first:border-t-0 border-border group transition-colors hover:bg-muted/30 ${item.visited ? "opacity-60" : ""}`}>
-                            {/* Visited toggle */}
+                          <div
+                            key={item.id}
+                            className={`flex items-start gap-3 px-4 py-3.5 border-t first:border-t-0 border-border group hover:bg-muted/30 ${item.visited ? "opacity-60" : ""}`}
+                            style={{
+                              opacity: visible ? (item.visited ? 0.6 : 1) : 0,
+                              transform: visible ? "translateY(0)" : "translateY(8px)",
+                              transition: `opacity 0.4s ease ${0.2 + k * 0.07}s, transform 0.4s ease ${0.2 + k * 0.07}s`,
+                            }}
+                          >
                             <button
                               onClick={() => updateMutation.mutate({ id: item.id, visited: !item.visited })}
                               className="mt-0.5 shrink-0 transition-colors"
                             >
                               {item.visited
                                 ? <CheckCircle2 className="w-4 h-4 text-accent" />
-                                : <Circle className="w-4 h-4 text-muted-foreground hover:text-accent" />
-                              }
+                                : <Circle className="w-4 h-4 text-muted-foreground hover:text-accent" />}
                             </button>
 
-                            {/* Time */}
                             <div className="w-12 shrink-0 mt-0.5">
-                              {item.visitTime ? (
+                              {item.visitTime && (
                                 <span className="text-xs font-medium text-muted-foreground tabular-nums">{item.visitTime}</span>
-                              ) : null}
+                              )}
                             </div>
 
-                            {/* Content */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap mb-0.5">
                                 <CategoryPill category={item.sourceType === "accommodation" ? "accommodation" : (item.category ?? "place")} />
@@ -372,9 +440,9 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                               )}
                             </div>
 
-                            {/* Actions */}
-                            <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {item.sourceType !== "accommodation" && (
+                            {/* Actions — 기본 40% 불투명, hover 100% (모바일도 보임) */}
+                            <div className="flex gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
+                              {item.sourceType !== "accommodation" ? (
                                 <>
                                   <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
                                     <Pencil className="w-3.5 h-3.5" />
@@ -383,8 +451,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </>
-                              )}
-                              {item.sourceType === "accommodation" && (
+                              ) : (
                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>
                               )}
                             </div>
@@ -400,7 +467,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
         </div>
       )}
 
-      {/* 추가/수정 다이얼로그 */}
+      {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
           <DialogHeader className="mb-1">

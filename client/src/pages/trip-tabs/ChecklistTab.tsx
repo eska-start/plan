@@ -4,6 +4,7 @@ import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X } fro
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import FadeIn from "@/components/FadeIn";
 
 interface Props {
   tripId: number;
@@ -126,6 +127,7 @@ export default function ChecklistTab({ tripId }: Props) {
   return (
     <div className="space-y-5">
       {/* Header progress */}
+      <FadeIn>
       <div className="rounded-2xl border bg-card p-4 space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -149,6 +151,7 @@ export default function ChecklistTab({ tripId }: Props) {
           <p className="text-xs text-[#5DA88F] font-medium">모든 준비 완료!</p>
         )}
       </div>
+      </FadeIn>
 
       {/* AI 입력 패널 */}
       {aiMode && (
@@ -211,12 +214,13 @@ export default function ChecklistTab({ tripId }: Props) {
       )}
 
       {/* Group sections */}
-      {Object.entries(groups).map(([group, groupItems]) => {
+      {Object.entries(groups).map(([group, groupItems], gi) => {
         const bg = GROUP_COLORS[group] ?? "#F4F8FB";
         const groupDone = (groupItems ?? []).filter(i => i.done).length;
         const groupTotal = (groupItems ?? []).length;
         return (
-          <div key={group} className="rounded-2xl border bg-card overflow-hidden">
+          <FadeIn key={group} delay={0.05 + gi * 0.07}>
+          <div className="rounded-2xl border bg-card overflow-hidden">
             <div className="px-4 py-3 flex items-center justify-between" style={{ background: bg }}>
               <span className="text-xs font-semibold text-foreground tracking-wide">{group}</span>
               <span className="text-xs text-muted-foreground">{groupDone}/{groupTotal}</span>
@@ -252,6 +256,7 @@ export default function ChecklistTab({ tripId }: Props) {
               ))}
             </div>
           </div>
+          </FadeIn>
         );
       })}
 

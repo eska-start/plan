@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import FadeIn from "@/components/FadeIn";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -387,70 +388,81 @@ export default function Home() {
         ) : (
           <>
             {/* Greeting */}
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground font-semibold tracking-widest uppercase mb-1">{greeting}, {user?.name?.toUpperCase()}</p>
-                <h1 className="font-display text-3xl sm:text-4xl font-semibold text-foreground leading-tight">
-                  {daysLeft != null ? (
-                    <>다음 여행은 <em className="italic" style={{ color: "#5BB4D8" }}>{daysLeft}일</em> 남았어요.</>
-                  ) : nextTrip ? "지금 여행 중이에요!" : "새로운 여행을 계획해보세요."}
-                </h1>
+            <FadeIn>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground font-semibold tracking-widest uppercase mb-1">{greeting}, {user?.name?.toUpperCase()}</p>
+                  <h1 className="font-display text-3xl sm:text-4xl font-semibold text-foreground leading-tight">
+                    {daysLeft != null ? (
+                      <>다음 여행은 <em className="italic" style={{ color: "#5BB4D8" }}>{daysLeft}일</em> 남았어요.</>
+                    ) : nextTrip ? "지금 여행 중이에요!" : "새로운 여행을 계획해보세요."}
+                  </h1>
+                </div>
+                <Button onClick={openCreate} size="sm" className="gap-1.5 shrink-0 self-start mt-1 sm:hidden">
+                  <Plus className="w-3.5 h-3.5" />추가
+                </Button>
               </div>
-              <Button onClick={openCreate} size="sm" className="gap-1.5 shrink-0 self-start mt-1 sm:hidden">
-                <Plus className="w-3.5 h-3.5" />추가
-              </Button>
-            </div>
+            </FadeIn>
 
             {/* Featured trip */}
             {featuredTrip && (
-              <FeaturedTripCard
-                trip={featuredTrip}
-                onClick={() => setLocation(`/trips/${featuredTrip.id}`)}
-                onEdit={(e) => openEdit(featuredTrip, e)}
-                onDelete={(e) => { e.stopPropagation(); setDeleteConfirm(featuredTrip.id); }}
-              />
+              <FadeIn delay={0.07}>
+                <FeaturedTripCard
+                  trip={featuredTrip}
+                  onClick={() => setLocation(`/trips/${featuredTrip.id}`)}
+                  onEdit={(e) => openEdit(featuredTrip, e)}
+                  onDelete={(e) => { e.stopPropagation(); setDeleteConfirm(featuredTrip.id); }}
+                />
+              </FadeIn>
             )}
 
             {/* Other trips */}
             {otherTrips.length > 0 && (
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="font-display text-xl font-semibold text-foreground">내 여행</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">지난 여행과 예정된 여행들</p>
+                <FadeIn delay={0.1}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="font-display text-xl font-semibold text-foreground">내 여행</h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">지난 여행과 예정된 여행들</p>
+                    </div>
                   </div>
-                </div>
+                </FadeIn>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {otherTrips.map(trip => (
-                    <TripCard
-                      key={trip.id}
-                      trip={trip}
-                      onClick={() => setLocation(`/trips/${trip.id}`)}
-                      onEdit={(e) => openEdit(trip, e)}
-                      onDelete={(e) => { e.stopPropagation(); setDeleteConfirm(trip.id); }}
-                    />
+                  {otherTrips.map((trip, i) => (
+                    <FadeIn key={trip.id} delay={0.13 + i * 0.06}>
+                      <TripCard
+                        trip={trip}
+                        onClick={() => setLocation(`/trips/${trip.id}`)}
+                        onEdit={(e) => openEdit(trip, e)}
+                        onDelete={(e) => { e.stopPropagation(); setDeleteConfirm(trip.id); }}
+                      />
+                    </FadeIn>
                   ))}
                   {/* Add card */}
-                  <button onClick={openCreate}
-                    className="rounded-2xl border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/4 transition-all flex flex-col items-center justify-center gap-3 p-8 min-h-[200px] group">
-                    <div className="w-11 h-11 rounded-xl bg-muted group-hover:bg-primary/10 flex items-center justify-center transition-colors">
-                      <Plus className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                    </div>
-                    <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors font-medium">새 여행 추가</span>
-                  </button>
+                  <FadeIn delay={0.13 + otherTrips.length * 0.06}>
+                    <button onClick={openCreate}
+                      className="rounded-2xl border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/4 transition-all flex flex-col items-center justify-center gap-3 p-8 min-h-[200px] group w-full h-full">
+                      <div className="w-11 h-11 rounded-xl bg-muted group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+                        <Plus className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                      </div>
+                      <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors font-medium">새 여행 추가</span>
+                    </button>
+                  </FadeIn>
                 </div>
               </div>
             )}
 
             {/* If only one trip, show add card anyway */}
             {otherTrips.length === 0 && featuredTrip && (
-              <button onClick={openCreate}
-                className="w-full rounded-2xl border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/4 transition-all flex items-center justify-center gap-3 py-8 group">
-                <div className="w-9 h-9 rounded-xl bg-muted group-hover:bg-primary/10 flex items-center justify-center transition-colors">
-                  <Plus className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                </div>
-                <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors font-medium">또 다른 여행 추가하기</span>
-              </button>
+              <FadeIn delay={0.14}>
+                <button onClick={openCreate}
+                  className="w-full rounded-2xl border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/4 transition-all flex items-center justify-center gap-3 py-8 group">
+                  <div className="w-9 h-9 rounded-xl bg-muted group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+                    <Plus className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </div>
+                  <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors font-medium">또 다른 여행 추가하기</span>
+                </button>
+              </FadeIn>
             )}
           </>
         )}

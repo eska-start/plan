@@ -3,6 +3,7 @@ import { Loader2, Plane, Hotel, CalendarDays, StickyNote, Wallet, ArrowRight, Ch
 import { format, parseISO, differenceInDays, isAfter, isBefore } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useLocation } from "wouter";
+import FadeIn from "@/components/FadeIn";
 
 interface Trip {
   id: number;
@@ -100,6 +101,7 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
   return (
     <div className="space-y-5">
       {/* Two-column layout */}
+      <FadeIn>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
 
         {/* Left: upcoming items */}
@@ -193,14 +195,17 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
           </div>
         </div>
       </div>
+      </FadeIn>
 
       {/* 4 progress cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <ProgressCard icon={<Plane className="w-4 h-4" />} label="항공편" value={`${(flights ?? []).length}편`} sub="등록된 항공편" pct={(flights ?? []).length > 0 ? 100 : 0} tint="#5BB4D8" />
-        <ProgressCard icon={<Hotel className="w-4 h-4" />} label="숙박" value={`${nightsTotal}박`} sub={`${(accommodations ?? []).length}곳 예약`} pct={(accommodations ?? []).length > 0 ? 100 : 0} tint="#7CC8B0" />
-        <ProgressCard icon={<CheckSquare className="w-4 h-4" />} label="준비물" value={`${checkDone}/${checkTotal}`} sub={checkDone === checkTotal && checkTotal > 0 ? "모두 완료!" : `${checkTotal - checkDone}개 남음`} pct={checkTotal > 0 ? (checkDone / checkTotal) * 100 : 0} tint="#F18A6A" />
-        <ProgressCard icon={<Wallet className="w-4 h-4" />} label="예산" value={budgetNum != null ? `${Math.round(budgetPct)}%` : `${fmt(Math.round(totalSpent))}`} sub={budgetNum != null ? `${fmt(Math.round(totalSpent))} 사용` : `${budgetCurrency} 기록`} pct={budgetPct} tint="#F2C75A" />
-      </div>
+      <FadeIn delay={0.1}>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <ProgressCard icon={<Plane className="w-4 h-4" />} label="항공편" value={`${(flights ?? []).length}편`} sub="등록된 항공편" pct={(flights ?? []).length > 0 ? 100 : 0} tint="#5BB4D8" />
+          <ProgressCard icon={<Hotel className="w-4 h-4" />} label="숙박" value={`${nightsTotal}박`} sub={`${(accommodations ?? []).length}곳 예약`} pct={(accommodations ?? []).length > 0 ? 100 : 0} tint="#7CC8B0" />
+          <ProgressCard icon={<CheckSquare className="w-4 h-4" />} label="준비물" value={`${checkDone}/${checkTotal}`} sub={checkDone === checkTotal && checkTotal > 0 ? "모두 완료!" : `${checkTotal - checkDone}개 남음`} pct={checkTotal > 0 ? (checkDone / checkTotal) * 100 : 0} tint="#F18A6A" />
+          <ProgressCard icon={<Wallet className="w-4 h-4" />} label="예산" value={budgetNum != null ? `${Math.round(budgetPct)}%` : `${fmt(Math.round(totalSpent))}`} sub={budgetNum != null ? `${fmt(Math.round(totalSpent))} 사용` : `${budgetCurrency} 기록`} pct={budgetPct} tint="#F2C75A" />
+        </div>
+      </FadeIn>
     </div>
   );
 }
