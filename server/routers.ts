@@ -43,20 +43,23 @@ async function syncAccommodationToItinerary(
   address: string | undefined | null,
   checkIn: string | undefined | null,
   checkOut: string | undefined | null,
+  checkInTime?: string | undefined | null,
+  checkOutTime?: string | undefined | null,
 ) {
   if (!checkIn || !checkOut) return;
   try {
     // 기존 연동 항목 삭제
     await deleteItineraryItemsBySource(tripId, accommodationId);
-    // 체크인~체크아웃 날짜 범위 생성 (체크인 날만 추가, 체크아웃 당일은 제외)
+    // 체크인~체크아웃 날짜 범위 생성
     const days = eachDayOfInterval({ start: parseISO(checkIn), end: parseISO(checkOut) });
     // 체크인 날: "체크인" 항목, 중간 날: "숙박 중", 체크아웃 날: "체크아웃" 항목
     for (let i = 0; i < days.length; i++) {
       const d = days[i];
       const dateStr = format(d, "yyyy-MM-dd");
       let label = "";
-      if (i === 0) label = `🏨 체크인 — ${name}`;
-      else if (i === days.length - 1) label = `🏨 체크아웃 — ${name}`;
+      let visitTime: string | undefined;
+      if (i === 0) { label = `🏨 체크인 — ${name}`; visitTime = checkInTime ?? undefined; }
+      else if (i === days.length - 1) { label = `🏨 체크아웃 — ${name}`; visitTime = checkOutTime ?? undefined; }
       else label = `🏨 숙박 — ${name}`;
       await createItineraryItem({
         tripId,
@@ -64,6 +67,7 @@ async function syncAccommodationToItinerary(
         date: dateStr,
         placeName: label,
         address: address ?? undefined,
+        visitTime,
         category: "accommodation",
         sourceType: "accommodation",
         sourceId: accommodationId,
@@ -464,7 +468,9 @@ const accommodationsRouter = router({
       name: z.string().min(1),
       address: z.string().optional(),
       checkIn: z.string().optional(),
+      checkInTime: z.string().optional(),
       checkOut: z.string().optional(),
+      checkOutTime: z.string().optional(),
       bookingRef: z.string().optional(),
       price: z.string().optional(),
       currency: z.string().optional(),
@@ -477,6 +483,7 @@ const accommodationsRouter = router({
         await syncAccommodationToItinerary(
           input.tripId, ctx.user.id, id,
           input.name, input.address, input.checkIn, input.checkOut,
+          input.checkInTime, input.checkOutTime,
         );
       }
       return { id };
@@ -489,7 +496,9 @@ const accommodationsRouter = router({
       name: z.string().optional(),
       address: z.string().optional(),
       checkIn: z.string().optional(),
+      checkInTime: z.string().optional(),
       checkOut: z.string().optional(),
+      checkOutTime: z.string().optional(),
       bookingRef: z.string().optional(),
       price: z.string().optional(),
       currency: z.string().optional(),
@@ -506,7 +515,9 @@ const accommodationsRouter = router({
         const address = data.address ?? acc.address;
         const checkIn = data.checkIn ?? acc.checkIn;
         const checkOut = data.checkOut ?? acc.checkOut;
-        await syncAccommodationToItinerary(tripId, ctx.user.id, id, name, address, checkIn, checkOut);
+        const checkInTime = data.checkInTime ?? acc.checkInTime;
+        const checkOutTime = data.checkOutTime ?? acc.checkOutTime;
+        await syncAccommodationToItinerary(tripId, ctx.user.id, id, name, address, checkIn, checkOut, checkInTime, checkOutTime);
       }
     }),
 

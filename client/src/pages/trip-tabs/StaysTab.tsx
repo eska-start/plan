@@ -13,11 +13,15 @@ import { ko } from "date-fns/locale";
 
 // ── Accommodation form ────────────────────────────────────────────────────────
 type AccomForm = {
-  name: string; address: string; checkIn: string; checkOut: string;
+  name: string; address: string;
+  checkIn: string; checkInTime: string;
+  checkOut: string; checkOutTime: string;
   bookingRef: string; price: string; currency: string; memo: string;
 };
 const defaultAccomForm: AccomForm = {
-  name: "", address: "", checkIn: "", checkOut: "",
+  name: "", address: "",
+  checkIn: "", checkInTime: "",
+  checkOut: "", checkOutTime: "",
   bookingRef: "", price: "", currency: "KRW", memo: "",
 };
 
@@ -76,13 +80,13 @@ export default function StaysTab({ tripId }: { tripId: number }) {
   const openCreateAccom = () => { setAccomEditId(null); setAccomForm(defaultAccomForm); setAccomOpen(true); };
   const openEditAccom = (a: NonNullable<typeof accommodations>[number]) => {
     setAccomEditId(a.id);
-    setAccomForm({ name: a.name, address: a.address ?? "", checkIn: a.checkIn ?? "", checkOut: a.checkOut ?? "", bookingRef: a.bookingRef ?? "", price: a.price?.toString() ?? "", currency: a.currency ?? "KRW", memo: a.memo ?? "" });
+    setAccomForm({ name: a.name, address: a.address ?? "", checkIn: a.checkIn ?? "", checkInTime: a.checkInTime ?? "", checkOut: a.checkOut ?? "", checkOutTime: a.checkOutTime ?? "", bookingRef: a.bookingRef ?? "", price: a.price?.toString() ?? "", currency: a.currency ?? "KRW", memo: a.memo ?? "" });
     setAccomOpen(true);
   };
   const submitAccom = () => {
     const trimmedName = accomForm.name.trim();
     if (!trimmedName) { toast.error("숙소명을 입력해주세요."); return; }
-    const payload = { ...accomForm, name: trimmedName, address: accomForm.address.trim() || undefined, checkIn: accomForm.checkIn || undefined, checkOut: accomForm.checkOut || undefined, bookingRef: accomForm.bookingRef.trim() || undefined, price: accomForm.price.trim() || undefined, currency: accomForm.currency || undefined, memo: accomForm.memo.trim() || undefined };
+    const payload = { ...accomForm, name: trimmedName, address: accomForm.address.trim() || undefined, checkIn: accomForm.checkIn || undefined, checkInTime: accomForm.checkInTime || undefined, checkOut: accomForm.checkOut || undefined, checkOutTime: accomForm.checkOutTime || undefined, bookingRef: accomForm.bookingRef.trim() || undefined, price: accomForm.price.trim() || undefined, currency: accomForm.currency || undefined, memo: accomForm.memo.trim() || undefined };
     if (accomEditId) updateAccom.mutate({ id: accomEditId, tripId, ...payload });
     else createAccom.mutate({ tripId, ...payload });
   };
@@ -168,12 +172,20 @@ export default function StaysTab({ tripId }: { tripId: number }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 bg-muted/40 rounded-lg p-3 mb-3">
-                  <div className="text-center flex-1"><p className="text-xs text-muted-foreground mb-0.5">체크인</p><p className="text-sm font-semibold">{formatDate(a.checkIn)}</p></div>
+                  <div className="text-center flex-1">
+                    <p className="text-xs text-muted-foreground mb-0.5">체크인</p>
+                    <p className="text-sm font-semibold">{formatDate(a.checkIn)}</p>
+                    {a.checkInTime && <p className="text-xs text-primary font-medium mt-0.5">{a.checkInTime}</p>}
+                  </div>
                   <div className="flex flex-col items-center gap-0.5 shrink-0">
                     <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                     {getNights(a.checkIn, a.checkOut) && <span className="text-xs font-medium text-primary">{getNights(a.checkIn, a.checkOut)}</span>}
                   </div>
-                  <div className="text-center flex-1"><p className="text-xs text-muted-foreground mb-0.5">체크아웃</p><p className="text-sm font-semibold">{formatDate(a.checkOut)}</p></div>
+                  <div className="text-center flex-1">
+                    <p className="text-xs text-muted-foreground mb-0.5">체크아웃</p>
+                    <p className="text-sm font-semibold">{formatDate(a.checkOut)}</p>
+                    {a.checkOutTime && <p className="text-xs text-primary font-medium mt-0.5">{a.checkOutTime}</p>}
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   {a.bookingRef && <span className="flex items-center gap-1"><Hash className="w-3 h-3" /> 예약번호: <span className="font-mono font-medium text-foreground">{a.bookingRef}</span></span>}
@@ -279,14 +291,18 @@ export default function StaysTab({ tripId }: { tripId: number }) {
               <Label className="text-sm font-medium">주소</Label>
               <Input className="h-10" placeholder="도쿄 신주쿠구..." value={accomForm.address} onChange={e => setAccomForm(f => ({ ...f, address: e.target.value }))} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">체크인</Label>
-                <Input className="h-10" type="date" value={accomForm.checkIn} onChange={e => setAccomForm(f => ({ ...f, checkIn: e.target.value }))} />
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">체크인</Label>
+              <div className="flex gap-2">
+                <Input className="h-10 flex-1 min-w-0" type="date" value={accomForm.checkIn} onChange={e => setAccomForm(f => ({ ...f, checkIn: e.target.value }))} />
+                <Input className="h-10 w-28 shrink-0" type="time" placeholder="15:00" value={accomForm.checkInTime} onChange={e => setAccomForm(f => ({ ...f, checkInTime: e.target.value }))} />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">체크아웃</Label>
-                <Input className="h-10" type="date" value={accomForm.checkOut} onChange={e => setAccomForm(f => ({ ...f, checkOut: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">체크아웃</Label>
+              <div className="flex gap-2">
+                <Input className="h-10 flex-1 min-w-0" type="date" value={accomForm.checkOut} onChange={e => setAccomForm(f => ({ ...f, checkOut: e.target.value }))} />
+                <Input className="h-10 w-28 shrink-0" type="time" placeholder="11:00" value={accomForm.checkOutTime} onChange={e => setAccomForm(f => ({ ...f, checkOutTime: e.target.value }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
