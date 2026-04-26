@@ -77,15 +77,26 @@ export default function BudgetTab({ tripId, trip }: Props) {
   });
   const [budgetForm, setBudgetForm] = useState({ budget: trip.budget ?? "", budgetCurrency: currency });
 
-  // 비KRW 지출이 있을 때 환율 조회
+  // 비KRW 지출이 있을 때 환율 조회 (합계 계산에도 필요)
   useEffect(() => {
     if (!expenses) return;
-    const hasNonKrw = expenses.some(e => e.currency && e.currency !== "KRW");
+    const hasNonKrw = expenses.some(e => e.currency && e.currency !== currency);
     if (!hasNonKrw || krwRates) return;
     fetchRates("KRW").then(r => setKrwRates(r)).catch(() => {});
   }, [expenses]);
 
-  // 수동 입력 폼에서 비KRW 통화 선택 시 실시간 환율 미리보기
+  // 지출 금액을 여행 기준 통화(KRW)로 환산
+  function toBase(amount: number, expCurrency: string): number {
+    if (expCurrency === currency) return amount;
+    if (!krwRates) return amount; // 환율 미로딩 시 원본 값 유지
+    if (currency === "KRW") {
+      const rate = krwRates[expCurrency.toLowerCase()];
+      return rate ? Math.round(amount / rate) : amount;
+    }
+    return amount;
+  }
+
+  // 수동 입력 폼에서 비KRW 통화 선택 시 실시간 한화 미리보기
   const formKrwPreview = (() => {
     if (form.currency === "KRW" || !form.amount || isNaN(parseFloat(form.amount))) return null;
     if (!krwRates) return null;
@@ -94,12 +105,16 @@ export default function BudgetTab({ tripId, trip }: Props) {
     return Math.round(parseFloat(form.amount) / rate);
   })();
 
-  const totalSpent = (expenses ?? []).reduce((s, e) => s + parseFloat(e.amount ?? "0"), 0);
+  const totalSpent = (expenses ?? []).reduce((s, e) =>
+    s + toBase(parseFloat(e.amount ?? "0"), e.currency ?? currency), 0);
   const remaining = budgetNum != null ? budgetNum - totalSpent : null;
   const budgetPct = budgetNum && budgetNum > 0 ? Math.min((totalSpent / budgetNum) * 100, 100) : 0;
 
   const catTotals: Record<string, number> = {};
-  (expenses ?? []).forEach(e => { const cat = e.category ?? "기타"; catTotals[cat] = (catTotals[cat] ?? 0) + parseFloat(e.amount ?? "0"); });
+  (expenses ?? []).forEach(e => {
+    const cat = e.category ?? "기타";
+    catTotals[cat] = (catTotals[cat] ?? 0) + toBase(parseFloat(e.amount ?? "0"), e.currency ?? currency);
+  });
 
   const byDate: Record<string, typeof expenses> = {};
   (expenses ?? []).forEach(e => { const d = e.date ?? ""; if (!byDate[d]) byDate[d] = []; byDate[d]!.push(e); });
@@ -145,7 +160,8 @@ export default function BudgetTab({ tripId, trip }: Props) {
         setAiPreview(preview);
       } else { toast.error("지출 정보를 찾지 못했습니다."); }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "AI 분석 실패");
+      const msg = e instanceof Error ? e.message : "AI 분석 실패";
+      toast.error(msg.includes("429") ? "AI API 쿼터 초과 — Google AI Studio에서 결제를 활성화해주세요." : msg);
     } finally { setAiLoading(false); }
   }
 
@@ -159,7 +175,8 @@ export default function BudgetTab({ tripId, trip }: Props) {
         setAiPreview(preview);
       } else { toast.error("영수증에서 지출 정보를 찾지 못했습니다."); }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "이미지 분석 실패");
+      const msg = e instanceof Error ? e.message : "이미지 분석 실패";
+      toast.error(msg.includes("429") ? "AI API 쿼터 초과 — Google AI Studio에서 결제를 활성화해주세요." : msg);
     } finally { setAiLoading(false); }
   }
 
@@ -428,7 +445,8 @@ export default function BudgetTab({ tripId, trip }: Props) {
         <div className="space-y-4">
           {sortedDates.map((date, di) => {
             const dayExpenses = byDate[date] ?? [];
-            const dayTotal = dayExpenses.reduce((s, e) => s + parseFloat(e.amount ?? "0"), 0);
+            const dayTotal = dayExpenses.reduce((s, e) =>
+              s + toBase(parseFloat(e.amount ?? "0"), e.currency ?? currency), 0);
             let displayDate = date;
             try { displayDate = format(parseISO(date), "MM월 dd일 (EEE)", { locale: ko }); } catch {}
             return (
