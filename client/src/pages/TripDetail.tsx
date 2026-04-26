@@ -39,12 +39,22 @@ export default function TripDetail() {
   const tripId = parseInt(params.id);
   const activeTab = params.tab || "flights";
 
-  const { data: trip, isLoading } = trpc.trips.get.useQuery({ id: tripId });
+  const { data: trip, isLoading, error } = trpc.trips.get.useQuery({ id: tripId });
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // 인증 실패 → 홈으로 (로그인 화면 표시)
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <p className="text-muted-foreground text-sm">로그인이 필요합니다.</p>
+        <Button variant="outline" size="sm" onClick={() => setLocation("/")}>홈으로</Button>
       </div>
     );
   }

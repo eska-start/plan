@@ -116,9 +116,9 @@ function AuthScreen() {
         </div>
 
         <div className="mt-4 text-center">
-          <button onClick={() => window.location.href = getLoginUrl()} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 mx-auto">
+          <a href={getLoginUrl()} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 mx-auto justify-center">
             <LogIn className="w-3.5 h-3.5" /> 게스트로 시작하기
-          </button>
+          </a>
         </div>
       </div>
     </div>

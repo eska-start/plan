@@ -1,11 +1,9 @@
 import { trpc } from "@/lib/trpc";
-import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink, TRPCClientError } from "@trpc/client";
+import { httpBatchLink } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { getLoginUrl } from "./const";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -14,35 +12,22 @@ const queryClient = new QueryClient({
       refetchInterval: 30_000,
       refetchOnWindowFocus: true,
       staleTime: 10_000,
+      // 인증 오류 시 자동 리다이렉트 제거 — 리다이렉트 루프 방지
+      // 각 페이지에서 isAuthenticated 상태로 직접 처리
+      retry: false,
     },
   },
 });
 
-// Prevent redirect loop: only allow one redirect per page lifecycle
-let _redirecting = false;
-
-const redirectToLoginIfUnauthorized = (error: unknown) => {
-  if (_redirecting) return;
-  if (!(error instanceof TRPCClientError)) return;
-  if (typeof window === "undefined") return;
-  if (error.message !== UNAUTHED_ERR_MSG) return;
-  _redirecting = true;
-  window.location.href = getLoginUrl();
-};
-
 queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
-    const error = event.query.state.error;
-    redirectToLoginIfUnauthorized(error);
-    console.error("[API Query Error]", error);
+    console.error("[API Query Error]", event.query.state.error);
   }
 });
 
 queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
-    const error = event.mutation.state.error;
-    redirectToLoginIfUnauthorized(error);
-    console.error("[API Mutation Error]", error);
+    console.error("[API Mutation Error]", event.mutation.state.error);
   }
 });
 
