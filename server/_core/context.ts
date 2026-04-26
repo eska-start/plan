@@ -39,7 +39,10 @@ export async function createContext(
         const parsed = parseCookieHeader(rawCookies);
         const cookieValue = parsed[COOKIE_NAME];
         if (cookieValue) {
-          const session = await sdk.verifySession(cookieValue);
+          const session = await Promise.race([
+            sdk.verifySession(cookieValue),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
+          ]);
           if (!session) {
             // JWT 자체가 잘못됨 → 쿠키 제거
             const cookieOptions = getSessionCookieOptions(opts.req);

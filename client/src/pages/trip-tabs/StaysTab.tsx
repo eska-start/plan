@@ -20,8 +20,8 @@ type AccomForm = {
 };
 const defaultAccomForm: AccomForm = {
   name: "", address: "",
-  checkIn: "", checkInTime: "",
-  checkOut: "", checkOutTime: "",
+  checkIn: "", checkInTime: "15:00",
+  checkOut: "", checkOutTime: "11:00",
   bookingRef: "", price: "", currency: "KRW", memo: "",
 };
 

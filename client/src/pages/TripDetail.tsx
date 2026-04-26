@@ -37,7 +37,7 @@ export default function TripDetail() {
   const [shareOpen, setShareOpen] = useState(false);
   const [aiImportOpen, setAiImportOpen] = useState(false);
   const tripId = parseInt(params.id);
-  const activeTab = params.tab || "flights";
+  const activeTab = params.tab || "overview";
 
   const { data: trip, isLoading, error } = trpc.trips.get.useQuery({ id: tripId });
 
