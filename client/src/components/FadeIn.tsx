@@ -14,14 +14,33 @@ export default function FadeIn({ children, delay = 0, className, direction = "up
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+
+    // 모바일 브라우저 재접속/복원 시 IntersectionObserver 콜백이 누락되는 케이스 방어
+    // (콜백이 누락되면 opacity:0 상태가 유지되어 흰 화면처럼 보일 수 있음)
+    const fallback = window.setTimeout(() => setVisible(true), 900);
+
+    if (typeof window.IntersectionObserver === "undefined") {
+      setVisible(true);
+      return () => window.clearTimeout(fallback);
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) { setVisible(true); observer.unobserve(el); }
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.unobserve(el);
+          window.clearTimeout(fallback);
+        }
       },
       { threshold: 0.04 }
     );
+
     observer.observe(el);
-    return () => observer.disconnect();
+
+    return () => {
+      window.clearTimeout(fallback);
+      observer.disconnect();
+    };
   }, []);
 
   const initTransform =
