@@ -43,7 +43,9 @@ export function getSessionCookieOptions(
   return {
     httpOnly: true,
     path: "/",
-    sameSite: secure ? "none" : "lax",
+    // sameSite:"lax" works for same-site first-party cookies on all browsers including iOS Safari.
+    // "none" is only needed for cross-site (third-party) contexts and breaks ITP on mobile Safari.
+    sameSite: "lax",
     secure,
   };
 }

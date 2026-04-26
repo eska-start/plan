@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { RefreshCw, Loader2, ArrowLeftRight, TrendingUp } from "lucide-react";
+import { RefreshCw, Loader2, ArrowLeftRight, TrendingUp, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import {
   detectCurrency, fetchRates, fmtAmount,
   CURRENCY_NAMES, CURRENCY_FLAGS,
@@ -10,17 +12,27 @@ import {
 const SHOW_CURRENCIES = ["JPY", "USD", "EUR", "CNY", "HKD", "TWD", "THB", "VND", "SGD", "AUD", "CAD", "GBP", "NZD", "MYR", "IDR", "PHP"];
 
 interface Props {
+  tripId: number;
   trip: { destination: string; budgetCurrency?: string | null };
 }
 
-export default function ExchangeTab({ trip }: Props) {
+export default function ExchangeTab({ tripId, trip }: Props) {
   const destCurrency = detectCurrency(trip.destination);
+  const savedCurrency = trip.budgetCurrency ?? null;
+
   const [rates, setRates] = useState<Record<string, number> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [inputKrw, setInputKrw] = useState("10000");
   const [inputForeign, setInputForeign] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const utils = trpc.useUtils();
+  const updateTrip = trpc.trips.update.useMutation({
+    onSuccess: () => {
+      utils.trips.get.invalidate({ id: tripId });
+    },
+  });
 
   async function load() {
     setLoading(true); setError(false);
@@ -37,8 +49,8 @@ export default function ExchangeTab({ trip }: Props) {
 
   useEffect(() => { load(); }, []);
 
-  const destRate = rates?.[destCurrency.toLowerCase()]; // KRW → destCurrency
-  const krwRate = destRate ? 1 / destRate : null;       // destCurrency → KRW
+  const destRate = rates?.[destCurrency.toLowerCase()];
+  const krwRate = destRate ? 1 / destRate : null;
 
   useEffect(() => {
     if (!destRate) return;
@@ -58,6 +70,12 @@ export default function ExchangeTab({ trip }: Props) {
     if (!krwRate) return;
     const n = parseFloat(v);
     setInputKrw(isNaN(n) ? "" : Math.round(n * krwRate).toLocaleString("ko-KR"));
+  }
+
+  async function handleSetCurrency(currency: string) {
+    if (currency === savedCurrency) return;
+    await updateTrip.mutateAsync({ id: tripId, budgetCurrency: currency });
+    toast.success(`여행 통화가 ${CURRENCY_FLAGS[currency] ?? ""} ${currency}로 설정됐습니다.`);
   }
 
   const flag = CURRENCY_FLAGS[destCurrency] ?? "🏳️";
@@ -160,9 +178,17 @@ export default function ExchangeTab({ trip }: Props) {
         )}
       </div>
 
-      {/* Popular currencies */}
+      {/* Currency list — click to set as trip currency */}
       <div className="rounded-2xl border bg-card p-5">
-        <h3 className="font-display text-base font-semibold mb-4">주요 통화 (1,000 KRW 기준)</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display text-base font-semibold">주요 통화 (1,000 KRW 기준)</h3>
+          {savedCurrency && (
+            <span className="text-xs text-muted-foreground">
+              현재 설정: {CURRENCY_FLAGS[savedCurrency] ?? ""} {savedCurrency}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">통화를 탭하면 여행 기준 통화로 저장됩니다.</p>
         {loading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -176,30 +202,40 @@ export default function ExchangeTab({ trip }: Props) {
               if (!rate) return null;
               const per1000 = rate * 1000;
               const isTarget = c === destCurrency;
+              const isSaved = c === savedCurrency;
               return (
-                <div
+                <button
                   key={c}
-                  className={`flex items-center justify-between py-3 ${isTarget ? "bg-primary/5 -mx-5 px-5 rounded-xl" : ""}`}
+                  onClick={() => handleSetCurrency(c)}
+                  disabled={updateTrip.isPending}
+                  className={`w-full flex items-center justify-between py-3 transition-colors rounded-lg px-2 -mx-2 ${
+                    isSaved ? "bg-primary/8" : isTarget ? "bg-muted/50" : "hover:bg-muted/40"
+                  }`}
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-xl w-8 text-center">{CURRENCY_FLAGS[c] ?? "🏳️"}</span>
-                    <div>
+                    <div className="text-left">
                       <div className="flex items-center gap-1.5">
-                        <p className={`text-sm font-semibold ${isTarget ? "text-primary" : "text-foreground"}`}>{c}</p>
+                        <p className={`text-sm font-semibold ${isSaved ? "text-primary" : "text-foreground"}`}>{c}</p>
                         {isTarget && (
-                          <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded-full font-semibold">여행지</span>
+                          <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full font-semibold">여행지</span>
+                        )}
+                        {isSaved && (
+                          <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded-full font-semibold flex items-center gap-0.5">
+                            <Check className="w-2.5 h-2.5" />저장됨
+                          </span>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">{CURRENCY_NAMES[c]}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`text-sm font-semibold tabular-nums ${isTarget ? "text-primary" : "text-foreground"}`}>
+                    <p className={`text-sm font-semibold tabular-nums ${isSaved ? "text-primary" : "text-foreground"}`}>
                       {fmtAmount(per1000, c)}
                     </p>
                     <p className="text-[10px] text-muted-foreground">/ 1,000 KRW</p>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>

@@ -177,7 +177,7 @@ export default function TripDetail() {
         {activeTab === "stays" && <StaysTab tripId={tripId} />}
         {activeTab === "map" && <MapTab tripId={tripId} tripDays={tripDays} />}
         {activeTab === "budget" && <BudgetTab tripId={tripId} trip={trip} />}
-        {activeTab === "exchange" && <ExchangeTab trip={trip} />}
+        {activeTab === "exchange" && <ExchangeTab tripId={tripId} trip={trip} />}
         {activeTab === "checklist" && <ChecklistTab tripId={tripId} />}
         {activeTab === "memory" && <DiaryTab tripId={tripId} tripDays={tripDays} />}
       </div>

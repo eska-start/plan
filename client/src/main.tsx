@@ -11,7 +11,6 @@ import "./index.css";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // 공유 여행의 실시간 동기화를 위해 30초마다 자동 리페치
       refetchInterval: 30_000,
       refetchOnWindowFocus: true,
       staleTime: 10_000,
@@ -19,14 +18,15 @@ const queryClient = new QueryClient({
   },
 });
 
+// Prevent redirect loop: only allow one redirect per page lifecycle
+let _redirecting = false;
+
 const redirectToLoginIfUnauthorized = (error: unknown) => {
+  if (_redirecting) return;
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
-
-  const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
-
-  if (!isUnauthorized) return;
-
+  if (error.message !== UNAUTHED_ERR_MSG) return;
+  _redirecting = true;
   window.location.href = getLoginUrl();
 };
 

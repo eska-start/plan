@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Plus, Wallet, TrendingUp, PiggyBank, Trash2, X, Loader2, Camera, FileText, Sparkles, RefreshCw } from "lucide-react";
@@ -70,11 +70,29 @@ export default function BudgetTab({ tripId, trip }: Props) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiPreview, setAiPreview] = useState<AiPreviewItem[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [krwRates, setKrwRates] = useState<Record<string, number> | null>(null);
 
   const [form, setForm] = useState({
     date: format(new Date(), "yyyy-MM-dd"), amount: "", currency, category: "기타" as Category, description: "",
   });
   const [budgetForm, setBudgetForm] = useState({ budget: trip.budget ?? "", budgetCurrency: currency });
+
+  // 비KRW 지출이 있을 때 환율 조회
+  useEffect(() => {
+    if (!expenses) return;
+    const hasNonKrw = expenses.some(e => e.currency && e.currency !== "KRW");
+    if (!hasNonKrw || krwRates) return;
+    fetchRates("KRW").then(r => setKrwRates(r)).catch(() => {});
+  }, [expenses]);
+
+  // 수동 입력 폼에서 비KRW 통화 선택 시 실시간 환율 미리보기
+  const formKrwPreview = (() => {
+    if (form.currency === "KRW" || !form.amount || isNaN(parseFloat(form.amount))) return null;
+    if (!krwRates) return null;
+    const rate = krwRates[form.currency.toLowerCase()];
+    if (!rate) return null;
+    return Math.round(parseFloat(form.amount) / rate);
+  })();
 
   const totalSpent = (expenses ?? []).reduce((s, e) => s + parseFloat(e.amount ?? "0"), 0);
   const remaining = budgetNum != null ? budgetNum - totalSpent : null;
@@ -325,7 +343,16 @@ export default function BudgetTab({ tripId, trip }: Props) {
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <div className="space-y-1"><Label className="text-xs">금액</Label><Input type="number" placeholder="0" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
+            <div className="space-y-1">
+              <Label className="text-xs">금액</Label>
+              <Input type="number" placeholder="0" value={form.amount} onChange={e => {
+                setForm(f => ({ ...f, amount: e.target.value }));
+                if (form.currency !== "KRW" && !krwRates) fetchRates("KRW").then(r => setKrwRates(r)).catch(() => {});
+              }} />
+              {formKrwPreview != null && (
+                <p className="text-xs text-muted-foreground">≈ ₩{formKrwPreview.toLocaleString("ko-KR")}</p>
+              )}
+            </div>
             <div className="space-y-1">
               <Label className="text-xs">통화</Label>
               <select className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}>
@@ -414,6 +441,11 @@ export default function BudgetTab({ tripId, trip }: Props) {
                   <div className="rounded-2xl border bg-card divide-y divide-border">
                     {dayExpenses.map(exp => {
                       const color = CAT_COLORS[exp.category ?? "기타"] ?? "#A0B4BE";
+                      const expCurrency = exp.currency ?? currency;
+                      const expAmount = parseFloat(exp.amount ?? "0");
+                      const krwEquiv = expCurrency !== "KRW" && krwRates
+                        ? Math.round(expAmount / (krwRates[expCurrency.toLowerCase()] ?? 1))
+                        : null;
                       return (
                         <div key={exp.id} className="flex items-center gap-3 px-4 py-3">
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
@@ -421,9 +453,14 @@ export default function BudgetTab({ tripId, trip }: Props) {
                             <p className="text-sm font-medium text-foreground truncate">{exp.description || exp.category}</p>
                             <p className="text-xs text-muted-foreground">{exp.category}</p>
                           </div>
-                          <p className="text-sm font-semibold text-foreground shrink-0">
-                            {fmt(Math.round(parseFloat(exp.amount ?? "0")), exp.currency ?? currency)} {exp.currency ?? currency}
-                          </p>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-semibold text-foreground">
+                              {fmt(Math.round(expAmount), expCurrency)} {expCurrency}
+                            </p>
+                            {krwEquiv != null && (
+                              <p className="text-xs text-muted-foreground">≈ ₩{krwEquiv.toLocaleString("ko-KR")}</p>
+                            )}
+                          </div>
                           <button onClick={() => deleteExpense.mutate({ id: exp.id })} className="text-muted-foreground hover:text-destructive ml-1 shrink-0">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
