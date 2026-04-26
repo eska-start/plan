@@ -192,9 +192,9 @@ function TripCard({ trip, onClick, onEdit, onDelete }: {
 }
 
 /* ── Featured trip card ───────────────────────────────────────────────────── */
-function FeaturedTripCard({ trip, onClick }: {
+function FeaturedTripCard({ trip, onClick, onEdit, onDelete }: {
   trip: { id: number; name: string; destination: string; startDate: string; endDate: string; coverColor?: string | null; description?: string | null };
-  onClick: () => void;
+  onClick: () => void; onEdit: (e: React.MouseEvent) => void; onDelete: (e: React.MouseEvent) => void;
 }) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const start = parseISO(trip.startDate);
@@ -218,6 +218,15 @@ function FeaturedTripCard({ trip, onClick }: {
           <div className="absolute top-5 left-5 flex gap-2 z-10">
             {isOngoing && <span className="text-white text-xs font-bold px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-sm">진행중인 여행</span>}
             <span className="text-white text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: statusBg }}>{statusLabel}</span>
+          </div>
+          {/* Edit/Delete buttons */}
+          <div className="absolute top-5 right-5 flex gap-1.5 z-10">
+            <button onClick={onEdit} className="flex items-center gap-1 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white text-xs font-semibold px-2.5 py-1 rounded-full transition-colors">
+              수정
+            </button>
+            <button onClick={onDelete} className="flex items-center justify-center w-7 h-7 bg-white/20 backdrop-blur-sm hover:bg-red-500/60 text-white rounded-full transition-colors">
+              <Trash2 className="w-3 h-3" />
+            </button>
           </div>
           <div className="relative z-10 text-white">
             <p className="text-xs font-semibold tracking-[0.2em] opacity-80 mb-2 uppercase">{trip.destination}</p>
@@ -394,7 +403,12 @@ export default function Home() {
 
             {/* Featured trip */}
             {featuredTrip && (
-              <FeaturedTripCard trip={featuredTrip} onClick={() => setLocation(`/trips/${featuredTrip.id}`)} />
+              <FeaturedTripCard
+                trip={featuredTrip}
+                onClick={() => setLocation(`/trips/${featuredTrip.id}`)}
+                onEdit={(e) => openEdit(featuredTrip, e)}
+                onDelete={(e) => { e.stopPropagation(); setDeleteConfirm(featuredTrip.id); }}
+              />
             )}
 
             {/* Other trips */}
