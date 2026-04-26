@@ -6,12 +6,6 @@ import superjson from "superjson";
 import App from "./App";
 import "./index.css";
 
-// iOS Safari bfcache: when page is restored from cache, React state is frozen.
-// FadeIn components stay at opacity:0 → blank white screen. Force reload to reinitialize.
-window.addEventListener("pageshow", (e) => {
-  if (e.persisted) window.location.reload();
-});
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
