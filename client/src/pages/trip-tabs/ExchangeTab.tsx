@@ -49,6 +49,12 @@ export default function ExchangeTab({ tripId, trip }: Props) {
 
   useEffect(() => { load(); }, []);
 
+  const parseNumeric = (v: string) => {
+    const cleaned = v.replace(/,/g, "").replace(/[^\d.-]/g, "");
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? null : n;
+  };
+
   const destRate = rates?.[destCurrency.toLowerCase()];
   const krwRate = destRate ? 1 / destRate : null;
 
@@ -61,15 +67,15 @@ export default function ExchangeTab({ tripId, trip }: Props) {
   function handleKrwChange(v: string) {
     setInputKrw(v);
     if (!destRate) return;
-    const n = parseFloat(v);
-    setInputForeign(isNaN(n) ? "" : fmtAmount(n * destRate, destCurrency));
+    const n = parseNumeric(v);
+    setInputForeign(n == null ? "" : fmtAmount(n * destRate, destCurrency));
   }
 
   function handleForeignChange(v: string) {
     setInputForeign(v);
     if (!krwRate) return;
-    const n = parseFloat(v);
-    setInputKrw(isNaN(n) ? "" : Math.round(n * krwRate).toLocaleString("ko-KR"));
+    const n = parseNumeric(v);
+    setInputKrw(n == null ? "" : Math.round(n * krwRate).toLocaleString("ko-KR"));
   }
 
   async function handleSetCurrency(currency: string) {
@@ -143,7 +149,8 @@ export default function ExchangeTab({ tripId, trip }: Props) {
               {CURRENCY_FLAGS.KRW} KRW (한국 원)
             </label>
             <Input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={inputKrw}
               onChange={e => handleKrwChange(e.target.value)}
               className="h-12 text-lg font-semibold tabular-nums"
@@ -165,7 +172,8 @@ export default function ExchangeTab({ tripId, trip }: Props) {
               {flag} {destCurrency} ({name})
             </label>
             <Input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={inputForeign}
               onChange={e => handleForeignChange(e.target.value)}
               className="h-12 text-lg font-semibold tabular-nums"

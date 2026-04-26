@@ -50,11 +50,27 @@ export function fmtAmount(n: number, currency: string): string {
 
 export async function fetchRates(base: string): Promise<Record<string, number>> {
   const b = base.toLowerCase();
-  const url = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${b}.json`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("환율 조회 실패");
-  const data = await res.json() as Record<string, unknown>;
-  return (data[b] ?? {}) as Record<string, number>;
+  const primaryUrl = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${b}.json`;
+  try {
+    const res = await fetch(primaryUrl, { cache: "no-store" });
+    if (!res.ok) throw new Error("primary failed");
+    const data = await res.json() as Record<string, unknown>;
+    const rates = (data[b] ?? {}) as Record<string, unknown>;
+    const normalized = Object.fromEntries(
+      Object.entries(rates).map(([k, v]) => [k, Number(v)])
+    ) as Record<string, number>;
+    if (!Object.keys(normalized).length) throw new Error("empty rates");
+    return normalized;
+  } catch {
+    const fallbackUrl = `https://open.er-api.com/v6/latest/${base.toUpperCase()}`;
+    const res = await fetch(fallbackUrl, { cache: "no-store" });
+    if (!res.ok) throw new Error("환율 조회 실패");
+    const data = await res.json() as { rates?: Record<string, number> };
+    const rates = data.rates ?? {};
+    return Object.fromEntries(
+      Object.entries(rates).map(([k, v]) => [k.toLowerCase(), Number(v)])
+    );
+  }
 }
 
 export async function fetchHistoricalRate(from: string, to: string, date: string): Promise<number | null> {

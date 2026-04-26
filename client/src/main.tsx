@@ -55,6 +55,15 @@ const trpcClient = trpc.createClient({
   ],
 });
 
+// iOS Safari에서 오래된 bfcache 복원 시 빈 화면이 남는 문제 방지
+if (typeof window !== "undefined") {
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) {
+      window.location.reload();
+    }
+  });
+}
+
 createRoot(document.getElementById("root")!).render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
