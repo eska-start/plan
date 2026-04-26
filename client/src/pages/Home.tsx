@@ -271,7 +271,7 @@ function DetailRow({ icon, label, value, sub }: { icon: React.ReactNode; label: 
 
 /* ── Home ─────────────────────────────────────────────────────────────────── */
 export default function Home() {
-  const { user, isAuthenticated, loading, logout } = useAuth();
+  const { user, isAuthenticated, loading, slowLoading, logout } = useAuth();
   const [, setLocation] = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTrip, setEditTrip] = useState<number | null>(null);
@@ -307,7 +307,17 @@ export default function Home() {
     else createMutation.mutate(form);
   };
 
-  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-7 h-7 animate-spin text-muted-foreground" /></div>;
+  if (loading) return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3">
+      <Loader2 className="w-7 h-7 animate-spin text-muted-foreground" />
+      {slowLoading && (
+        <div className="text-center space-y-1">
+          <p className="text-sm text-muted-foreground">서버를 시작하는 중이에요...</p>
+          <p className="text-xs text-muted-foreground/60">첫 접속 시 최대 30초 소요될 수 있습니다</p>
+        </div>
+      )}
+    </div>
+  );
   if (!isAuthenticated) return <AuthScreen />;
 
   // Find featured trip: ongoing > nearest upcoming > most recent past

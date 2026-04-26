@@ -11,7 +11,9 @@ export type TrpcContext = {
   user: User | null;
 };
 
-const AUTH_TIMEOUT_MS = 6000; // 6초 초과 시 미인증 처리
+// Render 콜드스타트가 15~30초 걸릴 수 있으므로 타임아웃을 25초로 설정.
+// 6초였을 때: 콜드스타트 중 유효한 쿠키도 timeout → UNAUTHORIZED → 리다이렉트 루프 → 흰화면
+const AUTH_TIMEOUT_MS = 25_000;
 
 export async function createContext(
   opts: CreateExpressContextOptions

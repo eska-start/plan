@@ -1,7 +1,7 @@
 import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
@@ -17,6 +17,14 @@ export function useAuth(options?: UseAuthOptions) {
     retry: false,
     refetchOnWindowFocus: false,
   });
+
+  // 5초 이상 로딩 중 → Render 서버 콜드스타트 안내
+  const [slowLoading, setSlowLoading] = useState(false);
+  useEffect(() => {
+    if (!meQuery.isLoading) { setSlowLoading(false); return; }
+    const t = setTimeout(() => setSlowLoading(true), 5000);
+    return () => clearTimeout(t);
+  }, [meQuery.isLoading]);
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
@@ -81,6 +89,7 @@ export function useAuth(options?: UseAuthOptions) {
 
   return {
     ...state,
+    slowLoading,
     refresh: () => meQuery.refetch(),
     logout,
   };
