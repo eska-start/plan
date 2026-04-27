@@ -19,9 +19,16 @@
     <script>
       (function () {
         var key = "__reload_once__";
+        var bfcacheKey = "__bfcache_reload_once__";
+        function ssGet(k) {
+          try { return sessionStorage.getItem(k); } catch { return null; }
+        }
+        function ssSet(k, v) {
+          try { sessionStorage.setItem(k, v); } catch {}
+        }
         function reloadOnce(tag) {
-          if (sessionStorage.getItem(key)) return;
-          sessionStorage.setItem(key, "1");
+          if (ssGet(key)) return;
+          ssSet(key, "1");
           var url = new URL(window.location.href);
           url.searchParams.set(tag, String(Date.now()));
           window.location.replace(url.toString());
@@ -42,6 +49,16 @@
           var reason = (e && e.reason && (e.reason.message || String(e.reason))) || "";
           if (!/Failed to fetch dynamically imported module|Importing a module script failed/i.test(reason)) return;
           reloadOnce("_m");
+        });
+
+        // iOS Safari bfcache 복귀(뒤로가기→앞으로가기) 시 오래된 런타임으로 흰 화면이 남는 케이스 복구
+        window.addEventListener("pageshow", function (e) {
+          if (!e || !e.persisted) return;
+          if (ssGet(bfcacheKey)) return;
+          ssSet(bfcacheKey, "1");
+          var u = new URL(window.location.href);
+          u.searchParams.set("_ps", String(Date.now()));
+          window.location.replace(u.toString());
         });
       })();
     </script>
