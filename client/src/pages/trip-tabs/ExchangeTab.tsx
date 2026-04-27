@@ -87,20 +87,13 @@ export default function ExchangeTab({ trip }: Props) {
     return 1 / mainPerKrw;
   }, [mainPerKrw]);
   const heroDisplay = useMemo(() => {
-    if (!mainPerKrw || !krwPerMain) return null;
-    if (mainCurrency === "JPY") {
-      return {
-        value: (krwPerMain * 100).toLocaleString("ko-KR", { maximumFractionDigits: 2 }),
-        unit: "KRW",
-        caption: "100 JPY 기준",
-      };
-    }
+    if (!krwPerMain) return null;
     return {
-      value: formatInput(mainPerKrw * 1000, mainCurrency),
-      unit: mainCurrency,
-      caption: "1,000 KRW 기준",
+      value: krwPerMain.toLocaleString("ko-KR", { maximumFractionDigits: 4 }),
+      unit: "KRW",
+      caption: `1 ${mainCurrency} 기준`,
     };
-  }, [mainCurrency, mainPerKrw, krwPerMain]);
+  }, [mainCurrency, krwPerMain]);
 
   useEffect(() => {
     if (!mainPerKrw) return;
