@@ -86,6 +86,21 @@ export default function ExchangeTab({ trip }: Props) {
     if (!mainPerKrw) return null;
     return 1 / mainPerKrw;
   }, [mainPerKrw]);
+  const heroDisplay = useMemo(() => {
+    if (!mainPerKrw || !krwPerMain) return null;
+    if (mainCurrency === "JPY") {
+      return {
+        value: (krwPerMain * 100).toLocaleString("ko-KR", { maximumFractionDigits: 2 }),
+        unit: "KRW",
+        caption: "100 JPY 기준",
+      };
+    }
+    return {
+      value: formatInput(mainPerKrw * 1000, mainCurrency),
+      unit: mainCurrency,
+      caption: "1,000 KRW 기준",
+    };
+  }, [mainCurrency, mainPerKrw, krwPerMain]);
 
   useEffect(() => {
     if (!mainPerKrw) return;
@@ -142,15 +157,15 @@ export default function ExchangeTab({ trip }: Props) {
                   <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                 ) : error ? (
                   <p className="text-sm text-destructive">환율 조회 실패</p>
-                ) : mainPerKrw ? (
+                ) : heroDisplay ? (
                   <>
                     <div className="flex items-baseline gap-2">
                       <span className="font-display text-3xl font-semibold text-foreground leading-none">
-                        {formatInput(mainPerKrw * 10000, mainCurrency)}
+                        {heroDisplay.value}
                       </span>
-                      <span className="text-sm text-muted-foreground">{mainCurrency}</span>
+                      <span className="text-sm text-muted-foreground">{heroDisplay.unit}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">10,000 KRW 기준</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{heroDisplay.caption}</p>
                   </>
                 ) : null}
               </div>

@@ -6,6 +6,8 @@ import superjson from "superjson";
 import App from "./App";
 import "./index.css";
 
+(window as Window & { __APP_BOOTSTRAPPED__?: boolean }).__APP_BOOTSTRAPPED__ = true;
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

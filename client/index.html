@@ -18,15 +18,30 @@
     <div id="root"><div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff"><div style="width:28px;height:28px;border:3px solid #e2e8f0;border-top-color:#5BB4D8;border-radius:50%;animation:_ld 0.8s linear infinite"></div></div></div>
     <script>
       (function () {
-        var key = "__module_fail_reload_once__";
-        window.addEventListener("error", function (e) {
-          var msg = (e && e.message) || "";
-          if (!/Importing a module script failed|Failed to fetch dynamically imported module/i.test(msg)) return;
+        var key = "__reload_once__";
+        function reloadOnce(tag) {
           if (sessionStorage.getItem(key)) return;
           sessionStorage.setItem(key, "1");
           var url = new URL(window.location.href);
-          url.searchParams.set("_m", String(Date.now()));
+          url.searchParams.set(tag, String(Date.now()));
           window.location.replace(url.toString());
+        }
+
+        setTimeout(function () {
+          if (window.__APP_BOOTSTRAPPED__) return;
+          reloadOnce("_boot");
+        }, 6000);
+
+        window.addEventListener("error", function (e) {
+          var msg = (e && e.message) || "";
+          if (!/Importing a module script failed|Failed to fetch dynamically imported module/i.test(msg)) return;
+          reloadOnce("_m");
+        });
+
+        window.addEventListener("unhandledrejection", function (e) {
+          var reason = (e && e.reason && (e.reason.message || String(e.reason))) || "";
+          if (!/Failed to fetch dynamically imported module|Importing a module script failed/i.test(reason)) return;
+          reloadOnce("_m");
         });
       })();
     </script>
