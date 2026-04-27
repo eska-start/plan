@@ -55,10 +55,12 @@ function SortableVisitItem({
   item,
   index,
   total,
+  onToggleVisited,
 }: {
   item: ItemType;
   index: number;
   total: number;
+  onToggleVisited: (item: ItemType) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -98,6 +100,14 @@ function SortableVisitItem({
       >
         {index + 1}
       </div>
+
+      <input
+        type="checkbox"
+        checked={!!item.visited}
+        onChange={() => onToggleVisited(item)}
+        className="h-4 w-4 rounded border-border accent-primary shrink-0"
+        aria-label="방문 완료 체크"
+      />
 
       {/* 장소 정보 */}
       <div className="flex-1 min-w-0">
@@ -170,6 +180,12 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       setLocalOrder(null);
     },
   });
+  const updateItemMutation = trpc.itinerary.update.useMutation({
+    onError: () => {
+      toast.error("방문 상태 저장에 실패했습니다.");
+      utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
+    },
+  });
 
   // dnd-kit 센서
   const sensors = useSensors(
@@ -203,6 +219,17 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       }
     );
   }, [items, reorderMutation, tripId, selectedDate, utils]);
+
+  const handleToggleVisited = useCallback((item: ItemType) => {
+    updateItemMutation.mutate(
+      { id: item.id, visited: !item.visited },
+      {
+        onSuccess: () => {
+          utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
+        },
+      }
+    );
+  }, [selectedDate, tripId, updateItemMutation, utils]);
 
   // 지도 초기화
   const clearMap = useCallback(() => {
@@ -368,7 +395,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       mapRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 60, left: 40 });
       autoFittedRef.current = true;
     }
-    drawRoute(positions.map(p => p.latlng));
+    drawRoute(positions.filter(p => !p.item.visited).map(p => p.latlng));
   }, [items, clearMap, geocodeAddress, drawRoute]);
 
   // 날짜 변경 시 캐시 초기화
@@ -474,6 +501,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                     item={item}
                     index={idx}
                     total={items.length}
+                    onToggleVisited={handleToggleVisited}
                   />
                 ))}
               </div>
