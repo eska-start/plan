@@ -78,7 +78,7 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
     onError: () => toast.error("수정에 실패했습니다."),
   });
   const deleteMutation = trpc.itinerary.delete.useMutation({
-    onSuccess: () => { utils.itinerary.listByDate.invalidate(); utils.itinerary.listByTrip.invalidate(); },
+    onSuccess: () => { utils.itinerary.listByDate.invalidate(); utils.itinerary.listByTrip.invalidate(); toast.success("일정이 삭제되었습니다."); },
     onError: () => toast.error("삭제에 실패했습니다."),
   });
 
@@ -224,7 +224,15 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
                   {item.sourceType !== "accommodation" ? (
                     <>
                       <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => deleteMutation.mutate({ id: item.id })} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button
+                        onClick={() => {
+                          if (!window.confirm("이 일정을 삭제할까요?")) return;
+                          deleteMutation.mutate({ id: item.id });
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </>
                   ) : (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>

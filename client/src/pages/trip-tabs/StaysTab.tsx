@@ -168,7 +168,15 @@ export default function StaysTab({ tripId }: { tripId: number }) {
                       <Map className="w-3 h-3" />
                     </a>
                     <button onClick={() => openEditAccom(a)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
-                    <button onClick={() => deleteAccom.mutate({ id: a.id, tripId })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors">삭제</button>
+                    <button
+                      onClick={() => {
+                        if (!window.confirm("이 숙박을 삭제할까요?")) return;
+                        deleteAccom.mutate({ id: a.id, tripId });
+                      }}
+                      className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
+                    >
+                      삭제
+                    </button>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 bg-muted/40 rounded-lg p-3 mb-3">
@@ -238,7 +246,15 @@ export default function StaysTab({ tripId }: { tripId: number }) {
                   </div>
                   <div className="flex gap-1 shrink-0">
                     <button onClick={() => openEditRental(r)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
-                    <button onClick={() => deleteRental.mutate({ id: r.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors">삭제</button>
+                    <button
+                      onClick={() => {
+                        if (!window.confirm("이 렌트카를 삭제할까요?")) return;
+                        deleteRental.mutate({ id: r.id });
+                      }}
+                      className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
+                    >
+                      삭제
+                    </button>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-3">

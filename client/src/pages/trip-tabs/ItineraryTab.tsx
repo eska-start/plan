@@ -94,7 +94,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
     onError: () => toast.error("수정에 실패했습니다."),
   });
   const deleteMutation = trpc.itinerary.delete.useMutation({
-    onSuccess: () => { utils.itinerary.listByTrip.invalidate(); utils.itinerary.listByDate.invalidate(); },
+    onSuccess: () => { utils.itinerary.listByTrip.invalidate(); utils.itinerary.listByDate.invalidate(); toast.success("일정이 삭제되었습니다."); },
     onError: () => toast.error("삭제에 실패했습니다."),
   });
   const aiExtractMutation = trpc.itinerary.aiExtract.useMutation();
@@ -447,7 +447,13 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                                   <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
                                     <Pencil className="w-3.5 h-3.5" />
                                   </button>
-                                  <button onClick={() => deleteMutation.mutate({ id: item.id })} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                                  <button
+                                    onClick={() => {
+                                      if (!window.confirm("이 일정을 삭제할까요?")) return;
+                                      deleteMutation.mutate({ id: item.id });
+                                    }}
+                                    className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                  >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </>

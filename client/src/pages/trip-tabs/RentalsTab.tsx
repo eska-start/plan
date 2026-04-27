@@ -111,7 +111,15 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <button onClick={() => openEdit(r)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
-                  <button onClick={() => deleteMutation.mutate({ id: r.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors">삭제</button>
+                  <button
+                    onClick={() => {
+                      if (!window.confirm("이 렌트카를 삭제할까요?")) return;
+                      deleteMutation.mutate({ id: r.id });
+                    }}
+                    className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
+                  >
+                    삭제
+                  </button>
                 </div>
               </div>
 

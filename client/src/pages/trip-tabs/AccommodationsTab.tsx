@@ -163,7 +163,15 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
                     <Map className="w-3 h-3" />
                   </a>
                   <button onClick={() => openEdit(a)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
-                  <button onClick={() => deleteMutation.mutate({ id: a.id, tripId })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors">삭제</button>
+                  <button
+                    onClick={() => {
+                      if (!window.confirm("이 숙박을 삭제할까요?")) return;
+                      deleteMutation.mutate({ id: a.id, tripId });
+                    }}
+                    className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
+                  >
+                    삭제
+                  </button>
                 </div>
               </div>
 
