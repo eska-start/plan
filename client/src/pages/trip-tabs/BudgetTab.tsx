@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { useState, useRef, useEffect } from "react";
 import { format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
-import { Plus, Wallet, TrendingUp, PiggyBank, Trash2, X, Loader2, Camera, FileText, Sparkles, RefreshCw } from "lucide-react";
+import { Plus, Wallet, TrendingUp, PiggyBank, Trash2, X, Loader2, Camera, FileText, Sparkles, RefreshCw, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,7 +69,8 @@ export default function BudgetTab({ tripId, trip }: Props) {
   const [aiMode, setAiMode] = useState<"text" | "image" | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiPreview, setAiPreview] = useState<AiPreviewItem[]>([]);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraFileRef = useRef<HTMLInputElement>(null);
+  const imageFileRef = useRef<HTMLInputElement>(null);
   const [krwRates, setKrwRates] = useState<Record<string, number> | null>(null);
 
   const [form, setForm] = useState({
@@ -356,12 +357,20 @@ export default function BudgetTab({ tripId, trip }: Props) {
             </>
           ) : (
             <>
-              <button onClick={() => fileRef.current?.click()}
-                className="w-full border-2 border-dashed border-border rounded-xl py-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-                <Camera className="w-6 h-6" /><span className="text-sm">영수증 사진 선택 또는 촬영</span>
-                <span className="text-xs opacity-70">날짜 포함 시 해당일 환율로 자동 변환</span>
-              </button>
-              <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button onClick={() => cameraFileRef.current?.click()}
+                  className="w-full border-2 border-dashed border-border rounded-xl py-6 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                  <Camera className="w-6 h-6" /><span className="text-sm">카메라 촬영</span>
+                </button>
+                <button onClick={() => imageFileRef.current?.click()}
+                  className="w-full border-2 border-dashed border-border rounded-xl py-6 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                  <ImageIcon className="w-6 h-6" /><span className="text-sm">이미지 업로드</span>
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">날짜 포함 시 해당일 환율로 자동 변환</p>
+              <input ref={cameraFileRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
+              <input ref={imageFileRef} type="file" accept="image/*" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
             </>
           )}
