@@ -137,6 +137,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const routeRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const polylineRef = useRef<google.maps.Polyline | null>(null);
   const geocacheRef = useRef<Map<string, google.maps.LatLng>>(new Map());
+  const autoFittedRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
 
@@ -145,10 +146,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   const utils = trpc.useUtils();
 
-  const { data: serverItems, isLoading } = trpc.itinerary.listByDate.useQuery(
-    { tripId, date: selectedDate },
-    { refetchInterval: 3000 }
-  );
+  const { data: serverItems, isLoading } = trpc.itinerary.listByDate.useQuery({ tripId, date: selectedDate });
 
   // 서버 데이터 수신 시 로컬 순서 초기화 (드래그 중이 아닐 때만)
   useEffect(() => {
@@ -366,7 +364,10 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       markersRef.current.push(marker);
     });
 
-    mapRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 60, left: 40 });
+    if (!autoFittedRef.current) {
+      mapRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 60, left: 40 });
+      autoFittedRef.current = true;
+    }
     drawRoute(positions.map(p => p.latlng));
   }, [items, clearMap, geocodeAddress, drawRoute]);
 
@@ -374,6 +375,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   useEffect(() => {
     geocacheRef.current.clear();
     setLocalOrder(null);
+    autoFittedRef.current = false;
   }, [selectedDate]);
 
   useEffect(() => {
@@ -382,6 +384,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         renderOnMap();
       } else if (items && items.length === 0) {
         clearMap();
+        autoFittedRef.current = false;
       }
     }
   }, [mapReady, items, renderOnMap, clearMap]);

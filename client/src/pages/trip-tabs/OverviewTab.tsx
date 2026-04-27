@@ -96,7 +96,7 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
     })
     .slice(0, 4);
 
-  const pinnedMemo = (memos ?? []).find(m => m.pinned);
+  const pinnedMemos = (memos ?? []).filter(m => m.pinned);
   const totalSpent = (expenses ?? []).reduce((s, e) =>
     s + toBase(parseFloat(e.amount ?? "0"), e.currency ?? budgetCurrency), 0);
   const budgetNum = trip.budget ? parseFloat(trip.budget) : null;
@@ -203,15 +203,24 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
             <h3 className="font-display text-base font-semibold flex items-center gap-2 mb-3">
               <StickyNote className="w-4 h-4 text-[#F2C75A]" /> 여행 노트
             </h3>
-            {pinnedMemo ? (
-              <div>
-                {pinnedMemo.title && <p className="text-sm font-semibold mb-1">"{pinnedMemo.title}"</p>}
-                {pinnedMemo.content && <p className="text-sm text-muted-foreground leading-relaxed line-clamp-5">{pinnedMemo.content}</p>}
+            {pinnedMemos.length > 0 ? (
+              <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1">
+                {pinnedMemos.map((memo) => (
+                  <div key={memo.id} className="rounded-xl border border-[#F2C75A]/30 bg-white/50 px-3 py-2.5">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#F2C75A]/20 text-[#7A5A1E]">고정</span>
+                      <div className="min-w-0">
+                        {memo.title && <p className="text-sm font-semibold truncate">{memo.title}</p>}
+                        {memo.content && <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap line-clamp-3">{memo.content}</p>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="text-center py-3">
                 <p className="text-sm text-muted-foreground">고정 메모가 없어요</p>
-                <button onClick={() => setLocation(`/trips/${tripId}/memory`)} className="text-xs text-primary hover:underline mt-1 block mx-auto">메모 작성하기</button>
+                <button onClick={() => setLocation(`/trips/${tripId}/memos`)} className="text-xs text-primary hover:underline mt-1 block mx-auto">메모 작성하기</button>
               </div>
             )}
           </div>

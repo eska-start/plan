@@ -114,6 +114,18 @@ export default function BudgetTab({ tripId, trip }: Props) {
     const rate = krwRates?.[expCurrency.toLowerCase()];
     return rate ? s + (amount / rate) : s + amount;
   }, 0);
+  const localCurrencyTotals = (expenses ?? []).reduce<Record<string, number>>((acc, e) => {
+    const expCurrency = (e.currency ?? currency).toUpperCase();
+    if (expCurrency === "KRW") return acc;
+    const amount = parseFloat(e.amount ?? "0");
+    if (!Number.isFinite(amount)) return acc;
+    acc[expCurrency] = (acc[expCurrency] ?? 0) + amount;
+    return acc;
+  }, {});
+  const localCurrencySummary = Object.entries(localCurrencyTotals)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([cur, amount]) => `${CURRENCY_FLAGS[cur] ?? ""}${cur} ${fmt(Math.round(amount), cur)}`)
+    .join(" · ");
   const remaining = budgetNum != null ? budgetNum - totalSpent : null;
   const budgetPct = budgetNum && budgetNum > 0 ? Math.min((totalSpent / budgetNum) * 100, 100) : 0;
 
@@ -227,6 +239,9 @@ export default function BudgetTab({ tripId, trip }: Props) {
             <div className="flex items-center gap-1.5 text-xs text-white/60"><TrendingUp className="w-3.5 h-3.5" /> 현재 지출</div>
             <p className="text-xl font-semibold text-white">{fmt(Math.round(totalSpentKrw), "KRW")}</p>
             <p className="text-[11px] text-white/60">원화 합계 · ₩{fmt(Math.round(totalSpentKrw), "KRW")}</p>
+            <p className="text-[10px] text-white/50 truncate">
+              현지통화 합계 · {localCurrencySummary || "없음"}
+            </p>
             <p className="text-xs text-white/50">{budgetNum ? `${Math.round(budgetPct)}% 사용` : "KRW 기준"}</p>
           </div>
         </FadeIn>

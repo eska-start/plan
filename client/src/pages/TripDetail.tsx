@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { Loader2, ArrowLeft, Plane, Hotel, CalendarDays, BookOpen, Map, Users, Download, Bot, LayoutDashboard, Wallet, ClipboardList, DollarSign, AlignLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Plane, Hotel, CalendarDays, BookOpen, Map, Users, Download, Bot, LayoutDashboard, Wallet, ClipboardList, DollarSign, AlignLeft, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format, parseISO, differenceInDays, eachDayOfInterval } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -11,6 +11,7 @@ import StaysTab from "./trip-tabs/StaysTab";
 import ItineraryTab from "./trip-tabs/ItineraryTab";
 import ScheduleTab from "./trip-tabs/ScheduleTab";
 import DiaryTab from "./trip-tabs/DiaryTab";
+import MemosTab from "./trip-tabs/MemosTab";
 import MapTab from "./trip-tabs/MapTab";
 import BudgetTab from "./trip-tabs/BudgetTab";
 import ChecklistTab from "./trip-tabs/ChecklistTab";
@@ -20,14 +21,15 @@ import { AiImportDialog } from "@/components/AiImportDialog";
 
 const TABS = [
   { id: "overview", label: "오버뷰", icon: LayoutDashboard },
-  { id: "schedule", label: "일정", icon: AlignLeft },
   { id: "journey", label: "타임라인", icon: CalendarDays },
+  { id: "schedule", label: "일정", icon: AlignLeft },
   { id: "flights", label: "항공편", icon: Plane },
   { id: "stays", label: "숙박·이동", icon: Hotel },
   { id: "map", label: "지도", icon: Map },
   { id: "budget", label: "예산", icon: Wallet },
   { id: "exchange", label: "환율", icon: DollarSign },
   { id: "checklist", label: "체크리스트", icon: ClipboardList },
+  { id: "memos", label: "메모", icon: StickyNote },
   { id: "memory", label: "기억", icon: BookOpen },
 ];
 
@@ -189,6 +191,7 @@ export default function TripDetail() {
         {activeTab === "budget" && <BudgetTab tripId={tripId} trip={trip} />}
         {activeTab === "exchange" && <ExchangeTab tripId={tripId} trip={trip} />}
         {activeTab === "checklist" && <ChecklistTab tripId={tripId} />}
+        {activeTab === "memos" && <MemosTab tripId={tripId} />}
         {activeTab === "memory" && <DiaryTab tripId={tripId} tripDays={tripDays} />}
       </div>
 

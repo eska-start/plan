@@ -90,7 +90,7 @@ export default function MemosTab({ tripId }: { tripId: number }) {
               <div className="flex items-center gap-1 pt-2 border-t border-border">
                 <button onClick={() => togglePin(m)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
                   {m.pinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
-                  {m.pinned ? "고정 해제" : "고정"}
+                  {m.pinned ? "노트 해제" : "여행노트 표시"}
                 </button>
                 <button onClick={() => openEdit(m)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
                 <button onClick={() => deleteMutation.mutate({ id: m.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors ml-auto">삭제</button>
@@ -127,7 +127,7 @@ export default function MemosTab({ tripId }: { tripId: number }) {
                 onChange={e => setForm(f => ({ ...f, pinned: e.target.checked }))}
                 className="w-4 h-4 rounded accent-primary"
               />
-              <span className="text-sm font-medium text-foreground">상단 고정</span>
+              <span className="text-sm font-medium text-foreground">여행노트에 표시</span>
             </label>
           </div>
           <div className="flex gap-2 mt-4">
