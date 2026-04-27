@@ -11,9 +11,8 @@ export type TrpcContext = {
   user: User | null;
 };
 
-// Render 콜드스타트가 15~30초 걸릴 수 있으므로 타임아웃을 25초로 설정.
-// 6초였을 때: 콜드스타트 중 유효한 쿠키도 timeout → UNAUTHORIZED → 리다이렉트 루프 → 흰화면
-const AUTH_TIMEOUT_MS = 25_000;
+// 콜드스타트는 외부 ping으로 해결 — 8초로 충분하며, 길면 iOS에서 스피너가 오래 돔
+const AUTH_TIMEOUT_MS = 8_000;
 
 export async function createContext(
   opts: CreateExpressContextOptions

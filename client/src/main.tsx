@@ -41,9 +41,9 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
-        // 30s timeout + React Query's own cancellation signal combined
+        // 콜드스타트가 해결된 환경에서는 8s면 충분 — 30s는 스피너가 너무 오래 돌게 함
         const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 30_000);
+        const t = setTimeout(() => ctrl.abort(), 8_000);
         const onRQAbort = () => ctrl.abort();
         init?.signal?.addEventListener("abort", onRQAbort, { once: true });
         return globalThis.fetch(input, {

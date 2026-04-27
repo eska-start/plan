@@ -20,20 +20,20 @@ export function useAuth(options?: UseAuthOptions) {
     staleTime: Infinity,
   });
 
-  // 5초 이상 로딩 → 콜드스타트 안내 메시지 표시
+  // 3초 이상 로딩 → 안내 메시지 표시 (콜드스타트 해결 환경 기준)
   const [slowLoading, setSlowLoading] = useState(false);
-  // 마운트 32초 후 강제 비인증 처리 — isLoading 사이클에 묶으면 abort 루프 시 타이머가 리셋되는 버그
+  // fetch 타임아웃(8s)이 iOS에서 제대로 작동하지 않을 때를 대비한 안전망 — 10초 후 강제 비인증
   const [authTimedOut, setAuthTimedOut] = useState(false);
 
   useEffect(() => {
     if (!meQuery.isLoading) { setSlowLoading(false); return; }
-    const t = setTimeout(() => setSlowLoading(true), 5_000);
+    const t = setTimeout(() => setSlowLoading(true), 3_000);
     return () => clearTimeout(t);
   }, [meQuery.isLoading]);
 
   // authTimedOut: 마운트 기준 1회 발동, 데이터 도착 시 리셋
   useEffect(() => {
-    const t = setTimeout(() => setAuthTimedOut(true), 32_000);
+    const t = setTimeout(() => setAuthTimedOut(true), 10_000);
     return () => clearTimeout(t);
   }, []);
   useEffect(() => {
