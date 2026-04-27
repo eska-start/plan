@@ -16,6 +16,19 @@
 
   <body>
     <div id="root"><div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff"><div style="width:28px;height:28px;border:3px solid #e2e8f0;border-top-color:#5BB4D8;border-radius:50%;animation:_ld 0.8s linear infinite"></div></div></div>
+    <script>
+      (function () {
+        var key = "__boot_retry_once__";
+        setTimeout(function () {
+          if (window.__APP_BOOTSTRAPPED__) return;
+          if (sessionStorage.getItem(key)) return;
+          sessionStorage.setItem(key, "1");
+          var url = new URL(window.location.href);
+          url.searchParams.set("_r", String(Date.now()));
+          window.location.replace(url.toString());
+        }, 4000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
     <script
       defer

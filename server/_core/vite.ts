@@ -60,6 +60,13 @@ export function serveStatic(app: Express) {
 
   // index: false → express.static이 index.html을 직접 서빙하지 않도록 함
   // (직접 서빙하면 아래 no-cache 헤더가 우회되어 Safari가 index.html을 캐시함)
+  app.get("/index.html", (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.sendFile(path.resolve(distPath, "index.html"));
+  });
+
   app.use(express.static(distPath, { index: false }));
 
   // 모든 요청을 index.html로 fallback — no-cache 헤더 필수
