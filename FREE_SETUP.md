@@ -47,6 +47,20 @@
 - AI 기능까지 쓰려면:
   - `LLM_API_KEY` (또는 `OPENAI_API_KEY`)
   - `LLM_API_URL` (기본 OpenAI endpoint 사용 가능)
+  - `LLM_MODEL` (기본값: `gpt-4.1-mini`)
+
+#### OpenAI로 변경(저렴한 설정)
+1. 환경변수 설정
+   - `OPENAI_API_KEY=<your_key>`
+   - `LLM_API_URL=https://api.openai.com/v1/chat/completions`
+   - `LLM_MODEL=gpt-4.1-mini` (기본 추천)
+2. 더 저렴하게 쓰려면
+   - 초저가 우선: `LLM_MODEL=gpt-4.1-nano`
+   - 정확도/가격 균형: `LLM_MODEL=gpt-4.1-mini`
+   - 요청 토큰 제한: 서버에서 `max_tokens` 기본값(현재 1024) 유지 또는 더 낮춤
+   - 반복 배치 작업은 Batch API 사용(공식 문서 기준 할인 제공)
+3. 가격 확인
+   - 최신 단가는 OpenAI 공식 페이지에서 확인: `https://openai.com/api/pricing`
 
 ---
 
@@ -70,4 +84,3 @@
 3. 업로드된 이미지 URL이 브라우저에서 열리는지
 4. 지도 탭에서 Google Maps 로딩되는지
 5. OCR 자동입력이 동작하는지
-

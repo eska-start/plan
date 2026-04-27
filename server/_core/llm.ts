@@ -281,8 +281,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     response_format,
   } = params;
 
-  // LLM_MODEL 환경변수로 오버라이드 가능, 기본값은 thinking 없는 빠른 모델
-  const modelName = process.env.LLM_MODEL ?? "gemini-2.0-flash";
+  // LLM_MODEL 환경변수로 오버라이드 가능, 기본값은 저비용 OpenAI 모델
+  const modelName = process.env.LLM_MODEL ?? "gpt-4.1-mini";
   const payload: Record<string, unknown> = {
     model: modelName,
     messages: messages.map(normalizeMessage),

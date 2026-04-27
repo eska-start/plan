@@ -168,7 +168,7 @@ export default function BudgetTab({ tripId, trip }: Props) {
       } else { toast.error("지출 정보를 찾지 못했습니다."); }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "AI 분석 실패";
-      toast.error(msg.includes("429") ? "AI API 쿼터 초과 — Google AI Studio에서 결제를 활성화해주세요." : msg);
+      toast.error(msg.includes("429") ? "AI API 쿼터 초과 — OpenAI 결제/한도를 확인해주세요." : msg);
     } finally { setAiLoading(false); }
   }
 
@@ -183,7 +183,7 @@ export default function BudgetTab({ tripId, trip }: Props) {
       } else { toast.error("영수증에서 지출 정보를 찾지 못했습니다."); }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "이미지 분석 실패";
-      toast.error(msg.includes("429") ? "AI API 쿼터 초과 — Google AI Studio에서 결제를 활성화해주세요." : msg);
+      toast.error(msg.includes("429") ? "AI API 쿼터 초과 — OpenAI 결제/한도를 확인해주세요." : msg);
     } finally { setAiLoading(false); }
   }
 
