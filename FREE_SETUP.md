@@ -54,6 +54,7 @@
    - `OPENAI_API_KEY=<your_key>`
    - `LLM_API_URL=https://api.openai.com/v1/chat/completions`
    - `LLM_MODEL=gpt-4.1-mini` (기본 추천)
+   - 값에 `LLM_API_URL=` 같은 키 이름까지 같이 넣지 말고 **URL만** 넣기
 2. 더 저렴하게 쓰려면
    - 초저가 우선: `LLM_MODEL=gpt-4.1-nano`
    - 정확도/가격 균형: `LLM_MODEL=gpt-4.1-mini`

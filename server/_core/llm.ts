@@ -209,10 +209,18 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.llmApiUrl && ENV.llmApiUrl.trim().length > 0
+const resolveApiUrl = () => {
+  const fallback = "https://api.openai.com/v1/chat/completions";
+  const raw = ENV.llmApiUrl && ENV.llmApiUrl.trim().length > 0
     ? ENV.llmApiUrl
-    : "https://api.openai.com/v1/chat/completions";
+    : fallback;
+  const normalized = raw.replace(/^LLM_API_URL\s*=\s*/i, "").trim();
+  try {
+    return new URL(normalized).toString();
+  } catch {
+    throw new Error(`LLM_API_URL 형식이 올바르지 않습니다: ${raw}`);
+  }
+};
 
 const assertApiKey = () => {
   if (!ENV.llmApiKey) {
