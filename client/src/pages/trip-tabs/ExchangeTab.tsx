@@ -88,6 +88,13 @@ export default function ExchangeTab({ trip }: Props) {
   }, [mainPerKrw]);
   const heroDisplay = useMemo(() => {
     if (!krwPerMain) return null;
+    if (mainCurrency === "JPY") {
+      return {
+        value: (krwPerMain * 100).toLocaleString("ko-KR", { maximumFractionDigits: 2 }),
+        unit: "KRW",
+        caption: "100 JPY 기준",
+      };
+    }
     return {
       value: krwPerMain.toLocaleString("ko-KR", { maximumFractionDigits: 4 }),
       unit: "KRW",
