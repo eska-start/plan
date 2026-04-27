@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
-  detectCurrency, fetchRates, fmtAmount,
+  detectCurrency, fetchRates,
   CURRENCY_NAMES, CURRENCY_FLAGS,
 } from "@/utils/currency";
 
@@ -51,31 +51,40 @@ export default function ExchangeTab({ tripId, trip }: Props) {
 
   const parseNumeric = (v: string) => {
     const cleaned = v.replace(/,/g, "").replace(/[^\d.-]/g, "");
-    const n = parseFloat(cleaned);
-    return isNaN(n) ? null : n;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : null;
+  };
+  const fmtKrwInput = (n: number) => Math.round(n).toLocaleString("ko-KR");
+  const fmtForeignInput = (n: number, currency: string) => {
+    if (currency === "JPY" || currency === "VND" || currency === "IDR") {
+      return Math.round(n).toLocaleString("en-US");
+    }
+    if (n >= 1) return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return n.toLocaleString("en-US", { maximumFractionDigits: 6 });
   };
 
   const destRate = rates?.[destCurrency.toLowerCase()];
   const krwRate = destRate ? 1 / destRate : null;
+  const krwPerOneForeign = krwRate ? Number(krwRate.toFixed(4)) : null;
 
   useEffect(() => {
     if (!destRate) return;
-    const n = parseFloat(inputKrw.replace(/,/g, ""));
-    if (!isNaN(n)) setInputForeign(fmtAmount(n * destRate, destCurrency));
+    const n = parseNumeric(inputKrw);
+    if (n != null) setInputForeign(fmtForeignInput(n * destRate, destCurrency));
   }, [destRate]);
 
   function handleKrwChange(v: string) {
     setInputKrw(v);
     if (!destRate) return;
     const n = parseNumeric(v);
-    setInputForeign(n == null ? "" : fmtAmount(n * destRate, destCurrency));
+    setInputForeign(n == null ? "" : fmtForeignInput(n * destRate, destCurrency));
   }
 
   function handleForeignChange(v: string) {
     setInputForeign(v);
     if (!krwRate) return;
     const n = parseNumeric(v);
-    setInputKrw(n == null ? "" : Math.round(n * krwRate).toLocaleString("ko-KR"));
+    setInputKrw(n == null ? "" : fmtKrwInput(n * krwRate));
   }
 
   async function handleSetCurrency(currency: string) {
@@ -107,7 +116,7 @@ export default function ExchangeTab({ tripId, trip }: Props) {
                   <>
                     <div className="flex items-baseline gap-2">
                       <span className="font-display text-3xl font-semibold text-foreground leading-none">
-                        {fmtAmount(destRate * 10000, destCurrency)}
+                        {fmtForeignInput(destRate * 10000, destCurrency)}
                       </span>
                       <span className="text-sm text-muted-foreground">{destCurrency}</span>
                     </div>
@@ -116,9 +125,9 @@ export default function ExchangeTab({ tripId, trip }: Props) {
                 ) : null}
               </div>
             </div>
-            {krwRate && (
+            {krwPerOneForeign && (
               <p className="text-sm text-foreground font-medium pt-1">
-                1 {destCurrency} = <span className="text-primary font-semibold">{Math.round(krwRate).toLocaleString("ko-KR")}</span> KRW
+                1 {destCurrency} = <span className="text-primary font-semibold">{krwPerOneForeign.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span> KRW
               </p>
             )}
           </div>
@@ -160,9 +169,11 @@ export default function ExchangeTab({ tripId, trip }: Props) {
           <button
             className="mb-1 w-9 h-9 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors shrink-0"
             onClick={() => {
-              const tmp = inputKrw;
-              setInputKrw(inputForeign);
-              setInputForeign(tmp);
+              const krw = parseNumeric(inputKrw);
+              const foreign = parseNumeric(inputForeign);
+              if (!destRate || krw == null || foreign == null) return;
+              setInputKrw(fmtKrwInput(foreign * (1 / destRate)));
+              setInputForeign(fmtForeignInput(krw * destRate, destCurrency));
             }}
           >
             <ArrowLeftRight className="w-4 h-4 text-muted-foreground" />
@@ -183,6 +194,11 @@ export default function ExchangeTab({ tripId, trip }: Props) {
         </div>
         {!destRate && !loading && (
           <p className="text-xs text-muted-foreground text-center">환율 정보를 불러올 수 없습니다.</p>
+        )}
+        {destRate && (
+          <p className="text-[11px] text-muted-foreground text-right">
+            * 실시간 기준 환율(네이버 표시값과 시점에 따라 소폭 차이 가능)
+          </p>
         )}
       </div>
 
@@ -239,7 +255,7 @@ export default function ExchangeTab({ tripId, trip }: Props) {
                   </div>
                   <div className="text-right">
                     <p className={`text-sm font-semibold tabular-nums ${isSaved ? "text-primary" : "text-foreground"}`}>
-                      {fmtAmount(per1000, c)}
+                      {fmtForeignInput(per1000, c)}
                     </p>
                     <p className="text-[10px] text-muted-foreground">/ 1,000 KRW</p>
                   </div>
