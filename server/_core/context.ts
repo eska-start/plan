@@ -11,9 +11,9 @@ export type TrpcContext = {
   user: User | null;
 };
 
-// Render 콜드스타트가 15~30초 걸릴 수 있으므로 타임아웃을 25초로 설정.
-// 6초였을 때: 콜드스타트 중 유효한 쿠키도 timeout → UNAUTHORIZED → 리다이렉트 루프 → 흰화면
-const AUTH_TIMEOUT_MS = 25_000;
+// 인증 컨텍스트 타임아웃을 짧게 유지해 iOS bfcache 복귀 후 장시간 스피너 고정을 방지.
+// 외부 헬스체크/웜업이 있는 운영 환경 기준으로 8초 제한 사용
+const AUTH_TIMEOUT_MS = 8_000;
 
 export async function createContext(
   opts: CreateExpressContextOptions
@@ -21,7 +21,7 @@ export async function createContext(
   let user: User | null = null;
 
   try {
-    // DB가 느리거나 불안정할 때 무한 로딩 방지 — 6초 타임아웃
+    // DB가 느리거나 불안정할 때 무한 로딩 방지 — 8초 타임아웃
     user = await Promise.race([
       sdk.authenticateRequest(opts.req),
       new Promise<never>((_, reject) =>
@@ -41,7 +41,7 @@ export async function createContext(
         if (cookieValue) {
           const session = await Promise.race([
             sdk.verifySession(cookieValue),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 2_000)),
           ]);
           if (!session) {
             // JWT 자체가 잘못됨 → 쿠키 제거

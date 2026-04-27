@@ -22,7 +22,7 @@ export function useAuth(options?: UseAuthOptions) {
 
   // 5초 이상 로딩 → 콜드스타트 안내 메시지 표시
   const [slowLoading, setSlowLoading] = useState(false);
-  // 마운트 32초 후 강제 비인증 처리 — isLoading 사이클에 묶으면 abort 루프 시 타이머가 리셋되는 버그
+  // 마운트 12초 후 강제 비인증 처리 — iOS bfcache 복귀 시 긴 타이머 정지/재개로 스피너가 오래 고정되는 문제 완화
   const [authTimedOut, setAuthTimedOut] = useState(false);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function useAuth(options?: UseAuthOptions) {
 
   // authTimedOut: 마운트 기준 1회 발동, 데이터 도착 시 리셋
   useEffect(() => {
-    const t = setTimeout(() => setAuthTimedOut(true), 32_000);
+    const t = setTimeout(() => setAuthTimedOut(true), 12_000);
     return () => clearTimeout(t);
   }, []);
   useEffect(() => {
