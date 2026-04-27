@@ -152,6 +152,7 @@ function vitePluginDebugCollector(): Plugin {
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginDebugCollector()];
 
 export default defineConfig({
+  base: "/",
   plugins,
   resolve: {
     alias: {

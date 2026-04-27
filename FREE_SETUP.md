@@ -19,6 +19,12 @@
 - 업로드 URL: `/uploads/<key>`
 
 ### Render/Fly/Railway 같은 서버 배포
+
+### Render 블루프린트(`render.yaml`) 주의
+- 이 프로젝트는 **React SPA + Express API**를 함께 서빙하는 구조라서 `env: static`이 아니라 **Node Web Service**로 배포해야 합니다.
+- `/* -> /index.html` Rewrite는 Static Site에서 주로 필요하며, 이 프로젝트는 서버(`server/_core/vite.ts`)가 프로덕션에서 이미 SPA fallback을 처리합니다.
+- 즉 Render에서는 `build/start`가 실행되는 Web Service 설정을 사용하세요.
+
 - 환경변수 권장:
   - `LOCAL_UPLOAD_DIR=/var/data/uploads`
 - 주의: 컨테이너 재배포 시 파일이 사라질 수 있습니다.

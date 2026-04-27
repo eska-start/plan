@@ -1,10 +1,9 @@
 services:
   - type: web
     name: plan
-    env: static
-    buildCommand: npm run build
-    publishPath: ./dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    runtime: node
+    buildCommand: pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm start
+    envVars:
+      - key: NODE_ENV
+        value: production
