@@ -52,6 +52,7 @@ function ProgressCard({ icon, label, value, sub, pct, tint }: { icon: React.Reac
 export default function OverviewTab({ tripId, trip, tripDays }: Props) {
   const [, setLocation] = useLocation();
   const [krwRates, setKrwRates] = useState<Record<string, number> | null>(null);
+  const queryOptions = { staleTime: 30_000, refetchOnWindowFocus: false } as const;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -60,12 +61,12 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
   const isOngoing = !isAfter(startDate, today) && !isBefore(endDate, today);
   const isPast = isBefore(endDate, today);
 
-  const { data: flights } = trpc.flights.list.useQuery({ tripId });
-  const { data: accommodations } = trpc.accommodations.list.useQuery({ tripId });
-  const { data: itinerary } = trpc.itinerary.listByTrip.useQuery({ tripId });
-  const { data: memos } = trpc.memos.list.useQuery({ tripId });
-  const { data: expenses } = trpc.expenses.list.useQuery({ tripId });
-  const { data: checklist } = trpc.checklist.list.useQuery({ tripId });
+  const { data: flights } = trpc.flights.list.useQuery({ tripId }, queryOptions);
+  const { data: accommodations } = trpc.accommodations.list.useQuery({ tripId }, queryOptions);
+  const { data: itinerary } = trpc.itinerary.listByTrip.useQuery({ tripId }, queryOptions);
+  const { data: memos } = trpc.memos.list.useQuery({ tripId }, queryOptions);
+  const { data: expenses } = trpc.expenses.list.useQuery({ tripId }, queryOptions);
+  const { data: checklist } = trpc.checklist.list.useQuery({ tripId }, queryOptions);
 
   const budgetCurrency = trip.budgetCurrency ?? "KRW";
 
@@ -109,17 +110,6 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
   }, 0);
   const fmt = (n: number) => n.toLocaleString("ko-KR");
 
-  const allLoaded = flights !== undefined && accommodations !== undefined && itinerary !== undefined;
-
-  if (!allLoaded) {
-    return (
-      <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
-        <Loader2 className="w-5 h-5 animate-spin" />
-        <span className="text-sm">불러오는 중...</span>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-5">
       {/* Two-column layout */}
@@ -136,7 +126,12 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
             </button>
           </div>
 
-          {upcomingItems.length === 0 ? (
+          {itinerary === undefined ? (
+            <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <p className="text-sm">일정 불러오는 중...</p>
+            </div>
+          ) : upcomingItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
               <CalendarDays className="w-8 h-8 opacity-25" />
               <p className="text-sm">{isPast ? "여행이 완료됐어요" : isOngoing ? "남은 일정이 없어요" : "아직 일정이 없어요"}</p>

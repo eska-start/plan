@@ -51,24 +51,89 @@ function Row({ label, value }: { label: string; value: string | null | undefined
 }
 
 function resizeToBase64(file: File, maxPx = 1400, quality = 0.88): Promise<string> {
+  const readOriginal = () =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      URL.revokeObjectURL(url);
-      let { width, height } = img;
-      if (width > maxPx || height > maxPx) {
-        if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
-        else { width = Math.round(width * maxPx / height); height = maxPx; }
+      try {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxPx || height > maxPx) {
+          if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
+          else { width = Math.round(width * maxPx / height); height = maxPx; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      } catch {
+        readOriginal().then(resolve).catch(reject);
       }
-      const canvas = document.createElement("canvas");
-      canvas.width = width; canvas.height = height;
-      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", quality));
     };
-    img.onerror = reject;
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      readOriginal().then(resolve).catch(reject);
+    };
     img.src = url;
   });
+}
+
+function isLikelyImageFile(file: File): boolean {
+  if (file.type.startsWith("image/")) return true;
+  if (file.type === "" || file.type === "application/octet-stream") {
+    return /\.(png|jpe?g|webp|gif|bmp|heic|heif|avif)$/i.test(file.name);
+  }
+  return false;
+}
+
+function normalizeFlightDateTime(v: string | null): string | null {
+  if (!v) return null;
+  const raw = v.trim();
+  if (!raw) return null;
+  const isoMatch = raw.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+  if (isoMatch) return isoMatch[1];
+  const korMatch = raw.match(/(\d{1,2})\D+(\d{1,2})\D+(\d{1,2}):(\d{2})/);
+  if (korMatch) {
+    const year = new Date().getFullYear();
+    const month = korMatch[1].padStart(2, "0");
+    const day = korMatch[2].padStart(2, "0");
+    const hh = korMatch[3].padStart(2, "0");
+    const mm = korMatch[4].padStart(2, "0");
+    return `${year}-${month}-${day}T${hh}:${mm}`;
+  }
+  const hmMatch = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (hmMatch) return `${hmMatch[1].padStart(2, "0")}:${hmMatch[2]}`;
+  return raw;
+}
+
+function pickObjectList(
+  data: Record<string, unknown>,
+  pluralKey: string,
+  singularKey?: string,
+  fallbackArrayKey?: string,
+): unknown[] {
+  const pluralValue = data[pluralKey];
+  if (Array.isArray(pluralValue)) return pluralValue;
+
+  if (singularKey) {
+    const singularValue = data[singularKey];
+    if (singularValue && typeof singularValue === "object") return [singularValue];
+  }
+
+  if (fallbackArrayKey) {
+    const fallbackValue = data[fallbackArrayKey];
+    if (Array.isArray(fallbackValue)) return fallbackValue;
+  }
+
+  return [];
 }
 
 export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
@@ -94,23 +159,9 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
   const applyResult = (raw: unknown) => {
     const d = raw as Record<string, unknown>;
     // AI가 singular key나 null을 반환하는 경우 방어
-    const flights: FlightData[] = Array.isArray(d.flights) ? d.flights as FlightData[]
-      : Array.isArray(d.flight) ? [d.flight as FlightData] : [];
-    const accommodations: AccommodationData[] = Array.isArray(d.accommodations) ? d.accommodations as AccommodationData[]
-      : d.accommodation && typeof d.accommodation === "object" ? [d.accommodation as AccommodationData]
-      : Array.isArray(d.hotel) ? d.hotel as AccommodationData[] : [];
-    const rentals: RentalData[] = Array.isArray(d.rentals) ? d.rentals as RentalData[]
-      : d.rental && typeof d.rental === "object" ? [d.rental as RentalData] : [];
-
-    const data: ExtractResult = {
-      flights,
-      accommodations: accommodations.map(a => ({
-        ...a,
-        // checkIn/checkOut은 DB varchar(10) 제한 - YYYY-MM-DD 부분만 사용
-        checkIn: a.checkIn ? a.checkIn.slice(0, 10) : null,
-        checkOut: a.checkOut ? a.checkOut.slice(0, 10) : null,
-      })),
-      rentals,
+    const flightsRaw = pickObjectList(d, "flights", "flight");
+    const accommodationsRaw = pickObjectList(d, "accommodations", "accommodation", "hotel");
+    const rentalsRaw = pickObjectList(d, "rentals", "rental");
       reply: typeof d.reply === "string" ? d.reply : "",
     };
     setResult(data);
@@ -136,6 +187,12 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
   const handleImage = async (file: File) => {
     if (!file.type.startsWith("image/")) { toast.error("이미지 파일만 업로드할 수 있습니다."); return; }
     if (file.size > 15 * 1024 * 1024) { toast.error("파일 크기는 15MB 이하여야 합니다."); return; }
+    const total = data.flights.length + data.accommodations.length + data.rentals.length;
+    if (total === 0) {
+      toast.error("AI가 인식한 항목이 없습니다. 텍스트/이미지를 더 선명하게 다시 시도해주세요.");
+      setStep("input");
+      return;
+    }
     setAnalyzing(true);
     try {
       const base64 = await resizeToBase64(file);
@@ -157,7 +214,7 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
   const handleSave = async () => {
     if (!result) return;
     setSaving(true);
-    let saved = 0;
+    if (!isLikelyImageFile(file)) { toast.error("이미지 파일만 업로드할 수 있습니다."); return; }
     try {
       const flights = result.flights;
       for (let i = 0; i < flights.length; i++) {

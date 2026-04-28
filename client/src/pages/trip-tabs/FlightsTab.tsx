@@ -5,6 +5,9 @@ import { toast } from "sonner";
 import { Plane, Loader2, ArrowRight, Hash, Armchair } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -59,8 +62,29 @@ function formatDT(dt?: string | null) {
   catch { return dt; }
 }
 
+function normalizeFlightDateTime(v: unknown): string {
+  if (typeof v !== "string") return "";
+  const raw = v.trim();
+  if (!raw) return "";
+  const isoMatch = raw.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+  if (isoMatch) return isoMatch[1];
+  const korMatch = raw.match(/(\d{1,2})\D+(\d{1,2})\D+(\d{1,2}):(\d{2})/);
+  if (korMatch) {
+    const year = new Date().getFullYear();
+    const month = korMatch[1].padStart(2, "0");
+    const day = korMatch[2].padStart(2, "0");
+    const hh = korMatch[3].padStart(2, "0");
+    const mm = korMatch[4].padStart(2, "0");
+    return `${year}-${month}-${day}T${hh}:${mm}`;
+  }
+  const hmMatch = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (hmMatch) return `${hmMatch[1].padStart(2, "0")}:${hmMatch[2]}`;
+  return raw;
+}
+
 export default function FlightsTab({ tripId }: { tripId: number }) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteFlightId, setDeleteFlightId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>(defaultForm);
   const utils = trpc.useUtils();
@@ -71,6 +95,7 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
     onSuccess: () => { utils.flights.list.invalidate(); setDialogOpen(false); setForm(defaultForm); toast.success("항공편이 추가되었습니다."); },
     onError: () => toast.error("항공편 추가에 실패했습니다."),
   });
+  const createBulkMutation = trpc.flights.create.useMutation();
 
   const updateMutation = trpc.flights.update.useMutation({
     onSuccess: () => { utils.flights.list.invalidate(); setDialogOpen(false); setEditId(null); setForm(defaultForm); toast.success("항공편이 수정되었습니다."); },
@@ -134,10 +159,7 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <button onClick={() => openEdit(f)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
-                  <button onClick={() => deleteMutation.mutate({ id: f.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors">삭제</button>
-                </div>
-              </div>
-
+                    onClick={() => setDeleteFlightId(f.id)}
               <div className="flex items-center gap-2 sm:gap-3 mb-3 bg-muted/40 rounded-lg p-3">
                 <div className="text-center min-w-0 flex-1">
                   <p className="text-base sm:text-lg font-bold text-foreground">{f.departureAirport || "-"}</p>
@@ -177,18 +199,49 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
             {/* OCR 자동 입력 */}
             <OcrUploadButton
               extractEndpoint={async (base64) => extractMutation.mutateAsync({ imageBase64: base64 })}
-              onExtracted={(data) => {
+              onExtracted={async (data) => {
+                const flights = Array.isArray(data.flights) ? data.flights as Array<Record<string, unknown>> : [];
+                if (flights.length > 1) {
+                  let saved = 0;
+                  try {
+                    for (const flight of flights) {
+                      await createBulkMutation.mutateAsync({
+                        tripId,
+                        type: flight.type === "departure" || flight.type === "return" || flight.type === "transit" ? flight.type : "departure",
+                        airline: typeof flight.airline === "string" ? flight.airline : "",
+                        flightNumber: typeof flight.flightNumber === "string" ? flight.flightNumber : "",
+                        departureAirport: typeof flight.departureAirport === "string" ? flight.departureAirport : "",
+                        arrivalAirport: typeof flight.arrivalAirport === "string" ? flight.arrivalAirport : "",
+                        departureTime: normalizeFlightDateTime(flight.departureTime),
+                        arrivalTime: normalizeFlightDateTime(flight.arrivalTime),
+                        bookingRef: typeof flight.bookingRef === "string" ? flight.bookingRef : "",
+                        seatNumber: typeof flight.seatNumber === "string" ? flight.seatNumber : "",
+                        memo: "",
+                      });
+                      saved++;
+                    }
+                    await utils.flights.list.invalidate({ tripId });
+                    setDialogOpen(false);
+                    setEditId(null);
+                    setForm(defaultForm);
+                    toast.success(`항공편 ${saved}건이 동시에 등록되었습니다.`);
+                  } catch {
+                    toast.error("항공편 일괄 등록에 실패했습니다.");
+                  }
+                  return;
+                }
+
                 setForm(f => ({
                   ...f,
-                  airline: data.airline ?? f.airline,
-                  flightNumber: data.flightNumber ?? f.flightNumber,
-                  departureAirport: data.departureAirport ?? f.departureAirport,
-                  arrivalAirport: data.arrivalAirport ?? f.arrivalAirport,
-                  departureTime: data.departureTime ?? f.departureTime,
-                  arrivalTime: data.arrivalTime ?? f.arrivalTime,
-                  bookingRef: data.bookingRef ?? f.bookingRef,
-                  seatNumber: data.seatNumber ?? f.seatNumber,
-                  type: (data.type as typeof f.type) ?? f.type,
+                  airline: typeof data.airline === "string" ? data.airline : f.airline,
+                  flightNumber: typeof data.flightNumber === "string" ? data.flightNumber : f.flightNumber,
+                  departureAirport: typeof data.departureAirport === "string" ? data.departureAirport : f.departureAirport,
+                  arrivalAirport: typeof data.arrivalAirport === "string" ? data.arrivalAirport : f.arrivalAirport,
+                  departureTime: normalizeFlightDateTime(data.departureTime) || f.departureTime,
+                  arrivalTime: normalizeFlightDateTime(data.arrivalTime) || f.arrivalTime,
+                  bookingRef: typeof data.bookingRef === "string" ? data.bookingRef : f.bookingRef,
+                  seatNumber: typeof data.seatNumber === "string" ? data.seatNumber : f.seatNumber,
+                  type: (data.type === "departure" || data.type === "return" || data.type === "transit") ? data.type : f.type,
                 }));
               }}
             />
@@ -262,6 +315,27 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteFlightId !== null} onOpenChange={(open) => { if (!open) setDeleteFlightId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>항공편 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 항공편 내역을 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteFlightId == null) return;
+                deleteMutation.mutate({ id: deleteFlightId });
+                setDeleteFlightId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
