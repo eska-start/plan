@@ -1,7 +1,11 @@
 import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+const AUTH_STUCK_RECOVERY_MS = 6_000;
+const AUTH_MAX_LOADING_MS = 10_000;
+const RECOVERY_DEBOUNCE_MS = 3_000;
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
@@ -14,16 +18,25 @@ export function useAuth(options?: UseAuthOptions) {
   const utils = trpc.useUtils();
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
-    retry: false,
+    retry: 1,
+    retryDelay: 1_000,
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
     refetchInterval: false,
     staleTime: Infinity,
   });
 
   // 5초 이상 로딩 → 콜드스타트 안내 메시지 표시
   const [slowLoading, setSlowLoading] = useState(false);
-  // 마운트 12초 후 강제 비인증 처리 — iOS bfcache 복귀 시 긴 타이머 정지/재개로 스피너가 오래 고정되는 문제 완화
-  const [authTimedOut, setAuthTimedOut] = useState(false);
+  const [stalledLoading, setStalledLoading] = useState(false);
+  const lastRecoveryAtRef = useRef(0);
+
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      utils.auth.me.setData(undefined, null);
+    },
+  });
 
   useEffect(() => {
     if (!meQuery.isLoading) { setSlowLoading(false); return; }
@@ -31,20 +44,66 @@ export function useAuth(options?: UseAuthOptions) {
     return () => clearTimeout(t);
   }, [meQuery.isLoading]);
 
-  // authTimedOut: 마운트 기준 1회 발동, 데이터 도착 시 리셋
   useEffect(() => {
-    const t = setTimeout(() => setAuthTimedOut(true), 12_000);
+    if (!meQuery.isLoading || logoutMutation.isPending) {
+      setStalledLoading(false);
+      return;
+    }
+    const t = setTimeout(() => setStalledLoading(true), AUTH_MAX_LOADING_MS);
     return () => clearTimeout(t);
-  }, []);
-  useEffect(() => {
-    if (meQuery.data) setAuthTimedOut(false);
-  }, [meQuery.data]);
+  }, [logoutMutation.isPending, meQuery.isLoading]);
 
-  const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => {
-      utils.auth.me.setData(undefined, null);
-    },
-  });
+  const recoverAuthQuery = useCallback((force = false) => {
+    if (logoutMutation.isPending) return;
+    if (!force && meQuery.isFetching) return;
+
+    const now = Date.now();
+    if (!force && now - lastRecoveryAtRef.current < RECOVERY_DEBOUNCE_MS) return;
+    lastRecoveryAtRef.current = now;
+
+    if (force) {
+      void utils.auth.me.cancel().finally(() => {
+        void meQuery.refetch({ cancelRefetch: true });
+      });
+      return;
+    }
+
+    void meQuery.refetch({ cancelRefetch: false });
+  }, [logoutMutation.isPending, meQuery.isFetching, meQuery.refetch, utils.auth.me]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) recoverAuthQuery();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") recoverAuthQuery();
+    };
+    const onFocus = () => recoverAuthQuery();
+    const onOnline = () => recoverAuthQuery();
+
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onOnline);
+
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [recoverAuthQuery]);
+
+  useEffect(() => {
+    if (!meQuery.isLoading || logoutMutation.isPending) return;
+
+    const t = setTimeout(() => recoverAuthQuery(true), AUTH_STUCK_RECOVERY_MS);
+
+    return () => clearTimeout(t);
+  }, [logoutMutation.isPending, meQuery.isLoading, recoverAuthQuery]);
 
   const logout = useCallback(async () => {
     try {
@@ -74,17 +133,17 @@ export function useAuth(options?: UseAuthOptions) {
 
   const state = useMemo(() => ({
     user: meQuery.data ?? null,
-    // authTimedOut 시 로딩 강제 종료 → AuthScreen 표시
-    loading: authTimedOut ? false : (meQuery.isLoading || logoutMutation.isPending),
-    error: meQuery.error ?? logoutMutation.error ?? null,
-    isAuthenticated: authTimedOut ? false : Boolean(meQuery.data),
+    loading: logoutMutation.isPending || (meQuery.isLoading && !stalledLoading),
+    error: meQuery.error ?? logoutMutation.error ?? (stalledLoading ? new Error("auth loading stalled") : null),
+    isAuthenticated: Boolean(meQuery.data),
+    stalledLoading,
   }), [
-    authTimedOut,
     meQuery.data,
     meQuery.error,
     meQuery.isLoading,
     logoutMutation.error,
     logoutMutation.isPending,
+    stalledLoading,
   ]);
 
   useEffect(() => {

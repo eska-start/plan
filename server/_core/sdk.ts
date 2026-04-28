@@ -8,10 +8,6 @@ import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
 import type {
-  AuthorizeRequest,
-  AuthorizeResponse,
-  ExchangeTokenRequest,
-  ExchangeTokenResponse,
   GetUserInfoResponse,
   GetUserInfoWithJwtRequest,
   GetUserInfoWithJwtResponse,
@@ -26,59 +22,7 @@ export type SessionPayload = {
   name: string;
 };
 
-const AUTHORIZE_PATH = `/webdev.v1.WebDevAuthPublicService/Authorize`;
-const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
-const GET_USER_INFO_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfo`;
 const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfoWithJwt`;
-
-class OAuthService {
-  constructor(private client: ReturnType<typeof axios.create>) {}
-
-  private decodeState(state: string): string {
-    const redirectUri = atob(state);
-    return redirectUri;
-  }
-
-  async authorize(params: AuthorizeRequest): Promise<AuthorizeResponse> {
-    const { data } = await this.client.post<AuthorizeResponse>(
-      AUTHORIZE_PATH,
-      params
-    );
-    return data;
-  }
-
-  async getTokenByCode(
-    code: string,
-    state: string
-  ): Promise<ExchangeTokenResponse> {
-    const payload: ExchangeTokenRequest = {
-      clientId: ENV.appId,
-      grantType: "authorization_code",
-      code,
-      redirectUri: this.decodeState(state),
-    };
-
-    const { data } = await this.client.post<ExchangeTokenResponse>(
-      EXCHANGE_TOKEN_PATH,
-      payload
-    );
-
-    return data;
-  }
-
-  async getUserInfoByToken(
-    token: ExchangeTokenResponse
-  ): Promise<GetUserInfoResponse> {
-    const { data } = await this.client.post<GetUserInfoResponse>(
-      GET_USER_INFO_PATH,
-      {
-        accessToken: token.accessToken,
-      }
-    );
-
-    return data;
-  }
-}
 
 const createOAuthHttpClient = (): AxiosInstance =>
   axios.create({
@@ -88,11 +32,9 @@ const createOAuthHttpClient = (): AxiosInstance =>
 
 class SDKServer {
   private readonly client: AxiosInstance;
-  private readonly oauthService: OAuthService;
 
   constructor(client: AxiosInstance = createOAuthHttpClient()) {
     this.client = client;
-    this.oauthService = new OAuthService(this.client);
   }
 
   private deriveLoginMethod(
@@ -105,7 +47,6 @@ class SDKServer {
       platforms.filter((p): p is string => typeof p === "string")
     );
     if (set.has("REGISTERED_PLATFORM_EMAIL")) return "email";
-    if (set.has("REGISTERED_PLATFORM_GOOGLE")) return "google";
     if (set.has("REGISTERED_PLATFORM_APPLE")) return "apple";
     if (
       set.has("REGISTERED_PLATFORM_MICROSOFT") ||
@@ -115,55 +56,6 @@ class SDKServer {
     if (set.has("REGISTERED_PLATFORM_GITHUB")) return "github";
     const first = Array.from(set)[0];
     return first ? first.toLowerCase() : null;
-  }
-
-  /**
-   * Get the Google OAuth login URL from the OAuth server
-   * @example
-   * const url = await sdk.getGoogleLoginUrl("https://myapp.com/api/oauth/callback");
-   */
-  async getGoogleLoginUrl(redirectUri: string): Promise<string> {
-    const state = btoa(redirectUri);
-    const response = await this.oauthService.authorize({
-      redirectUri,
-      projectId: ENV.appId,
-      state,
-      responseType: "code",
-      scope: "openid email profile",
-    });
-    return response.redirectUrl;
-  }
-
-  /**
-   * Exchange OAuth authorization code for access token
-   * @example
-   * const tokenResponse = await sdk.exchangeCodeForToken(code, state);
-   */
-  async exchangeCodeForToken(
-    code: string,
-    state: string
-  ): Promise<ExchangeTokenResponse> {
-    return this.oauthService.getTokenByCode(code, state);
-  }
-
-  /**
-   * Get user information using access token
-   * @example
-   * const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
-   */
-  async getUserInfo(accessToken: string): Promise<GetUserInfoResponse> {
-    const data = await this.oauthService.getUserInfoByToken({
-      accessToken,
-    } as ExchangeTokenResponse);
-    const loginMethod = this.deriveLoginMethod(
-      (data as any)?.platforms,
-      (data as any)?.platform ?? data.platform ?? null
-    );
-    return {
-      ...(data as any),
-      platform: loginMethod,
-      loginMethod,
-    } as GetUserInfoResponse;
   }
 
   private parseCookies(cookieHeader: string | undefined) {

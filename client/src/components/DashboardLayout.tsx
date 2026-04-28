@@ -45,24 +45,24 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
+    try {
+      const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+      return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
+    } catch {
+      return DEFAULT_WIDTH;
+    }
   });
   const { loading, user } = useAuth();
-  // 로딩이 8초 넘어가면 강제로 미인증 처리 (DB 지연 등으로 흰 화면 방지)
-  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
 
   useEffect(() => {
-    if (!loading) { setLoadingTimedOut(false); return; }
-    const t = setTimeout(() => setLoadingTimedOut(true), 8000);
-    return () => clearTimeout(t);
-  }, [loading]);
-
-  useEffect(() => {
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
+    try {
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
+    } catch {
+      // Safari private mode or strict privacy settings can block storage access.
+    }
   }, [sidebarWidth]);
 
-  if (loading && !loadingTimedOut) {
+  if (loading) {
     return <DashboardLayoutSkeleton />;
   }
 
