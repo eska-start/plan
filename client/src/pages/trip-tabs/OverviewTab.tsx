@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { Loader2, Plane, Hotel, CalendarDays, StickyNote, Wallet, ArrowRight, CheckSquare, Clock } from "lucide-react";
+import { Plane, Hotel, CalendarDays, StickyNote, Wallet, ArrowRight, CheckSquare, Clock } from "lucide-react";
 import { format, parseISO, differenceInDays, isAfter, isBefore } from "date-fns";
 import { ko } from "date-fns/locale";
 import { useLocation } from "wouter";
@@ -60,12 +60,12 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
   const isOngoing = !isAfter(startDate, today) && !isBefore(endDate, today);
   const isPast = isBefore(endDate, today);
 
-  const { data: flights } = trpc.flights.list.useQuery({ tripId });
-  const { data: accommodations } = trpc.accommodations.list.useQuery({ tripId });
-  const { data: itinerary } = trpc.itinerary.listByTrip.useQuery({ tripId });
-  const { data: memos } = trpc.memos.list.useQuery({ tripId });
-  const { data: expenses } = trpc.expenses.list.useQuery({ tripId });
-  const { data: checklist } = trpc.checklist.list.useQuery({ tripId });
+  const { data: flights } = trpc.flights.list.useQuery({ tripId }, { placeholderData: prev => prev ?? [], staleTime: 30_000 });
+  const { data: accommodations } = trpc.accommodations.list.useQuery({ tripId }, { placeholderData: prev => prev ?? [], staleTime: 30_000 });
+  const { data: itinerary } = trpc.itinerary.listByTrip.useQuery({ tripId }, { placeholderData: prev => prev ?? [], staleTime: 30_000 });
+  const { data: memos } = trpc.memos.list.useQuery({ tripId }, { placeholderData: prev => prev ?? [], staleTime: 30_000 });
+  const { data: expenses } = trpc.expenses.list.useQuery({ tripId }, { placeholderData: prev => prev ?? [], staleTime: 30_000 });
+  const { data: checklist } = trpc.checklist.list.useQuery({ tripId }, { placeholderData: prev => prev ?? [], staleTime: 30_000 });
 
   const budgetCurrency = trip.budgetCurrency ?? "KRW";
 
@@ -108,17 +108,6 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
     catch { return sum; }
   }, 0);
   const fmt = (n: number) => n.toLocaleString("ko-KR");
-
-  const allLoaded = flights !== undefined && accommodations !== undefined && itinerary !== undefined;
-
-  if (!allLoaded) {
-    return (
-      <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
-        <Loader2 className="w-5 h-5 animate-spin" />
-        <span className="text-sm">불러오는 중...</span>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-5">

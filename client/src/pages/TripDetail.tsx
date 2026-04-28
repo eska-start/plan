@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { Loader2, ArrowLeft, Plane, Hotel, CalendarDays, BookOpen, Map, Users, Download, Bot, LayoutDashboard, Wallet, ClipboardList, DollarSign, AlignLeft, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ export default function TripDetail() {
   const [, setLocation] = useLocation();
   const [shareOpen, setShareOpen] = useState(false);
   const [aiImportOpen, setAiImportOpen] = useState(false);
+  const utils = trpc.useUtils();
   const tripId = parseInt(params.id);
   const activeTab = params.tab || "overview";
 
@@ -79,6 +80,18 @@ export default function TripDetail() {
   };
 
   const coverColor = trip.coverColor ?? "#1e293b";
+
+  useEffect(() => {
+    if (!tripId || Number.isNaN(tripId)) return;
+    void Promise.all([
+      utils.flights.list.prefetch({ tripId }),
+      utils.accommodations.list.prefetch({ tripId }),
+      utils.itinerary.listByTrip.prefetch({ tripId }),
+      utils.memos.list.prefetch({ tripId }),
+      utils.expenses.list.prefetch({ tripId }),
+      utils.checklist.list.prefetch({ tripId }),
+    ]);
+  }, [tripId, utils]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
