@@ -78,6 +78,13 @@ export async function getUserByEmail(email: string) {
   return r[0];
 }
 
+
+export async function updateUserName(userId: number, name: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(users).set({ name }).where(eq(users.id, userId));
+}
+
 export async function setUserPasswordHash(openId: string, passwordHash: string) {
   const db = await getDb();
   if (!db) return;

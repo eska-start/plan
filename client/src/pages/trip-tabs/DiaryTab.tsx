@@ -232,7 +232,11 @@ export default function DiaryTab({ tripId, tripDays }: { tripId: number; tripDay
                 variant="outline"
                 size="sm"
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() => entry && deleteMutation.mutate({ id: entry.id })}
+                onClick={() => {
+                  if (!entry) return;
+                  if (!window.confirm("이 일기를 삭제할까요?")) return;
+                  deleteMutation.mutate({ id: entry.id });
+                }}
                 disabled={deleteMutation.isPending}
               >
                 삭제

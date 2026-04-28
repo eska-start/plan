@@ -122,7 +122,9 @@ export function ShareDialog({ tripId, open, onOpenChange }: ShareDialogProps) {
                       variant="outline"
                       className="h-8 text-xs gap-1.5 text-muted-foreground hover:text-destructive"
                       onClick={() => {
-                        if (latestInvite) deleteInviteMutation.mutate({ id: latestInvite.id });
+                        if (!latestInvite) return;
+                        if (!window.confirm("현재 초대 링크를 비활성화하고 새로 발급할까요?")) return;
+                        deleteInviteMutation.mutate({ id: latestInvite.id });
                       }}
                       disabled={deleteInviteMutation.isPending}
                     >
@@ -180,7 +182,10 @@ export function ShareDialog({ tripId, open, onOpenChange }: ShareDialogProps) {
                         <Crown className="w-3.5 h-3.5 text-amber-500" />
                       ) : (
                         <button
-                          onClick={() => removeMemberMutation.mutate({ tripId, userId: member.userId })}
+                          onClick={() => {
+                            if (!window.confirm("이 멤버를 공유 목록에서 제거할까요?")) return;
+                            removeMemberMutation.mutate({ tripId, userId: member.userId });
+                          }}
                           disabled={removeMemberMutation.isPending}
                           className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                         >

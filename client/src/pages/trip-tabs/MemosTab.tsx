@@ -4,6 +4,9 @@ import { toast } from "sonner";
 import { StickyNote, Loader2, Pin, PinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +19,7 @@ const defaultForm: FormData = { title: "", content: "", pinned: false };
 
 export default function MemosTab({ tripId }: { tripId: number }) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteMemoId, setDeleteMemoId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>(defaultForm);
   const utils = trpc.useUtils();
@@ -93,7 +97,12 @@ export default function MemosTab({ tripId }: { tripId: number }) {
                   {m.pinned ? "노트 해제" : "여행노트 표시"}
                 </button>
                 <button onClick={() => openEdit(m)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
-                <button onClick={() => deleteMutation.mutate({ id: m.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors ml-auto">삭제</button>
+                <button
+                  onClick={() => setDeleteMemoId(m.id)}
+                  className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors ml-auto"
+                >
+                  삭제
+                </button>
               </div>
             </div>
           ))}
@@ -139,6 +148,27 @@ export default function MemosTab({ tripId }: { tripId: number }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteMemoId !== null} onOpenChange={(open) => { if (!open) setDeleteMemoId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>메모 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 메모를 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteMemoId == null) return;
+                deleteMutation.mutate({ id: deleteMemoId });
+                setDeleteMemoId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
