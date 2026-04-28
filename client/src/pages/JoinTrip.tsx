@@ -5,11 +5,12 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { Loader2, Plane, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TRPCClientError } from "@trpc/client";
 
 export default function JoinTrip() {
   const { token } = useParams<{ token: string }>();
   const [, setLocation] = useLocation();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading, error: authError, refresh } = useAuth();
   const [status, setStatus] = useState<"idle" | "joining" | "success" | "error">("idle");
   const [tripInfo, setTripInfo] = useState<{ tripId: number; tripName: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
@@ -38,6 +39,20 @@ export default function JoinTrip() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const isUnauthorized = authError instanceof TRPCClientError && authError.data?.code === "UNAUTHORIZED";
+  if (!isAuthenticated && !isUnauthorized && authError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-4">
+        <p className="text-sm text-muted-foreground text-center">
+          인증 상태를 확인하지 못했어요. 다시 시도해주세요.
+        </p>
+        <Button variant="outline" onClick={() => void refresh()} className="w-full max-w-xs">
+          다시 시도
+        </Button>
       </div>
     );
   }
