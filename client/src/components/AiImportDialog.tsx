@@ -136,6 +136,12 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
   const handleImage = async (file: File) => {
     if (!file.type.startsWith("image/")) { toast.error("이미지 파일만 업로드할 수 있습니다."); return; }
     if (file.size > 15 * 1024 * 1024) { toast.error("파일 크기는 15MB 이하여야 합니다."); return; }
+    const total = data.flights.length + data.accommodations.length + data.rentals.length;
+    if (total === 0) {
+      toast.error("AI가 인식한 항목이 없습니다. 텍스트/이미지를 더 선명하게 다시 시도해주세요.");
+      setStep("input");
+      return;
+    }
     setAnalyzing(true);
     try {
       const base64 = await resizeToBase64(file);

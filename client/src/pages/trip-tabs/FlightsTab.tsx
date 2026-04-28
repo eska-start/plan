@@ -71,6 +71,7 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
     onSuccess: () => { utils.flights.list.invalidate(); setDialogOpen(false); setForm(defaultForm); toast.success("항공편이 추가되었습니다."); },
     onError: () => toast.error("항공편 추가에 실패했습니다."),
   });
+  const createBulkMutation = trpc.flights.create.useMutation();
 
   const updateMutation = trpc.flights.update.useMutation({
     onSuccess: () => { utils.flights.list.invalidate(); setDialogOpen(false); setEditId(null); setForm(defaultForm); toast.success("항공편이 수정되었습니다."); },
@@ -177,18 +178,49 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
             {/* OCR 자동 입력 */}
             <OcrUploadButton
               extractEndpoint={async (base64) => extractMutation.mutateAsync({ imageBase64: base64 })}
-              onExtracted={(data) => {
+              onExtracted={async (data) => {
+                const flights = Array.isArray(data.flights) ? data.flights as Array<Record<string, unknown>> : [];
+                if (flights.length > 1) {
+                  let saved = 0;
+                  try {
+                    for (const flight of flights) {
+                      await createBulkMutation.mutateAsync({
+                        tripId,
+                        type: flight.type === "departure" || flight.type === "return" || flight.type === "transit" ? flight.type : "departure",
+                        airline: typeof flight.airline === "string" ? flight.airline : "",
+                        flightNumber: typeof flight.flightNumber === "string" ? flight.flightNumber : "",
+                        departureAirport: typeof flight.departureAirport === "string" ? flight.departureAirport : "",
+                        arrivalAirport: typeof flight.arrivalAirport === "string" ? flight.arrivalAirport : "",
+                        departureTime: typeof flight.departureTime === "string" ? flight.departureTime : "",
+                        arrivalTime: typeof flight.arrivalTime === "string" ? flight.arrivalTime : "",
+                        bookingRef: typeof flight.bookingRef === "string" ? flight.bookingRef : "",
+                        seatNumber: typeof flight.seatNumber === "string" ? flight.seatNumber : "",
+                        memo: "",
+                      });
+                      saved++;
+                    }
+                    await utils.flights.list.invalidate({ tripId });
+                    setDialogOpen(false);
+                    setEditId(null);
+                    setForm(defaultForm);
+                    toast.success(`항공편 ${saved}건이 동시에 등록되었습니다.`);
+                  } catch {
+                    toast.error("항공편 일괄 등록에 실패했습니다.");
+                  }
+                  return;
+                }
+
                 setForm(f => ({
                   ...f,
-                  airline: data.airline ?? f.airline,
-                  flightNumber: data.flightNumber ?? f.flightNumber,
-                  departureAirport: data.departureAirport ?? f.departureAirport,
-                  arrivalAirport: data.arrivalAirport ?? f.arrivalAirport,
-                  departureTime: data.departureTime ?? f.departureTime,
-                  arrivalTime: data.arrivalTime ?? f.arrivalTime,
-                  bookingRef: data.bookingRef ?? f.bookingRef,
-                  seatNumber: data.seatNumber ?? f.seatNumber,
-                  type: (data.type as typeof f.type) ?? f.type,
+                  airline: typeof data.airline === "string" ? data.airline : f.airline,
+                  flightNumber: typeof data.flightNumber === "string" ? data.flightNumber : f.flightNumber,
+                  departureAirport: typeof data.departureAirport === "string" ? data.departureAirport : f.departureAirport,
+                  arrivalAirport: typeof data.arrivalAirport === "string" ? data.arrivalAirport : f.arrivalAirport,
+                  departureTime: typeof data.departureTime === "string" ? data.departureTime : f.departureTime,
+                  arrivalTime: typeof data.arrivalTime === "string" ? data.arrivalTime : f.arrivalTime,
+                  bookingRef: typeof data.bookingRef === "string" ? data.bookingRef : f.bookingRef,
+                  seatNumber: typeof data.seatNumber === "string" ? data.seatNumber : f.seatNumber,
+                  type: (data.type === "departure" || data.type === "return" || data.type === "transit") ? data.type : f.type,
                 }));
               }}
             />
