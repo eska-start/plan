@@ -48,29 +48,79 @@ export function fmtAmount(n: number, currency: string): string {
   return n.toFixed(4);
 }
 
-export async function fetchRates(base: string): Promise<Record<string, number>> {
+export type RatesMeta = {
+  rates: Record<string, number>;
+  source: "naver-finance" | "hana-bank" | "open-er-api" | "fawaz-currency-api";
+  asOf: Date | null;
+};
+
+
+async function fetchHanaRatesFromServer(base: string): Promise<RatesMeta> {
+  if (base.toUpperCase() !== "KRW") throw new Error("hana base supports KRW only");
+  const res = await fetch("/api/fx/hana", { cache: "no-store" });
+  if (!res.ok) throw new Error("hana endpoint failed");
+  const data = await res.json() as {
+    source?: string;
+    asOf?: string;
+    rates?: Record<string, number>;
+  };
+  const rates = data.rates ?? {};
+  if (!Object.keys(rates).length) throw new Error("hana rates empty");
+  return {
+    rates: Object.fromEntries(Object.entries(rates).map(([k, v]) => [k.toLowerCase(), Number(v)])),
+    source: (data.source === "naver-finance" ? "naver-finance" : "hana-bank"),
+    asOf: data.asOf ? new Date(data.asOf) : null,
+  };
+}
+
+export async function fetchRatesWithMeta(base: string): Promise<RatesMeta> {
+  try {
+    return await fetchHanaRatesFromServer(base);
+  } catch {
+    // fallback to open providers
+  }
+
+  const fallbackUrl = `https://open.er-api.com/v6/latest/${base.toUpperCase()}`;
+  try {
+    const res = await fetch(fallbackUrl, { cache: "no-store" });
+    if (!res.ok) throw new Error("fallback failed");
+    const data = await res.json() as {
+      rates?: Record<string, number>;
+      time_last_update_unix?: number;
+    };
+    const rates = data.rates ?? {};
+    return {
+      rates: Object.fromEntries(
+        Object.entries(rates).map(([k, v]) => [k.toLowerCase(), Number(v)])
+      ),
+      source: "open-er-api",
+      asOf: data.time_last_update_unix ? new Date(data.time_last_update_unix * 1000) : null,
+    };
+  } catch {
+    // fallback to CDN mirror (can be delayed)
+  }
+
   const b = base.toLowerCase();
   const primaryUrl = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${b}.json`;
-  try {
-    const res = await fetch(primaryUrl, { cache: "no-store" });
-    if (!res.ok) throw new Error("primary failed");
-    const data = await res.json() as Record<string, unknown>;
-    const rates = (data[b] ?? {}) as Record<string, unknown>;
-    const normalized = Object.fromEntries(
-      Object.entries(rates).map(([k, v]) => [k, Number(v)])
-    ) as Record<string, number>;
-    if (!Object.keys(normalized).length) throw new Error("empty rates");
-    return normalized;
-  } catch {
-    const fallbackUrl = `https://open.er-api.com/v6/latest/${base.toUpperCase()}`;
-    const res = await fetch(fallbackUrl, { cache: "no-store" });
-    if (!res.ok) throw new Error("환율 조회 실패");
-    const data = await res.json() as { rates?: Record<string, number> };
-    const rates = data.rates ?? {};
-    return Object.fromEntries(
-      Object.entries(rates).map(([k, v]) => [k.toLowerCase(), Number(v)])
-    );
-  }
+  const res = await fetch(primaryUrl, { cache: "no-store" });
+  if (!res.ok) throw new Error("환율 조회 실패");
+  const data = await res.json() as Record<string, unknown>;
+  const rates = (data[b] ?? {}) as Record<string, unknown>;
+  const normalized = Object.fromEntries(
+    Object.entries(rates).map(([k, v]) => [k.toLowerCase(), Number(v)])
+  ) as Record<string, number>;
+  if (!Object.keys(normalized).length) throw new Error("empty rates");
+  const dateStr = typeof data.date === "string" ? data.date : null;
+  return {
+    rates: normalized,
+    source: "fawaz-currency-api",
+    asOf: dateStr ? new Date(`${dateStr}T00:00:00Z`) : null,
+  };
+}
+
+export async function fetchRates(base: string): Promise<Record<string, number>> {
+  const { rates } = await fetchRatesWithMeta(base);
+  return rates;
 }
 
 export async function fetchHistoricalRate(from: string, to: string, date: string): Promise<number | null> {

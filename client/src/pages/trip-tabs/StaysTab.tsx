@@ -56,13 +56,14 @@ function getNights(checkIn?: string | null, checkOut?: string | null) {
 
 export default function StaysTab({ tripId }: { tripId: number }) {
   const utils = trpc.useUtils();
+  const queryOptions = { staleTime: 30_000, refetchOnWindowFocus: false } as const;
 
   // ── Accommodation state ───────────────────────────────────────────────────
   const [accomOpen, setAccomOpen] = useState(false);
   const [accomEditId, setAccomEditId] = useState<number | null>(null);
   const [accomForm, setAccomForm] = useState<AccomForm>(defaultAccomForm);
 
-  const { data: accommodations, isLoading: accomLoading } = trpc.accommodations.list.useQuery({ tripId });
+  const { data: accommodations, isLoading: accomLoading } = trpc.accommodations.list.useQuery({ tripId }, queryOptions);
   const createAccom = trpc.accommodations.create.useMutation({
     onSuccess: () => { utils.accommodations.list.invalidate(); setAccomOpen(false); setAccomForm(defaultAccomForm); toast.success("숙박이 추가되었습니다."); },
     onError: () => toast.error("숙박 추가에 실패했습니다."),
@@ -96,7 +97,7 @@ export default function StaysTab({ tripId }: { tripId: number }) {
   const [rentalEditId, setRentalEditId] = useState<number | null>(null);
   const [rentalForm, setRentalForm] = useState<RentalForm>(defaultRentalForm);
 
-  const { data: rentals, isLoading: rentalLoading } = trpc.rentals.list.useQuery({ tripId });
+  const { data: rentals, isLoading: rentalLoading } = trpc.rentals.list.useQuery({ tripId }, queryOptions);
   const createRental = trpc.rentals.create.useMutation({
     onSuccess: () => { utils.rentals.list.invalidate(); setRentalOpen(false); setRentalForm(defaultRentalForm); toast.success("렌트카가 추가되었습니다."); },
     onError: () => toast.error("렌트카 추가에 실패했습니다."),
@@ -122,10 +123,6 @@ export default function StaysTab({ tripId }: { tripId: number }) {
     else createRental.mutate({ tripId, ...rentalForm });
   };
 
-  if (accomLoading || rentalLoading) {
-    return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
-  }
-
   return (
     <div className="space-y-8">
       {/* ── 숙박 섹션 ── */}
@@ -142,7 +139,9 @@ export default function StaysTab({ tripId }: { tripId: number }) {
           </Button>
         </div>
 
-        {accommodations && accommodations.length > 0 ? (
+        {accomLoading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        ) : accommodations && accommodations.length > 0 ? (
           <div className="space-y-3">
             {accommodations.map(a => (
               <div key={a.id} className="card-hover p-4 sm:p-5">
@@ -231,7 +230,9 @@ export default function StaysTab({ tripId }: { tripId: number }) {
           </Button>
         </div>
 
-        {rentals && rentals.length > 0 ? (
+        {rentalLoading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        ) : rentals && rentals.length > 0 ? (
           <div className="space-y-3">
             {rentals.map(r => (
               <div key={r.id} className="card-hover p-4 sm:p-5">

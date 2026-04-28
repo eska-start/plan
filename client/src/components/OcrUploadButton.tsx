@@ -2,9 +2,9 @@ import { useRef, useState } from "react";
 import { Camera, FolderOpen, Loader2, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
-interface OcrUploadButtonProps {
-  onExtracted: (data: Record<string, string | null>) => void;
-  extractEndpoint: (imageBase64: string) => Promise<Record<string, string | null>>;
+interface OcrUploadButtonProps<T extends Record<string, unknown>> {
+  onExtracted: (data: T) => void;
+  extractEndpoint: (imageBase64: string) => Promise<T>;
   label?: string;
 }
 
@@ -30,7 +30,7 @@ function resizeToBase64(file: File, maxPx = 1400, quality = 0.85): Promise<strin
   });
 }
 
-export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진으로 자동 입력" }: OcrUploadButtonProps) {
+export function OcrUploadButton<T extends Record<string, unknown>>({ onExtracted, extractEndpoint, label = "사진으로 자동 입력" }: OcrUploadButtonProps<T>) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
