@@ -337,7 +337,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                 }}
               >
                 {/* Date column */}
-                <div className="w-[70px] sm:w-[78px] md:w-[86px] shrink-0 pt-5 pr-2 sm:pr-3 md:pr-4 text-right">
+                <div className="w-[58px] sm:w-[68px] md:w-[80px] shrink-0 pt-5 pr-2 sm:pr-3 md:pr-4 text-right">
                   <div
                     className="font-display text-[2.2rem] font-semibold leading-none text-foreground"
                     style={{
@@ -442,24 +442,18 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
 
                             {/* Actions — 기본 40% 불투명, hover 100% (모바일도 보임) */}
                             <div className="flex gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
-                              {item.sourceType !== "accommodation" ? (
-                                <>
-                                  <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      if (!window.confirm("이 일정을 삭제할까요?")) return;
-                                      deleteMutation.mutate({ id: item.id });
-                                    }}
-                                    className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </>
-                              ) : (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>
-                              )}
+                              <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (!window.confirm("이 일정을 삭제할까요?")) return;
+                                  deleteMutation.mutate({ id: item.id });
+                                }}
+                                className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </div>
                         ))}

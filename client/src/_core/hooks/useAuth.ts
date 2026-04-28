@@ -3,7 +3,6 @@ import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-const AUTH_STUCK_RECOVERY_MS = 12_000;
 const AUTH_MAX_LOADING_MS = 20_000;
 
 type UseAuthOptions = {
@@ -81,14 +80,6 @@ export function useAuth(options?: UseAuthOptions) {
       window.removeEventListener("online", recoverAuthQuery);
     };
   }, [recoverAuthQuery]);
-
-  useEffect(() => {
-    if (!meQuery.isLoading || logoutMutation.isPending) return;
-
-    const t = setTimeout(recoverAuthQuery, AUTH_STUCK_RECOVERY_MS);
-
-    return () => clearTimeout(t);
-  }, [logoutMutation.isPending, meQuery.isLoading, recoverAuthQuery]);
 
   const logout = useCallback(async () => {
     try {
