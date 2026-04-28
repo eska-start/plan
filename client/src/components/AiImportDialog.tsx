@@ -86,6 +86,14 @@ function resizeToBase64(file: File, maxPx = 1400, quality = 0.88): Promise<strin
   });
 }
 
+function isLikelyImageFile(file: File): boolean {
+  if (file.type.startsWith("image/")) return true;
+  if (file.type === "" || file.type === "application/octet-stream") {
+    return /\.(png|jpe?g|webp|gif|bmp|heic|heif|avif)$/i.test(file.name);
+  }
+  return false;
+}
+
 function normalizeFlightDateTime(v: string | null): string | null {
   if (!v) return null;
   const raw = v.trim();
@@ -206,7 +214,7 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
   const handleSave = async () => {
     if (!result) return;
     setSaving(true);
-    let saved = 0;
+    if (!isLikelyImageFile(file)) { toast.error("이미지 파일만 업로드할 수 있습니다."); return; }
     try {
       const flights = result.flights;
       for (let i = 0; i < flights.length; i++) {
