@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpLink } from "@trpc/client";
+import { httpBatchLink } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
@@ -13,11 +13,12 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchInterval: false,
-      refetchOnWindowFocus: true,
-      staleTime: 10_000,
+      refetchOnWindowFocus: false,
+      staleTime: 30_000,
       // 인증 오류 시 자동 리다이렉트 제거 — 리다이렉트 루프 방지
       // 각 페이지에서 isAuthenticated 상태로 직접 처리
-      retry: false,
+      retry: 1,
+      retryDelay: 1_000,
     },
   },
 });
@@ -36,9 +37,9 @@ queryClient.getMutationCache().subscribe(event => {
 
 const trpcClient = trpc.createClient({
   links: [
-    // iOS Safari에서 로그인 후 새로고침 시 batch 요청이 오래 걸리며 흰 화면처럼 멈추는 케이스 완화:
-    // batch 대신 단일 요청 링크로 전환해 한 요청 지연이 전체 초기 렌더를 막지 않도록 함.
-    httpLink({
+    // 전체 왕복 횟수를 줄이기 위해 batch 링크 사용.
+    // 각 batch 요청에도 abort timeout을 적용해 무한 대기 방지.
+    httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
