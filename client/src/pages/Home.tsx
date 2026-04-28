@@ -271,7 +271,7 @@ function DetailRow({ icon, label, value, sub }: { icon: React.ReactNode; label: 
 
 /* ── Home ─────────────────────────────────────────────────────────────────── */
 export default function Home() {
-  const { user, isAuthenticated, loading, slowLoading, logout } = useAuth();
+  const { user, isAuthenticated, loading, slowLoading, authStuck, refresh, logout } = useAuth();
   const [, setLocation] = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTrip, setEditTrip] = useState<number | null>(null);
@@ -307,7 +307,7 @@ export default function Home() {
     else createMutation.mutate(form);
   };
 
-  if (loading) return (
+  if (loading && !authStuck) return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3">
       <Loader2 className="w-7 h-7 animate-spin text-muted-foreground" />
       {slowLoading && (
@@ -316,6 +316,19 @@ export default function Home() {
           <p className="text-xs text-muted-foreground/60">첫 접속 시 최대 30초 소요될 수 있습니다</p>
         </div>
       )}
+    </div>
+  );
+  if (authStuck) return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 px-6">
+      <p className="text-base font-semibold text-foreground">인증 확인이 지연되고 있어요</p>
+      <p className="text-sm text-muted-foreground text-center">
+        iOS 브라우저 복귀/새로고침 시 네트워크 요청이 멈추는 경우가 있어요.
+        아래 버튼으로 다시 시도해주세요.
+      </p>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={() => void refresh()}>다시 시도</Button>
+        <Button onClick={() => window.location.reload()}>페이지 새로고침</Button>
+      </div>
     </div>
   );
   if (!isAuthenticated) return <AuthScreen />;

@@ -14,7 +14,8 @@ export function useAuth(options?: UseAuthOptions) {
   const utils = trpc.useUtils();
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
-    retry: false,
+    retry: 1,
+    retryDelay: 1_500,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     refetchInterval: false,
@@ -23,6 +24,8 @@ export function useAuth(options?: UseAuthOptions) {
 
   // 5초 이상 로딩 → 콜드스타트 안내 메시지 표시
   const [slowLoading, setSlowLoading] = useState(false);
+  // iOS Safari 등에서 요청이 pending 상태로 고정될 때 무한 스피너 탈출용
+  const [authStuck, setAuthStuck] = useState(false);
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
@@ -33,6 +36,16 @@ export function useAuth(options?: UseAuthOptions) {
   useEffect(() => {
     if (!meQuery.isLoading) { setSlowLoading(false); return; }
     const t = setTimeout(() => setSlowLoading(true), 5_000);
+    return () => clearTimeout(t);
+  }, [meQuery.isLoading]);
+
+  useEffect(() => {
+    if (!meQuery.isLoading) {
+      setAuthStuck(false);
+      return;
+    }
+
+    const t = setTimeout(() => setAuthStuck(true), 20_000);
     return () => clearTimeout(t);
   }, [meQuery.isLoading]);
 
@@ -133,6 +146,7 @@ export function useAuth(options?: UseAuthOptions) {
   return {
     ...state,
     slowLoading,
+    authStuck,
     refresh: () => meQuery.refetch(),
     logout,
   };
