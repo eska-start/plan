@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { TRPCClientError } from "@trpc/client";
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { Loader2, ArrowLeft, Plane, Hotel, CalendarDays, BookOpen, Map, Users, Download, Bot, LayoutDashboard, Wallet, ClipboardList, DollarSign, AlignLeft, StickyNote } from "lucide-react";
@@ -41,7 +42,14 @@ export default function TripDetail() {
   const tripId = parseInt(params.id);
   const activeTab = params.tab || "overview";
 
-  const { data: trip, isLoading, error } = trpc.trips.get.useQuery({ id: tripId });
+  const { data: trip, isLoading, error, refetch, isFetching } = trpc.trips.get.useQuery(
+    { id: tripId },
+    {
+      retry: 1,
+      retryDelay: 1_000,
+      refetchOnWindowFocus: true,
+    }
+  );
 
   if (isLoading) {
     return (
@@ -51,12 +59,25 @@ export default function TripDetail() {
     );
   }
 
-  // 인증 실패 → 홈으로 (로그인 화면 표시)
-  if (error) {
+  const isUnauthorized = error instanceof TRPCClientError && error.data?.code === "UNAUTHORIZED";
+
+  // 데이터가 전혀 없고 에러인 경우만 에러 화면 노출 (기존 데이터가 있으면 화면 유지)
+  if (error && !trip) {
+    if (isUnauthorized) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+          <p className="text-muted-foreground text-sm">로그인이 필요합니다.</p>
+          <Button variant="outline" size="sm" onClick={() => setLocation("/")}>홈으로</Button>
+        </div>
+      );
+    }
+
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <p className="text-muted-foreground text-sm">로그인이 필요합니다.</p>
-        <Button variant="outline" size="sm" onClick={() => setLocation("/")}>홈으로</Button>
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-4">
+        <p className="text-muted-foreground text-sm text-center">서버 연결이 지연되고 있어요. 잠시 후 다시 시도해주세요.</p>
+        <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
+          {isFetching ? "다시 시도 중..." : "다시 시도"}
+        </Button>
       </div>
     );
   }

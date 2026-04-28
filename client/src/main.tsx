@@ -12,7 +12,7 @@ const TRPC_REQUEST_TIMEOUT_MS = 10_000;
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchInterval: 30_000,
+      refetchInterval: false,
       refetchOnWindowFocus: true,
       staleTime: 10_000,
       // 인증 오류 시 자동 리다이렉트 제거 — 리다이렉트 루프 방지
