@@ -6,7 +6,7 @@ import {
   CURRENCY_FLAGS,
   CURRENCY_NAMES,
   detectCurrency,
-  fetchRates,
+  fetchRatesWithMeta,
 } from "@/utils/currency";
 
 const SHOW_CURRENCIES = ["JPY", "USD", "EUR", "CNY", "HKD", "TWD", "THB", "VND", "SGD", "AUD", "CAD", "GBP", "NZD", "MYR", "IDR", "PHP"];
@@ -39,6 +39,7 @@ export default function ExchangeTab({ trip }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [rateSource, setRateSource] = useState<string>("");
 
   const [isKrwLeft, setIsKrwLeft] = useState(true);
   const [leftInput, setLeftInput] = useState("10,000");
@@ -67,9 +68,10 @@ export default function ExchangeTab({ trip }: Props) {
     setLoading(true);
     setError(false);
     try {
-      const r = await fetchRates("KRW");
+      const { rates: r, asOf, source } = await fetchRatesWithMeta("KRW");
       setRates(r);
-      setLastUpdated(new Date());
+      setLastUpdated(asOf);
+      setRateSource(source);
     } catch {
       setError(true);
     } finally {
@@ -184,8 +186,11 @@ export default function ExchangeTab({ trip }: Props) {
             </Button>
             {lastUpdated && (
               <p className="text-[10px] text-muted-foreground">
-                {lastUpdated.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 기준
+                {lastUpdated.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} 기준
               </p>
+            )}
+            {rateSource && (
+              <p className="text-[10px] text-muted-foreground/80">{rateSource === "open-er-api" ? "실시간(제공사 기준)" : "일일 고시 기준"}</p>
             )}
           </div>
         </div>
