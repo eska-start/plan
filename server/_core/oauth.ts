@@ -11,7 +11,7 @@ export function registerOAuthRoutes(app: Express) {
 
   app.get("/api/auth/clear", (req: Request, res: Response) => {
     const cookieOptions = getSessionCookieOptions(req);
-    res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+    res.clearCookie(COOKIE_NAME, cookieOptions);
     // iOS Safari: JS redirect ensures cookie is cleared before navigation
     res.type("html").send(`<!DOCTYPE html><html><head><meta charset="utf-8">
 <script>window.location.replace("/");</script>

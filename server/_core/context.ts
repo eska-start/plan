@@ -57,7 +57,7 @@ export async function createContext(
           if (!session) {
             // JWT 자체가 잘못됨 → 쿠키 제거
             const cookieOptions = getSessionCookieOptions(opts.req);
-            opts.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+            opts.res.clearCookie(COOKIE_NAME, cookieOptions);
           }
         }
       }
