@@ -7,6 +7,7 @@ import App from "./App";
 import "./index.css";
 
 (window as Window & { __APP_BOOTSTRAPPED__?: boolean }).__APP_BOOTSTRAPPED__ = true;
+const TRPC_REQUEST_TIMEOUT_MS = 15_000;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,18 +42,18 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
-        // 12s timeout + React Query's own cancellation signal combined
         const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 12_000);
-        const onRQAbort = () => ctrl.abort();
-        init?.signal?.addEventListener("abort", onRQAbort, { once: true });
+        const timeoutId = setTimeout(() => ctrl.abort(), TRPC_REQUEST_TIMEOUT_MS);
+        const onAbort = () => ctrl.abort();
+        init?.signal?.addEventListener("abort", onAbort, { once: true });
+
         return globalThis.fetch(input, {
           ...(init ?? {}),
           credentials: "include",
           signal: ctrl.signal,
         }).finally(() => {
-          clearTimeout(t);
-          init?.signal?.removeEventListener("abort", onRQAbort);
+          clearTimeout(timeoutId);
+          init?.signal?.removeEventListener("abort", onAbort);
         });
       },
     }),
