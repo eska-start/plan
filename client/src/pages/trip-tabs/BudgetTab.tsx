@@ -227,29 +227,29 @@ export default function BudgetTab({ tripId, trip }: Props) {
   return (
     <div className="space-y-5">
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <FadeIn delay={0}>
-          <div className="rounded-2xl border bg-card p-4 space-y-1">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Wallet className="w-3.5 h-3.5" /> 계획 예산</div>
-            <p className="text-xl font-semibold">{budgetNum != null ? fmt(budgetNum, currency) : "—"}</p>
+          <div className="rounded-2xl border bg-card p-4 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs sm:text-[13px] text-muted-foreground"><Wallet className="w-3.5 h-3.5" /> 계획 예산</div>
+            <p className="text-lg sm:text-xl font-semibold break-all">{budgetNum != null ? fmt(budgetNum, currency) : "—"}</p>
             <p className="text-xs text-muted-foreground">{currency}</p>
           </div>
         </FadeIn>
         <FadeIn delay={0.07}>
-          <div className="rounded-2xl border bg-[#142033] p-4 space-y-1">
-            <div className="flex items-center gap-1.5 text-xs text-white/60"><TrendingUp className="w-3.5 h-3.5" /> 현재 지출</div>
-            <p className="text-xl font-semibold text-white">{fmt(Math.round(totalSpentKrw), "KRW")}</p>
-            <p className="text-[11px] text-white/60">원화 합계 · ₩{fmt(Math.round(totalSpentKrw), "KRW")}</p>
-            <p className="text-[10px] text-white/50 truncate">
+          <div className="rounded-2xl border bg-[#142033] p-4 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs sm:text-[13px] text-white/60"><TrendingUp className="w-3.5 h-3.5" /> 현재 지출</div>
+            <p className="text-lg sm:text-xl font-semibold text-white break-all">{fmt(Math.round(totalSpentKrw), "KRW")}</p>
+            <p className="text-[11px] text-white/60 break-all">원화 합계 · ₩{fmt(Math.round(totalSpentKrw), "KRW")}</p>
+            <p className="text-[10px] text-white/50 break-all">
               현지통화 합계 · {localCurrencySummary || "없음"}
             </p>
             <p className="text-xs text-white/50">{budgetNum ? `${Math.round(budgetPct)}% 사용` : "KRW 기준"}</p>
           </div>
         </FadeIn>
         <FadeIn delay={0.14}>
-          <div className="rounded-2xl border bg-card p-4 space-y-1">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><PiggyBank className="w-3.5 h-3.5" /> 잔여 예산</div>
-            <p className={`text-xl font-semibold ${remaining != null && remaining < 0 ? "text-[#F18A6A]" : ""}`}>
+          <div className="rounded-2xl border bg-card p-4 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs sm:text-[13px] text-muted-foreground"><PiggyBank className="w-3.5 h-3.5" /> 잔여 예산</div>
+            <p className={`text-lg sm:text-xl font-semibold break-all ${remaining != null && remaining < 0 ? "text-[#F18A6A]" : ""}`}>
               {remaining != null ? fmt(Math.round(remaining), currency) : "—"}
             </p>
             <p className="text-xs text-muted-foreground">{currency}</p>
