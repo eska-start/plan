@@ -5,15 +5,27 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 
+const AUTH_CONTEXT_TIMEOUT_MS = 12_000;
+const SESSION_VERIFY_TIMEOUT_MS = 4_000;
+
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
   user: User | null;
 };
 
-// 인증 컨텍스트 타임아웃을 짧게 유지해 iOS bfcache 복귀 후 장시간 스피너 고정을 방지.
-// 외부 헬스체크/웜업이 있는 운영 환경 기준으로 8초 제한 사용
-const AUTH_TIMEOUT_MS = 8_000;
+async function withTimeout<T>(
+  task: Promise<T>,
+  ms: number,
+  errorMessage: string
+): Promise<T> {
+  return await Promise.race([
+    task,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMessage)), ms)
+    ),
+  ]);
+}
 
 export async function createContext(
   opts: CreateExpressContextOptions
@@ -21,13 +33,11 @@ export async function createContext(
   let user: User | null = null;
 
   try {
-    // DB가 느리거나 불안정할 때 무한 로딩 방지 — 8초 타임아웃
-    user = await Promise.race([
+    user = await withTimeout(
       sdk.authenticateRequest(opts.req),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("auth timeout")), AUTH_TIMEOUT_MS)
-      ),
-    ]);
+      AUTH_CONTEXT_TIMEOUT_MS,
+      "authenticateRequest timeout"
+    );
   } catch {
     user = null;
 
@@ -39,10 +49,11 @@ export async function createContext(
         const parsed = parseCookieHeader(rawCookies);
         const cookieValue = parsed[COOKIE_NAME];
         if (cookieValue) {
-          const session = await Promise.race([
+          const session = await withTimeout(
             sdk.verifySession(cookieValue),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 2_000)),
-          ]);
+            SESSION_VERIFY_TIMEOUT_MS,
+            "verifySession timeout"
+          );
           if (!session) {
             // JWT 자체가 잘못됨 → 쿠키 제거
             const cookieOptions = getSessionCookieOptions(opts.req);
