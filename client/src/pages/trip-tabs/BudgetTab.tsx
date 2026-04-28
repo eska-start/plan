@@ -58,7 +58,13 @@ export default function BudgetTab({ tripId, trip }: Props) {
 
   const { data: expenses, isLoading } = trpc.expenses.list.useQuery({ tripId });
   const createExpense = trpc.expenses.create.useMutation({ onSuccess: () => utils.expenses.list.invalidate({ tripId }) });
-  const deleteExpense = trpc.expenses.delete.useMutation({ onSuccess: () => utils.expenses.list.invalidate({ tripId }) });
+  const deleteExpense = trpc.expenses.delete.useMutation({
+    onSuccess: () => {
+      utils.expenses.list.invalidate({ tripId });
+      toast.success("지출이 삭제되었습니다.");
+    },
+    onError: () => toast.error("지출 삭제에 실패했습니다."),
+  });
   const updateTrip = trpc.trips.update.useMutation({ onSuccess: () => utils.trips.get.invalidate({ id: tripId }) });
   const aiExtract = trpc.expenses.aiExtract.useMutation();
   const aiExtractFromImage = trpc.expenses.aiExtractFromImage.useMutation();
@@ -522,7 +528,13 @@ export default function BudgetTab({ tripId, trip }: Props) {
                               <p className="text-xs text-muted-foreground">≈ ₩{krwEquiv.toLocaleString("ko-KR")}</p>
                             )}
                           </div>
-                          <button onClick={() => deleteExpense.mutate({ id: exp.id })} className="text-muted-foreground hover:text-destructive ml-1 shrink-0">
+                          <button
+                            onClick={() => {
+                              if (!window.confirm("이 지출 항목을 삭제할까요?")) return;
+                              deleteExpense.mutate({ id: exp.id });
+                            }}
+                            className="text-muted-foreground hover:text-destructive ml-1 shrink-0"
+                          >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
