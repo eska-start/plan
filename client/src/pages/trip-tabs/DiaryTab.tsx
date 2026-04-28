@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -34,6 +38,7 @@ export default function DiaryTab({ tripId, tripDays }: { tripId: number; tripDay
     return format(new Date(), "yyyy-MM-dd");
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", mood: "happy" as Mood, weather: "sunny" as Weather });
   const utils = trpc.useUtils();
 
@@ -232,7 +237,10 @@ export default function DiaryTab({ tripId, tripDays }: { tripId: number; tripDay
                 variant="outline"
                 size="sm"
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() => entry && deleteMutation.mutate({ id: entry.id })}
+                onClick={() => {
+                  if (!entry) return;
+                  setDeleteOpen(true);
+                }}
                 disabled={deleteMutation.isPending}
               >
                 삭제
@@ -269,6 +277,25 @@ export default function DiaryTab({ tripId, tripDays }: { tripId: number; tripDay
           </Button>
         </div>
       )}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>일기 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 일기를 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!entry) return;
+                deleteMutation.mutate({ id: entry.id });
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

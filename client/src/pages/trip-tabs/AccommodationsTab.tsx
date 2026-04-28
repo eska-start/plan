@@ -5,6 +5,10 @@ import { toast } from "sonner";
 import { Hotel, Loader2, MapPin, Hash, Calendar, Map } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,6 +49,7 @@ function getNights(checkIn?: string | null, checkOut?: string | null) {
 export default function AccommodationsTab({ tripId }: { tripId: number }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>(defaultForm);
   const utils = trpc.useUtils();
 
@@ -165,8 +170,7 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
                   <button onClick={() => openEdit(a)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
                   <button
                     onClick={() => {
-                      if (!window.confirm("이 숙박을 삭제할까요?")) return;
-                      deleteMutation.mutate({ id: a.id, tripId });
+                      setDeleteId(a.id);
                     }}
                     className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
                   >
@@ -298,6 +302,26 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>숙박 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 숙박을 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteId == null) return;
+                deleteMutation.mutate({ id: deleteId, tripId });
+                setDeleteId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

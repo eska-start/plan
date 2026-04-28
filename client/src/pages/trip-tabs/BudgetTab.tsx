@@ -6,6 +6,10 @@ import { Plus, Wallet, TrendingUp, PiggyBank, Trash2, X, Loader2, Camera, FileTe
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import FadeIn from "@/components/FadeIn";
 import { fetchHistoricalRate, fetchRates, CURRENCY_FLAGS, CURRENCY_NAMES } from "@/utils/currency";
 import { toast } from "sonner";
@@ -58,7 +62,13 @@ export default function BudgetTab({ tripId, trip }: Props) {
 
   const { data: expenses, isLoading } = trpc.expenses.list.useQuery({ tripId });
   const createExpense = trpc.expenses.create.useMutation({ onSuccess: () => utils.expenses.list.invalidate({ tripId }) });
-  const deleteExpense = trpc.expenses.delete.useMutation({ onSuccess: () => utils.expenses.list.invalidate({ tripId }) });
+  const deleteExpense = trpc.expenses.delete.useMutation({
+    onSuccess: () => {
+      utils.expenses.list.invalidate({ tripId });
+      toast.success("지출이 삭제되었습니다.");
+    },
+    onError: () => toast.error("지출 삭제에 실패했습니다."),
+  });
   const updateTrip = trpc.trips.update.useMutation({ onSuccess: () => utils.trips.get.invalidate({ id: tripId }) });
   const aiExtract = trpc.expenses.aiExtract.useMutation();
   const aiExtractFromImage = trpc.expenses.aiExtractFromImage.useMutation();
@@ -72,6 +82,7 @@ export default function BudgetTab({ tripId, trip }: Props) {
   const cameraFileRef = useRef<HTMLInputElement>(null);
   const imageFileRef = useRef<HTMLInputElement>(null);
   const [krwRates, setKrwRates] = useState<Record<string, number> | null>(null);
+  const [deleteExpenseId, setDeleteExpenseId] = useState<number | null>(null);
 
   const [form, setForm] = useState({
     date: format(new Date(), "yyyy-MM-dd"), amount: "", currency, category: "기타" as Category, description: "",
@@ -227,29 +238,29 @@ export default function BudgetTab({ tripId, trip }: Props) {
   return (
     <div className="space-y-5">
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <FadeIn delay={0}>
-          <div className="rounded-2xl border bg-card p-4 space-y-1">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Wallet className="w-3.5 h-3.5" /> 계획 예산</div>
-            <p className="text-xl font-semibold">{budgetNum != null ? fmt(budgetNum, currency) : "—"}</p>
+          <div className="rounded-2xl border bg-card p-4 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs sm:text-[13px] text-muted-foreground"><Wallet className="w-3.5 h-3.5" /> 계획 예산</div>
+            <p className="text-lg sm:text-xl font-semibold break-all">{budgetNum != null ? fmt(budgetNum, currency) : "—"}</p>
             <p className="text-xs text-muted-foreground">{currency}</p>
           </div>
         </FadeIn>
         <FadeIn delay={0.07}>
-          <div className="rounded-2xl border bg-[#142033] p-4 space-y-1">
-            <div className="flex items-center gap-1.5 text-xs text-white/60"><TrendingUp className="w-3.5 h-3.5" /> 현재 지출</div>
-            <p className="text-xl font-semibold text-white">{fmt(Math.round(totalSpentKrw), "KRW")}</p>
-            <p className="text-[11px] text-white/60">원화 합계 · ₩{fmt(Math.round(totalSpentKrw), "KRW")}</p>
-            <p className="text-[10px] text-white/50 truncate">
+          <div className="rounded-2xl border bg-[#142033] p-4 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs sm:text-[13px] text-white/60"><TrendingUp className="w-3.5 h-3.5" /> 현재 지출</div>
+            <p className="text-lg sm:text-xl font-semibold text-white break-all">{fmt(Math.round(totalSpentKrw), "KRW")}</p>
+            <p className="text-[11px] text-white/60 break-all">원화 합계 · ₩{fmt(Math.round(totalSpentKrw), "KRW")}</p>
+            <p className="text-[10px] text-white/50 break-all">
               현지통화 합계 · {localCurrencySummary || "없음"}
             </p>
             <p className="text-xs text-white/50">{budgetNum ? `${Math.round(budgetPct)}% 사용` : "KRW 기준"}</p>
           </div>
         </FadeIn>
         <FadeIn delay={0.14}>
-          <div className="rounded-2xl border bg-card p-4 space-y-1">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><PiggyBank className="w-3.5 h-3.5" /> 잔여 예산</div>
-            <p className={`text-xl font-semibold ${remaining != null && remaining < 0 ? "text-[#F18A6A]" : ""}`}>
+          <div className="rounded-2xl border bg-card p-4 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs sm:text-[13px] text-muted-foreground"><PiggyBank className="w-3.5 h-3.5" /> 잔여 예산</div>
+            <p className={`text-lg sm:text-xl font-semibold break-all ${remaining != null && remaining < 0 ? "text-[#F18A6A]" : ""}`}>
               {remaining != null ? fmt(Math.round(remaining), currency) : "—"}
             </p>
             <p className="text-xs text-muted-foreground">{currency}</p>
@@ -384,8 +395,8 @@ export default function BudgetTab({ tripId, trip }: Props) {
             <p className="text-sm font-semibold">지출 추가</p>
             <button onClick={() => setShowAdd(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1"><Label className="text-xs">날짜</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1"><Label className="text-xs">날짜</Label><Input className="w-full min-w-0" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
             <div className="space-y-1">
               <Label className="text-xs">카테고리</Label>
               <select className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as Category }))}>
@@ -394,7 +405,7 @@ export default function BudgetTab({ tripId, trip }: Props) {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">금액</Label>
-              <Input type="number" placeholder="0" value={form.amount} onChange={e => {
+              <Input className="w-full min-w-0" type="number" placeholder="0" value={form.amount} onChange={e => {
                 setForm(f => ({ ...f, amount: e.target.value }));
                 if (form.currency !== "KRW" && !krwRates) fetchRates("KRW").then(r => setKrwRates(r)).catch(() => {});
               }} />
@@ -522,7 +533,12 @@ export default function BudgetTab({ tripId, trip }: Props) {
                               <p className="text-xs text-muted-foreground">≈ ₩{krwEquiv.toLocaleString("ko-KR")}</p>
                             )}
                           </div>
-                          <button onClick={() => deleteExpense.mutate({ id: exp.id })} className="text-muted-foreground hover:text-destructive ml-1 shrink-0">
+                          <button
+                            onClick={() => {
+                              setDeleteExpenseId(exp.id);
+                            }}
+                            className="text-muted-foreground hover:text-destructive ml-1 shrink-0"
+                          >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -535,6 +551,26 @@ export default function BudgetTab({ tripId, trip }: Props) {
           })}
         </div>
       )}
+      <AlertDialog open={deleteExpenseId !== null} onOpenChange={(open) => { if (!open) setDeleteExpenseId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>지출 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 지출 항목을 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteExpenseId == null) return;
+                deleteExpense.mutate({ id: deleteExpenseId });
+                setDeleteExpenseId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

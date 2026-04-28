@@ -5,6 +5,10 @@ import { toast } from "sonner";
 import { Hotel, Car, Loader2, MapPin, Hash, Calendar, Map, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,13 +60,15 @@ function getNights(checkIn?: string | null, checkOut?: string | null) {
 
 export default function StaysTab({ tripId }: { tripId: number }) {
   const utils = trpc.useUtils();
+  const queryOptions = { staleTime: 30_000, refetchOnWindowFocus: false } as const;
 
   // ── Accommodation state ───────────────────────────────────────────────────
   const [accomOpen, setAccomOpen] = useState(false);
   const [accomEditId, setAccomEditId] = useState<number | null>(null);
+  const [deleteAccomId, setDeleteAccomId] = useState<number | null>(null);
   const [accomForm, setAccomForm] = useState<AccomForm>(defaultAccomForm);
 
-  const { data: accommodations, isLoading: accomLoading } = trpc.accommodations.list.useQuery({ tripId });
+  const { data: accommodations, isLoading: accomLoading } = trpc.accommodations.list.useQuery({ tripId }, queryOptions);
   const createAccom = trpc.accommodations.create.useMutation({
     onSuccess: () => { utils.accommodations.list.invalidate(); setAccomOpen(false); setAccomForm(defaultAccomForm); toast.success("숙박이 추가되었습니다."); },
     onError: () => toast.error("숙박 추가에 실패했습니다."),
@@ -94,9 +100,10 @@ export default function StaysTab({ tripId }: { tripId: number }) {
   // ── Rental state ──────────────────────────────────────────────────────────
   const [rentalOpen, setRentalOpen] = useState(false);
   const [rentalEditId, setRentalEditId] = useState<number | null>(null);
+  const [deleteRentalId, setDeleteRentalId] = useState<number | null>(null);
   const [rentalForm, setRentalForm] = useState<RentalForm>(defaultRentalForm);
 
-  const { data: rentals, isLoading: rentalLoading } = trpc.rentals.list.useQuery({ tripId });
+  const { data: rentals, isLoading: rentalLoading } = trpc.rentals.list.useQuery({ tripId }, queryOptions);
   const createRental = trpc.rentals.create.useMutation({
     onSuccess: () => { utils.rentals.list.invalidate(); setRentalOpen(false); setRentalForm(defaultRentalForm); toast.success("렌트카가 추가되었습니다."); },
     onError: () => toast.error("렌트카 추가에 실패했습니다."),
@@ -122,10 +129,6 @@ export default function StaysTab({ tripId }: { tripId: number }) {
     else createRental.mutate({ tripId, ...rentalForm });
   };
 
-  if (accomLoading || rentalLoading) {
-    return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
-  }
-
   return (
     <div className="space-y-8">
       {/* ── 숙박 섹션 ── */}
@@ -142,7 +145,9 @@ export default function StaysTab({ tripId }: { tripId: number }) {
           </Button>
         </div>
 
-        {accommodations && accommodations.length > 0 ? (
+        {accomLoading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        ) : accommodations && accommodations.length > 0 ? (
           <div className="space-y-3">
             {accommodations.map(a => (
               <div key={a.id} className="card-hover p-4 sm:p-5">
@@ -170,8 +175,7 @@ export default function StaysTab({ tripId }: { tripId: number }) {
                     <button onClick={() => openEditAccom(a)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
                     <button
                       onClick={() => {
-                        if (!window.confirm("이 숙박을 삭제할까요?")) return;
-                        deleteAccom.mutate({ id: a.id, tripId });
+                        setDeleteAccomId(a.id);
                       }}
                       className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
                     >
@@ -231,7 +235,9 @@ export default function StaysTab({ tripId }: { tripId: number }) {
           </Button>
         </div>
 
-        {rentals && rentals.length > 0 ? (
+        {rentalLoading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        ) : rentals && rentals.length > 0 ? (
           <div className="space-y-3">
             {rentals.map(r => (
               <div key={r.id} className="card-hover p-4 sm:p-5">
@@ -248,8 +254,7 @@ export default function StaysTab({ tripId }: { tripId: number }) {
                     <button onClick={() => openEditRental(r)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
                     <button
                       onClick={() => {
-                        if (!window.confirm("이 렌트카를 삭제할까요?")) return;
-                        deleteRental.mutate({ id: r.id });
+                        setDeleteRentalId(r.id);
                       }}
                       className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
                     >
@@ -407,6 +412,46 @@ export default function StaysTab({ tripId }: { tripId: number }) {
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={deleteAccomId !== null} onOpenChange={(open) => { if (!open) setDeleteAccomId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>숙박 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 숙박을 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteAccomId == null) return;
+                deleteAccom.mutate({ id: deleteAccomId, tripId });
+                setDeleteAccomId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={deleteRentalId !== null} onOpenChange={(open) => { if (!open) setDeleteRentalId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>렌트카 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 렌트카를 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteRentalId == null) return;
+                deleteRental.mutate({ id: deleteRentalId });
+                setDeleteRentalId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
