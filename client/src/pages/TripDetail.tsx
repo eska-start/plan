@@ -181,7 +181,11 @@ export default function TripDetail() {
       </div>
 
       {/* ── Tab Content ── */}
-      <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-5 sm:py-6">
+      <div
+        className={`flex-1 mx-auto w-full px-4 sm:px-6 py-5 sm:py-6 ${
+          activeTab === "journey" ? "max-w-7xl" : "max-w-5xl"
+        }`}
+      >
         {activeTab === "overview" && <OverviewTab tripId={tripId} trip={trip} tripDays={tripDays} />}
         {activeTab === "schedule" && <ScheduleTab tripId={tripId} tripDays={tripDays} />}
         {activeTab === "journey" && <ItineraryTab tripId={tripId} tripDays={tripDays} />}

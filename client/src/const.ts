@@ -1,7 +1,5 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
-export const getGoogleLoginUrl = () => "/api/auth/login";
-
 // Generate guest login URL at runtime so redirect URI reflects the current origin.
 export const getLoginUrl = () => {
   const url = new URL("/api/auth/guest-login", window.location.origin);

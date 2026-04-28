@@ -337,7 +337,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                 }}
               >
                 {/* Date column */}
-                <div className="w-[88px] shrink-0 pt-5 pr-4 text-right">
+                <div className="w-[58px] sm:w-[68px] md:w-[80px] shrink-0 pt-5 pr-2 sm:pr-3 md:pr-4 text-right">
                   <div
                     className="font-display text-[2.2rem] font-semibold leading-none text-foreground"
                     style={{
@@ -358,7 +358,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                 </div>
 
                 {/* Timeline right column */}
-                <div className="relative flex-1 min-w-0 pl-5 pt-4 pb-2">
+                <div className="relative flex-1 min-w-0 pl-4 sm:pl-5 pt-4 pb-2">
                   {/* Animated vertical line */}
                   <div
                     className="absolute left-0 top-0 bottom-0 w-px bg-border"
@@ -401,7 +401,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                         {dayItems.map((item, k) => (
                           <div
                             key={item.id}
-                            className={`flex items-start gap-3 px-4 py-3.5 border-t first:border-t-0 border-border group hover:bg-muted/30 ${item.visited ? "opacity-60" : ""}`}
+                            className={`flex items-start gap-2.5 sm:gap-3 px-3 sm:px-4 py-3.5 border-t first:border-t-0 border-border group hover:bg-muted/30 ${item.visited ? "opacity-60" : ""}`}
                             style={{
                               opacity: visible ? (item.visited ? 0.6 : 1) : 0,
                               transform: visible ? "translateY(0)" : "translateY(8px)",
@@ -417,7 +417,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                                 : <Circle className="w-4 h-4 text-muted-foreground hover:text-accent" />}
                             </button>
 
-                            <div className="w-12 shrink-0 mt-0.5">
+                            <div className="w-9 sm:w-10 shrink-0 mt-0.5">
                               {item.visitTime && (
                                 <span className="text-xs font-medium text-muted-foreground tabular-nums">{item.visitTime}</span>
                               )}
@@ -442,24 +442,18 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
 
                             {/* Actions — 기본 40% 불투명, hover 100% (모바일도 보임) */}
                             <div className="flex gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
-                              {item.sourceType !== "accommodation" ? (
-                                <>
-                                  <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      if (!window.confirm("이 일정을 삭제할까요?")) return;
-                                      deleteMutation.mutate({ id: item.id });
-                                    }}
-                                    className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </>
-                              ) : (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>
-                              )}
+                              <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (!window.confirm("이 일정을 삭제할까요?")) return;
+                                  deleteMutation.mutate({ id: item.id });
+                                }}
+                                className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </div>
                         ))}
