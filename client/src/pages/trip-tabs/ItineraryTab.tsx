@@ -337,7 +337,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                 }}
               >
                 {/* Date column */}
-                <div className="w-[88px] shrink-0 pt-5 pr-4 text-right">
+                <div className="w-[70px] sm:w-[78px] md:w-[86px] shrink-0 pt-5 pr-2 sm:pr-3 md:pr-4 text-right">
                   <div
                     className="font-display text-[2.2rem] font-semibold leading-none text-foreground"
                     style={{
@@ -358,7 +358,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                 </div>
 
                 {/* Timeline right column */}
-                <div className="relative flex-1 min-w-0 pl-5 pt-4 pb-2">
+                <div className="relative flex-1 min-w-0 pl-4 sm:pl-5 pt-4 pb-2">
                   {/* Animated vertical line */}
                   <div
                     className="absolute left-0 top-0 bottom-0 w-px bg-border"
@@ -401,7 +401,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                         {dayItems.map((item, k) => (
                           <div
                             key={item.id}
-                            className={`flex items-start gap-3 px-4 py-3.5 border-t first:border-t-0 border-border group hover:bg-muted/30 ${item.visited ? "opacity-60" : ""}`}
+                            className={`flex items-start gap-2.5 sm:gap-3 px-3 sm:px-4 py-3.5 border-t first:border-t-0 border-border group hover:bg-muted/30 ${item.visited ? "opacity-60" : ""}`}
                             style={{
                               opacity: visible ? (item.visited ? 0.6 : 1) : 0,
                               transform: visible ? "translateY(0)" : "translateY(8px)",
@@ -417,7 +417,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                                 : <Circle className="w-4 h-4 text-muted-foreground hover:text-accent" />}
                             </button>
 
-                            <div className="w-12 shrink-0 mt-0.5">
+                            <div className="w-9 sm:w-10 shrink-0 mt-0.5">
                               {item.visitTime && (
                                 <span className="text-xs font-medium text-muted-foreground tabular-nums">{item.visitTime}</span>
                               )}
