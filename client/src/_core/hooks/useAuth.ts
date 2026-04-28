@@ -1,10 +1,11 @@
 import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const AUTH_STUCK_RECOVERY_MS = 6_000;
 const AUTH_MAX_LOADING_MS = 10_000;
+const RECOVERY_DEBOUNCE_MS = 3_000;
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
@@ -20,7 +21,7 @@ export function useAuth(options?: UseAuthOptions) {
     retry: 1,
     retryDelay: 1_000,
     refetchOnMount: true,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     refetchInterval: false,
     staleTime: Infinity,
@@ -29,6 +30,7 @@ export function useAuth(options?: UseAuthOptions) {
   // 5초 이상 로딩 → 콜드스타트 안내 메시지 표시
   const [slowLoading, setSlowLoading] = useState(false);
   const [stalledLoading, setStalledLoading] = useState(false);
+  const lastRecoveryAtRef = useRef(0);
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
@@ -51,12 +53,23 @@ export function useAuth(options?: UseAuthOptions) {
     return () => clearTimeout(t);
   }, [logoutMutation.isPending, meQuery.isLoading]);
 
-  const recoverAuthQuery = useCallback(() => {
+  const recoverAuthQuery = useCallback((force = false) => {
     if (logoutMutation.isPending) return;
-    void utils.auth.me.cancel().finally(() => {
-      void meQuery.refetch({ cancelRefetch: true });
-    });
-  }, [logoutMutation.isPending, meQuery.refetch, utils.auth.me]);
+    if (!force && meQuery.isFetching) return;
+
+    const now = Date.now();
+    if (!force && now - lastRecoveryAtRef.current < RECOVERY_DEBOUNCE_MS) return;
+    lastRecoveryAtRef.current = now;
+
+    if (force) {
+      void utils.auth.me.cancel().finally(() => {
+        void meQuery.refetch({ cancelRefetch: true });
+      });
+      return;
+    }
+
+    void meQuery.refetch({ cancelRefetch: false });
+  }, [logoutMutation.isPending, meQuery.isFetching, meQuery.refetch, utils.auth.me]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -68,24 +81,26 @@ export function useAuth(options?: UseAuthOptions) {
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") recoverAuthQuery();
     };
+    const onFocus = () => recoverAuthQuery();
+    const onOnline = () => recoverAuthQuery();
 
     window.addEventListener("pageshow", onPageShow);
     document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("focus", recoverAuthQuery);
-    window.addEventListener("online", recoverAuthQuery);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onOnline);
 
     return () => {
       window.removeEventListener("pageshow", onPageShow);
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("focus", recoverAuthQuery);
-      window.removeEventListener("online", recoverAuthQuery);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
     };
   }, [recoverAuthQuery]);
 
   useEffect(() => {
     if (!meQuery.isLoading || logoutMutation.isPending) return;
 
-    const t = setTimeout(recoverAuthQuery, AUTH_STUCK_RECOVERY_MS);
+    const t = setTimeout(() => recoverAuthQuery(true), AUTH_STUCK_RECOVERY_MS);
 
     return () => clearTimeout(t);
   }, [logoutMutation.isPending, meQuery.isLoading, recoverAuthQuery]);

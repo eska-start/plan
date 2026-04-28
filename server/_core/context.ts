@@ -5,8 +5,8 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 
-const AUTH_CONTEXT_TIMEOUT_MS = 12_000;
-const SESSION_VERIFY_TIMEOUT_MS = 4_000;
+const AUTH_CONTEXT_TIMEOUT_MS = 8_000;
+const SESSION_VERIFY_TIMEOUT_MS = 2_000;
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];

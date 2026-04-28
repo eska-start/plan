@@ -7,7 +7,7 @@ import App from "./App";
 import "./index.css";
 
 (window as Window & { __APP_BOOTSTRAPPED__?: boolean }).__APP_BOOTSTRAPPED__ = true;
-const TRPC_REQUEST_TIMEOUT_MS = 15_000;
+const TRPC_REQUEST_TIMEOUT_MS = 10_000;
 
 const queryClient = new QueryClient({
   defaultOptions: {
