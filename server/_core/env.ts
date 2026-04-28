@@ -10,8 +10,6 @@ export const ENV = {
   cookieSecret: process.env.JWT_SECRET ?? "local-dev-secret-change-me",
   databaseUrl: process.env.DATABASE_URL ?? "",
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
-  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
-  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
   ocrSpaceApiKey: process.env.OCR_SPACE_API_KEY ?? "",
   llmApiUrl: normalizeEnvValue(process.env.LLM_API_URL ?? process.env.OPENAI_BASE_URL),
   llmApiKey: normalizeEnvValue(process.env.LLM_API_KEY ?? process.env.OPENAI_API_KEY),
