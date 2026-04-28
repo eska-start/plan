@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 export default function JoinTrip() {
   const { token } = useParams<{ token: string }>();
   const [, setLocation] = useLocation();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading, authStuck, refresh } = useAuth();
   const [status, setStatus] = useState<"idle" | "joining" | "success" | "error">("idle");
   const [tripInfo, setTripInfo] = useState<{ tripId: number; tripName: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
@@ -34,10 +34,25 @@ export default function JoinTrip() {
     }
   }, [authLoading, isAuthenticated, token, status]);
 
-  if (authLoading) {
+  if (authLoading && !authStuck) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (authStuck) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-4">
+        <p className="text-base font-semibold text-foreground">인증 확인이 지연되고 있어요</p>
+        <p className="text-sm text-muted-foreground text-center">
+          브라우저에서 요청이 멈춘 상태일 수 있어요. 다시 시도해주세요.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => void refresh()}>다시 시도</Button>
+          <Button onClick={() => window.location.reload()}>새로고침</Button>
+        </div>
       </div>
     );
   }

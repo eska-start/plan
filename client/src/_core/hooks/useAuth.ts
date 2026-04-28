@@ -14,16 +14,24 @@ export function useAuth(options?: UseAuthOptions) {
   const utils = trpc.useUtils();
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
-    retry: false,
-    refetchOnWindowFocus: false,
+    retry: 1,
+    retryDelay: 1_500,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     refetchInterval: false,
     staleTime: Infinity,
   });
 
   // 5초 이상 로딩 → 콜드스타트 안내 메시지 표시
   const [slowLoading, setSlowLoading] = useState(false);
-  // 마운트 12초 후 강제 비인증 처리 — iOS bfcache 복귀 시 긴 타이머 정지/재개로 스피너가 오래 고정되는 문제 완화
-  const [authTimedOut, setAuthTimedOut] = useState(false);
+  // iOS Safari 등에서 요청이 pending 상태로 고정될 때 무한 스피너 탈출용
+  const [authStuck, setAuthStuck] = useState(false);
+
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      utils.auth.me.setData(undefined, null);
+    },
+  });
 
   useEffect(() => {
     if (!meQuery.isLoading) { setSlowLoading(false); return; }
@@ -31,20 +39,54 @@ export function useAuth(options?: UseAuthOptions) {
     return () => clearTimeout(t);
   }, [meQuery.isLoading]);
 
-  // authTimedOut: 마운트 기준 1회 발동, 데이터 도착 시 리셋
   useEffect(() => {
-    const t = setTimeout(() => setAuthTimedOut(true), 12_000);
-    return () => clearTimeout(t);
-  }, []);
-  useEffect(() => {
-    if (meQuery.data) setAuthTimedOut(false);
-  }, [meQuery.data]);
+    if (!meQuery.isLoading) {
+      setAuthStuck(false);
+      return;
+    }
 
-  const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => {
-      utils.auth.me.setData(undefined, null);
-    },
-  });
+    const t = setTimeout(() => setAuthStuck(true), 20_000);
+    return () => clearTimeout(t);
+  }, [meQuery.isLoading]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const refetchAuth = () => {
+      if (logoutMutation.isPending) return;
+      void meQuery.refetch();
+    };
+
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) refetchAuth();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refetchAuth();
+    };
+
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", refetchAuth);
+    window.addEventListener("online", refetchAuth);
+
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", refetchAuth);
+      window.removeEventListener("online", refetchAuth);
+    };
+  }, [logoutMutation.isPending, meQuery.refetch]);
+
+  useEffect(() => {
+    if (!meQuery.isLoading || logoutMutation.isPending) return;
+
+    const t = setTimeout(() => {
+      void meQuery.refetch();
+    }, 15_000);
+
+    return () => clearTimeout(t);
+  }, [logoutMutation.isPending, meQuery.isLoading, meQuery.refetch]);
 
   const logout = useCallback(async () => {
     try {
@@ -74,12 +116,10 @@ export function useAuth(options?: UseAuthOptions) {
 
   const state = useMemo(() => ({
     user: meQuery.data ?? null,
-    // authTimedOut 시 로딩 강제 종료 → AuthScreen 표시
-    loading: authTimedOut ? false : (meQuery.isLoading || logoutMutation.isPending),
+    loading: meQuery.isLoading || logoutMutation.isPending,
     error: meQuery.error ?? logoutMutation.error ?? null,
-    isAuthenticated: authTimedOut ? false : Boolean(meQuery.data),
+    isAuthenticated: Boolean(meQuery.data),
   }), [
-    authTimedOut,
     meQuery.data,
     meQuery.error,
     meQuery.isLoading,
@@ -106,6 +146,7 @@ export function useAuth(options?: UseAuthOptions) {
   return {
     ...state,
     slowLoading,
+    authStuck,
     refresh: () => meQuery.refetch(),
     logout,
   };
