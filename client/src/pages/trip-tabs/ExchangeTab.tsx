@@ -12,6 +12,10 @@ import {
 const SHOW_CURRENCIES = ["JPY", "USD", "EUR", "CNY", "HKD", "TWD", "THB", "VND", "SGD", "AUD", "CAD", "GBP", "NZD", "MYR", "IDR", "PHP"];
 const AUTO_REFRESH_MS = 30_000;
 
+function fmtRate(n: number) {
+  return n.toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 interface Props {
   tripId: number;
   trip: { destination: string; budgetCurrency?: string | null };
@@ -40,6 +44,7 @@ export default function ExchangeTab({ trip }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const [rateSource, setRateSource] = useState<string>("");
 
   const [isKrwLeft, setIsKrwLeft] = useState(true);
@@ -73,6 +78,7 @@ export default function ExchangeTab({ trip }: Props) {
       const { rates: r, asOf, source } = await fetchRatesWithMeta("KRW");
       setRates(r);
       setLastUpdated(asOf);
+      setFetchedAt(new Date());
       setRateSource(source);
     } catch {
       if (!isBackground) setError(true);
@@ -122,8 +128,8 @@ export default function ExchangeTab({ trip }: Props) {
         caption: "100 JPY 기준",
       };
     }
-    return {
-      value: krwPerMain.toLocaleString("ko-KR", { maximumFractionDigits: 4 }),
+      return {
+      value: fmtRate(krwPerMain),
       unit: "KRW",
       caption: `1 ${mainCurrency} 기준`,
     };
@@ -199,7 +205,7 @@ export default function ExchangeTab({ trip }: Props) {
             </div>
             {krwPerMain && (
               <p className="text-sm text-foreground font-medium pt-1">
-                1 {mainCurrency} = <span className="text-primary font-semibold">{krwPerMain.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span> KRW
+                1 {mainCurrency} = <span className="text-primary font-semibold">{fmtRate(krwPerMain)}</span> KRW
               </p>
             )}
           </div>
@@ -212,8 +218,11 @@ export default function ExchangeTab({ trip }: Props) {
             <p className="text-[10px] text-muted-foreground/80">30초마다 자동 갱신</p>
             {lastUpdated && (
               <p className="text-[10px] text-muted-foreground">
-                {lastUpdated.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} 기준
+                고시시각 {lastUpdated.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
               </p>
+            )}
+            {fetchedAt && (
+              <p className="text-[10px] text-muted-foreground">수신시각 {fetchedAt.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</p>
             )}
             {rateSource && (
               <p className="text-[10px] text-muted-foreground/80">{rateSource === "open-er-api" ? "실시간(제공사 기준)" : "일일 고시 기준"}</p>
@@ -309,7 +318,7 @@ export default function ExchangeTab({ trip }: Props) {
                   </div>
                   <div className="text-right">
                     <p className={`text-sm font-semibold tabular-nums ${isTarget ? "text-primary" : "text-foreground"}`}>
-                      {krwPerCurrency.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}
+                      {fmtRate(krwPerCurrency)}
                     </p>
                     <p className="text-[10px] text-muted-foreground">KRW / 1 {c}</p>
                   </div>
