@@ -3,6 +3,9 @@ import { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import FadeIn from "@/components/FadeIn";
 
@@ -23,6 +26,7 @@ export default function ChecklistTab({ tripId }: Props) {
   const seed = trpc.checklist.seed.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
   const create = trpc.checklist.create.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
   const toggle = trpc.checklist.toggle.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
+  const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const del = trpc.checklist.delete.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
 
   const [newLabel, setNewLabel] = useState("");
@@ -246,10 +250,7 @@ export default function ChecklistTab({ tripId }: Props) {
                     {item.label}
                   </span>
                   <button
-                    onClick={() => del.mutate({ id: item.id })}
-                    className="text-muted-foreground hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ opacity: 0.4 }}
-                  >
+                    onClick={() => setDeleteItemId(item.id)}
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -284,6 +285,27 @@ export default function ChecklistTab({ tripId }: Props) {
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={deleteItemId !== null} onOpenChange={(open) => { if (!open) setDeleteItemId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>체크리스트 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 준비물 항목을 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteItemId == null) return;
+                del.mutate({ id: deleteItemId });
+                setDeleteItemId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

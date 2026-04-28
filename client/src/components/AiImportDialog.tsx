@@ -51,24 +51,59 @@ function Row({ label, value }: { label: string; value: string | null | undefined
 }
 
 function resizeToBase64(file: File, maxPx = 1400, quality = 0.88): Promise<string> {
+  const readOriginal = () =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      URL.revokeObjectURL(url);
-      let { width, height } = img;
-      if (width > maxPx || height > maxPx) {
-        if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
-        else { width = Math.round(width * maxPx / height); height = maxPx; }
+      try {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxPx || height > maxPx) {
+          if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
+          else { width = Math.round(width * maxPx / height); height = maxPx; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      } catch {
+        readOriginal().then(resolve).catch(reject);
       }
-      const canvas = document.createElement("canvas");
-      canvas.width = width; canvas.height = height;
-      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", quality));
     };
-    img.onerror = reject;
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      readOriginal().then(resolve).catch(reject);
+    };
     img.src = url;
   });
+}
+
+function normalizeFlightDateTime(v: string | null): string | null {
+  if (!v) return null;
+  const raw = v.trim();
+  if (!raw) return null;
+  const isoMatch = raw.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+  if (isoMatch) return isoMatch[1];
+  const korMatch = raw.match(/(\d{1,2})\D+(\d{1,2})\D+(\d{1,2}):(\d{2})/);
+  if (korMatch) {
+    const year = new Date().getFullYear();
+    const month = korMatch[1].padStart(2, "0");
+    const day = korMatch[2].padStart(2, "0");
+    const hh = korMatch[3].padStart(2, "0");
+    const mm = korMatch[4].padStart(2, "0");
+    return `${year}-${month}-${day}T${hh}:${mm}`;
+  }
+  const hmMatch = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (hmMatch) return `${hmMatch[1].padStart(2, "0")}:${hmMatch[2]}`;
+  return raw;
 }
 
 export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
@@ -94,8 +129,8 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
   const applyResult = (raw: unknown) => {
     const d = raw as Record<string, unknown>;
     // AI가 singular key나 null을 반환하는 경우 방어
-    const flights: FlightData[] = Array.isArray(d.flights) ? d.flights as FlightData[]
-      : Array.isArray(d.flight) ? [d.flight as FlightData] : [];
+        departureTime: normalizeFlightDateTime(typeof item.departureTime === "string" ? item.departureTime : null),
+        arrivalTime: normalizeFlightDateTime(typeof item.arrivalTime === "string" ? item.arrivalTime : null),
     const accommodations: AccommodationData[] = Array.isArray(d.accommodations) ? d.accommodations as AccommodationData[]
       : d.accommodation && typeof d.accommodation === "object" ? [d.accommodation as AccommodationData]
       : Array.isArray(d.hotel) ? d.hotel as AccommodationData[] : [];
