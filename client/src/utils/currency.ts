@@ -50,11 +50,36 @@ export function fmtAmount(n: number, currency: string): string {
 
 export type RatesMeta = {
   rates: Record<string, number>;
-  source: "open-er-api" | "fawaz-currency-api";
+  source: "hana-bank" | "open-er-api" | "fawaz-currency-api";
   asOf: Date | null;
 };
 
+
+async function fetchHanaRatesFromServer(base: string): Promise<RatesMeta> {
+  if (base.toUpperCase() !== "KRW") throw new Error("hana base supports KRW only");
+  const res = await fetch("/api/fx/hana", { cache: "no-store" });
+  if (!res.ok) throw new Error("hana endpoint failed");
+  const data = await res.json() as {
+    source?: string;
+    asOf?: string;
+    rates?: Record<string, number>;
+  };
+  const rates = data.rates ?? {};
+  if (!Object.keys(rates).length) throw new Error("hana rates empty");
+  return {
+    rates: Object.fromEntries(Object.entries(rates).map(([k, v]) => [k.toLowerCase(), Number(v)])),
+    source: "hana-bank",
+    asOf: data.asOf ? new Date(data.asOf) : null,
+  };
+}
+
 export async function fetchRatesWithMeta(base: string): Promise<RatesMeta> {
+  try {
+    return await fetchHanaRatesFromServer(base);
+  } catch {
+    // fallback to open providers
+  }
+
   const fallbackUrl = `https://open.er-api.com/v6/latest/${base.toUpperCase()}`;
   try {
     const res = await fetch(fallbackUrl, { cache: "no-store" });

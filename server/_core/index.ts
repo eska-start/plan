@@ -8,6 +8,7 @@ import { registerEmailAuthRoutes } from "./emailAuth";
 import { registerExportRoutes } from "./exportHtml";
 import { registerStorageProxy } from "./storageProxy";
 import { registerUploadRoutes } from "../uploadRoutes";
+import { registerFxRoutes } from "../fxRoutes";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -42,6 +43,7 @@ async function startServer() {
   registerEmailAuthRoutes(app);
   registerExportRoutes(app);
   registerUploadRoutes(app);
+  registerFxRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",
