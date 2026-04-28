@@ -10,6 +10,7 @@ import {
 } from "@/utils/currency";
 
 const SHOW_CURRENCIES = ["JPY", "USD", "EUR", "CNY", "HKD", "TWD", "THB", "VND", "SGD", "AUD", "CAD", "GBP", "NZD", "MYR", "IDR", "PHP"];
+const AUTO_REFRESH_MS = 30_000;
 
 interface Props {
   tripId: number;
@@ -64,23 +65,47 @@ export default function ExchangeTab({ trip }: Props) {
     return (amount / fromRate) * toRate;
   };
 
-  async function load() {
-    setLoading(true);
-    setError(false);
+  async function load(options?: { background?: boolean }) {
+    const isBackground = options?.background ?? false;
+    if (!isBackground) setLoading(true);
+    if (!isBackground) setError(false);
     try {
       const { rates: r, asOf, source } = await fetchRatesWithMeta("KRW");
       setRates(r);
       setLastUpdated(asOf);
       setRateSource(source);
     } catch {
-      setError(true);
+      if (!isBackground) setError(true);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   }
 
   useEffect(() => {
     load();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void load({ background: true });
+    }, AUTO_REFRESH_MS);
+
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void load({ background: true });
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
   }, []);
 
   const mainPerKrw = useMemo(() => getRateFromKrw(mainCurrency), [rates, mainCurrency]);
@@ -184,6 +209,7 @@ export default function ExchangeTab({ trip }: Props) {
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
               새로고침
             </Button>
+            <p className="text-[10px] text-muted-foreground/80">30초마다 자동 갱신</p>
             {lastUpdated && (
               <p className="text-[10px] text-muted-foreground">
                 {lastUpdated.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} 기준
