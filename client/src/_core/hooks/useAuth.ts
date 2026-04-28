@@ -15,7 +15,8 @@ export function useAuth(options?: UseAuthOptions) {
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     refetchInterval: false,
     staleTime: Infinity,
   });
@@ -23,17 +24,56 @@ export function useAuth(options?: UseAuthOptions) {
   // 5초 이상 로딩 → 콜드스타트 안내 메시지 표시
   const [slowLoading, setSlowLoading] = useState(false);
 
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      utils.auth.me.setData(undefined, null);
+    },
+  });
+
   useEffect(() => {
     if (!meQuery.isLoading) { setSlowLoading(false); return; }
     const t = setTimeout(() => setSlowLoading(true), 5_000);
     return () => clearTimeout(t);
   }, [meQuery.isLoading]);
 
-  const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => {
-      utils.auth.me.setData(undefined, null);
-    },
-  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const refetchAuth = () => {
+      if (logoutMutation.isPending) return;
+      void meQuery.refetch();
+    };
+
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) refetchAuth();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refetchAuth();
+    };
+
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", refetchAuth);
+    window.addEventListener("online", refetchAuth);
+
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", refetchAuth);
+      window.removeEventListener("online", refetchAuth);
+    };
+  }, [logoutMutation.isPending, meQuery.refetch]);
+
+  useEffect(() => {
+    if (!meQuery.isLoading || logoutMutation.isPending) return;
+
+    const t = setTimeout(() => {
+      void meQuery.refetch();
+    }, 15_000);
+
+    return () => clearTimeout(t);
+  }, [logoutMutation.isPending, meQuery.isLoading, meQuery.refetch]);
 
   const logout = useCallback(async () => {
     try {
