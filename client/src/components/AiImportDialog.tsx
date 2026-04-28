@@ -106,6 +106,28 @@ function normalizeFlightDateTime(v: string | null): string | null {
   return raw;
 }
 
+function pickObjectList(
+  data: Record<string, unknown>,
+  pluralKey: string,
+  singularKey?: string,
+  fallbackArrayKey?: string,
+): unknown[] {
+  const pluralValue = data[pluralKey];
+  if (Array.isArray(pluralValue)) return pluralValue;
+
+  if (singularKey) {
+    const singularValue = data[singularKey];
+    if (singularValue && typeof singularValue === "object") return [singularValue];
+  }
+
+  if (fallbackArrayKey) {
+    const fallbackValue = data[fallbackArrayKey];
+    if (Array.isArray(fallbackValue)) return fallbackValue;
+  }
+
+  return [];
+}
+
 export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -129,23 +151,9 @@ export function AiImportDialog({ tripId, open, onOpenChange, onSaved }: Props) {
   const applyResult = (raw: unknown) => {
     const d = raw as Record<string, unknown>;
     // AI가 singular key나 null을 반환하는 경우 방어
-        departureTime: normalizeFlightDateTime(typeof item.departureTime === "string" ? item.departureTime : null),
-        arrivalTime: normalizeFlightDateTime(typeof item.arrivalTime === "string" ? item.arrivalTime : null),
-    const accommodations: AccommodationData[] = Array.isArray(d.accommodations) ? d.accommodations as AccommodationData[]
-      : d.accommodation && typeof d.accommodation === "object" ? [d.accommodation as AccommodationData]
-      : Array.isArray(d.hotel) ? d.hotel as AccommodationData[] : [];
-    const rentals: RentalData[] = Array.isArray(d.rentals) ? d.rentals as RentalData[]
-      : d.rental && typeof d.rental === "object" ? [d.rental as RentalData] : [];
-
-    const data: ExtractResult = {
-      flights,
-      accommodations: accommodations.map(a => ({
-        ...a,
-        // checkIn/checkOut은 DB varchar(10) 제한 - YYYY-MM-DD 부분만 사용
-        checkIn: a.checkIn ? a.checkIn.slice(0, 10) : null,
-        checkOut: a.checkOut ? a.checkOut.slice(0, 10) : null,
-      })),
-      rentals,
+    const flightsRaw = pickObjectList(d, "flights", "flight");
+    const accommodationsRaw = pickObjectList(d, "accommodations", "accommodation", "hotel");
+    const rentalsRaw = pickObjectList(d, "rentals", "rental");
       reply: typeof d.reply === "string" ? d.reply : "",
     };
     setResult(data);
