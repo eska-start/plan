@@ -32,6 +32,7 @@ import {
   getTripMembers, addTripMember, removeTripMember,
   getExpensesByTrip, createExpense, updateExpense, deleteExpense,
   getChecklistByTrip, createChecklistItem, updateChecklistItem, deleteChecklistItem, bulkCreateChecklistItems,
+  updateUserName,
 } from "./db";
 
 // ─── Helper: 숙박 → 일정 자동 생성 ──────────────────────────────────────────
@@ -994,6 +995,12 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+    updateProfile: protectedProcedure
+      .input(z.object({ name: z.string().trim().min(2).max(24) }))
+      .mutation(async ({ ctx, input }) => {
+        await updateUserName(ctx.user.id, input.name);
+        return { success: true } as const;
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });

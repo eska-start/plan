@@ -19,8 +19,9 @@ import { format, differenceInDays, parseISO, isBefore, isAfter } from "date-fns"
 import { ko } from "date-fns/locale";
 
 const COVER_COLORS = [
-  "#1e293b", "#312e81", "#164e63", "#14532d",
-  "#7c2d12", "#4a1d96", "#0f172a", "#1c1917",
+  "#5BB4D8", "#7CC8B0", "#F18A6A", "#F2C75A",
+  "#A07ECF", "#7AA2F7", "#5DA88F", "#FF9E7A",
+  "#6EC9E0", "#B7E36A", "#FFB4A2", "#CDB4DB",
 ];
 
 type TripFormData = {
@@ -275,6 +276,8 @@ export default function Home() {
   const { user, isAuthenticated, loading, slowLoading, logout, error, refresh } = useAuth();
   const [, setLocation] = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [nickname, setNickname] = useState("");
   const [editTrip, setEditTrip] = useState<number | null>(null);
   const [form, setForm] = useState<TripFormData>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -294,6 +297,14 @@ export default function Home() {
     onSuccess: () => { utils.trips.list.invalidate(); setDeleteConfirm(null); toast.success("삭제됐습니다."); },
     onError: () => toast.error("삭제에 실패했습니다."),
   });
+  const updateProfileMutation = trpc.auth.updateProfile.useMutation({
+    onSuccess: async () => {
+      await utils.auth.me.invalidate();
+      setProfileDialogOpen(false);
+      toast.success("닉네임이 변경됐습니다.");
+    },
+    onError: () => toast.error("닉네임 변경에 실패했습니다."),
+  });
 
   const openCreate = () => { setEditTrip(null); setForm(defaultForm); setDialogOpen(true); };
   const openEdit = (trip: NonNullable<typeof trips>[number], e: React.MouseEvent) => {
@@ -307,6 +318,7 @@ export default function Home() {
     if (editTrip) updateMutation.mutate({ id: editTrip, ...form });
     else createMutation.mutate(form);
   };
+  const displayName = user?.name?.trim() || "사용자";
 
   if (loading) return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3">
@@ -386,11 +398,17 @@ export default function Home() {
             <Button onClick={openCreate} size="sm" className="gap-1.5 hidden sm:flex">
               <Plus className="w-3.5 h-3.5" />새 여행
             </Button>
-            <button onClick={logout} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <button
+              onClick={() => {
+                setNickname(displayName);
+                setProfileDialogOpen(true);
+              }}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
               <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
-                {user?.name?.charAt(0).toUpperCase() ?? "U"}
+                {displayName.charAt(0).toUpperCase()}
               </div>
-              <span className="hidden sm:inline">{user?.name}</span>
+              <span className="hidden sm:inline">{displayName}</span>
             </button>
           </div>
         </div>
@@ -417,7 +435,7 @@ export default function Home() {
             <FadeIn>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold tracking-widest uppercase mb-1">{greeting}, {user?.name?.toUpperCase()}</p>
+                  <p className="text-xs text-muted-foreground font-semibold tracking-widest uppercase mb-1">{greeting}, {displayName.toUpperCase()}</p>
                   <h1 className="font-display text-3xl sm:text-4xl font-semibold text-foreground leading-tight">
                     {daysLeft != null ? (
                       <>다음 여행은 <em className="italic" style={{ color: "#5BB4D8" }}>{daysLeft}일</em> 남았어요.</>
@@ -509,14 +527,14 @@ export default function Home() {
               <Label className="text-sm font-medium">목적지 <span className="text-destructive">*</span></Label>
               <Input className="h-10" placeholder="일본 도쿄" value={form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">출발일 <span className="text-destructive">*</span></Label>
-                <Input className="h-10" type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
+                <Input className="h-10 w-full min-w-0" type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">귀국일 <span className="text-destructive">*</span></Label>
-                <Input className="h-10" type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
+                <Input className="h-10 w-full min-w-0" type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
               </div>
             </div>
             <div className="space-y-1.5">
@@ -540,6 +558,45 @@ export default function Home() {
               {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {editTrip ? "수정" : "만들기"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Profile Dialog */}
+      <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl p-5 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">프로필</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">닉네임</Label>
+              <Input
+                className="h-10"
+                placeholder="표시할 이름"
+                value={nickname}
+                maxLength={24}
+                onChange={e => setNickname(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">닉네임이 설정되면 아이디 대신 닉네임이 표시됩니다.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => updateProfileMutation.mutate({ name: nickname.trim() })}
+                disabled={!nickname.trim() || updateProfileMutation.isPending}
+              >
+                저장
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => void logout()}
+              >
+                로그아웃
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

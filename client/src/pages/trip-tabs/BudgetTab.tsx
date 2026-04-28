@@ -384,8 +384,8 @@ export default function BudgetTab({ tripId, trip }: Props) {
             <p className="text-sm font-semibold">지출 추가</p>
             <button onClick={() => setShowAdd(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1"><Label className="text-xs">날짜</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1"><Label className="text-xs">날짜</Label><Input className="w-full min-w-0" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
             <div className="space-y-1">
               <Label className="text-xs">카테고리</Label>
               <select className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as Category }))}>
@@ -394,7 +394,7 @@ export default function BudgetTab({ tripId, trip }: Props) {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">금액</Label>
-              <Input type="number" placeholder="0" value={form.amount} onChange={e => {
+              <Input className="w-full min-w-0" type="number" placeholder="0" value={form.amount} onChange={e => {
                 setForm(f => ({ ...f, amount: e.target.value }));
                 if (form.currency !== "KRW" && !krwRates) fetchRates("KRW").then(r => setKrwRates(r)).catch(() => {});
               }} />
