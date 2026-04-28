@@ -3,8 +3,8 @@ import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-const AUTH_STUCK_RECOVERY_MS = 12_000;
-const AUTH_MAX_LOADING_MS = 20_000;
+const AUTH_STUCK_RECOVERY_MS = 6_000;
+const AUTH_MAX_LOADING_MS = 10_000;
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;

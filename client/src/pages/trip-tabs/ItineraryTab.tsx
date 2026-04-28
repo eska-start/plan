@@ -54,6 +54,7 @@ function CategoryPill({ category }: { category: string }) {
 export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tripDays: Date[] }) {
   const utils = trpc.useUtils();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [allItemsOpen, setAllItemsOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const tripStartDate = tripDays[0] ? format(tripDays[0], "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
   const [form, setForm] = useState<FormData>({
@@ -158,6 +159,13 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
 
   const totalItems = (allItems as ItineraryItem[] ?? []).length;
   const visitedItems = (allItems as ItineraryItem[] ?? []).filter(i => i.visited).length;
+  const flatSortedItems = [...(allItems as ItineraryItem[] ?? [])].sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    if (a.visitTime && b.visitTime) return a.visitTime.localeCompare(b.visitTime);
+    if (a.visitTime) return -1;
+    if (b.visitTime) return 1;
+    return (a.order ?? 0) - (b.order ?? 0);
+  });
 
   function openCreate(date?: string) {
     setEditId(null);
@@ -239,7 +247,15 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
           <h2 className="text-lg font-semibold text-foreground tracking-tight">여정 타임라인</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             날짜별로 펼쳐보는 {tripDays.length}일
-            {totalItems > 0 && <span className="ml-2 text-primary font-medium">{visitedItems}/{totalItems} 완료</span>}
+            {totalItems > 0 && (
+              <button
+                type="button"
+                onClick={() => setAllItemsOpen(true)}
+                className="ml-2 text-primary font-medium hover:underline underline-offset-2"
+              >
+                {visitedItems}/{totalItems} 완료
+              </button>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
@@ -472,6 +488,44 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
           })}
         </div>
       )}
+
+      <Dialog open={allItemsOpen} onOpenChange={setAllItemsOpen}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-2xl rounded-xl p-5 sm:p-6">
+          <DialogHeader className="mb-1">
+            <DialogTitle className="text-lg font-semibold">등록된 전체 일정</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto rounded-xl border">
+            {flatSortedItems.length === 0 ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">등록된 일정이 없습니다.</div>
+            ) : (
+              <div className="divide-y">
+                {flatSortedItems.map(item => (
+                  <div key={item.id} className="flex items-start gap-3 px-4 py-3">
+                    <div className="w-24 shrink-0 text-xs text-muted-foreground tabular-nums">
+                      <p>{item.date}</p>
+                      <p>{item.visitTime || "--:--"}</p>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{item.placeName}</p>
+                      {item.address && <p className="text-xs text-muted-foreground truncate">{item.address}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!window.confirm("이 일정을 삭제할까요?")) return;
+                        deleteMutation.mutate({ id: item.id });
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
