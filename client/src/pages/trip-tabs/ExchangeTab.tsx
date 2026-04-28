@@ -225,7 +225,7 @@ export default function ExchangeTab({ trip }: Props) {
               <p className="text-[10px] text-muted-foreground">수신시각 {fetchedAt.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</p>
             )}
             {rateSource && (
-              <p className="text-[10px] text-muted-foreground/80">{rateSource === "hana-bank" ? "하나은행 고시 기준" : rateSource === "open-er-api" ? "실시간(제공사 기준)" : "일일 고시 기준"}</p>
+              <p className="text-[10px] text-muted-foreground/80">{rateSource === "naver-finance" ? "네이버 금융 기준" : rateSource === "hana-bank" ? "하나은행 고시 기준" : rateSource === "open-er-api" ? "실시간(제공사 기준)" : "일일 고시 기준"}</p>
             )}
           </div>
         </div>

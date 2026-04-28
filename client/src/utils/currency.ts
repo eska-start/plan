@@ -50,7 +50,7 @@ export function fmtAmount(n: number, currency: string): string {
 
 export type RatesMeta = {
   rates: Record<string, number>;
-  source: "hana-bank" | "open-er-api" | "fawaz-currency-api";
+  source: "naver-finance" | "hana-bank" | "open-er-api" | "fawaz-currency-api";
   asOf: Date | null;
 };
 
@@ -68,7 +68,7 @@ async function fetchHanaRatesFromServer(base: string): Promise<RatesMeta> {
   if (!Object.keys(rates).length) throw new Error("hana rates empty");
   return {
     rates: Object.fromEntries(Object.entries(rates).map(([k, v]) => [k.toLowerCase(), Number(v)])),
-    source: "hana-bank",
+    source: (data.source === "naver-finance" ? "naver-finance" : "hana-bank"),
     asOf: data.asOf ? new Date(data.asOf) : null,
   };
 }
