@@ -32,6 +32,7 @@ import {
   getTripMembers, addTripMember, removeTripMember,
   getExpensesByTrip, createExpense, updateExpense, deleteExpense,
   getChecklistByTrip, createChecklistItem, updateChecklistItem, deleteChecklistItem, bulkCreateChecklistItems,
+  updateUserName,
 } from "./db";
 
 // ─── Helper: 숙박 → 일정 자동 생성 ──────────────────────────────────────────
@@ -329,19 +330,25 @@ const flightsRouter = router({
         messages: [
           {
             role: "system" as const,
-            content: `You are a travel document parser. Extract flight information from the image and return JSON only.
-Return this exact JSON schema (use null for missing fields):
+            content: `You are a travel document parser. Extract all flight legs from the image and return JSON only.
+If there are multiple legs (departure/return/transit), include all in the flights array.
+Return this JSON schema (use null for missing fields):
 {
-  "airline": string | null,
-  "flightNumber": string | null,
-  "departureAirport": string | null,
-  "arrivalAirport": string | null,
-  "departureTime": string | null,
-  "arrivalTime": string | null,
-  "bookingRef": string | null,
-  "seatNumber": string | null,
-  "type": "departure" | "return" | "transit" | null
+  "flights": [
+    {
+      "airline": string | null,
+      "flightNumber": string | null,
+      "departureAirport": string | null,
+      "arrivalAirport": string | null,
+      "departureTime": string | null,
+      "arrivalTime": string | null,
+      "bookingRef": string | null,
+      "seatNumber": string | null,
+      "type": "departure" | "return" | "transit" | null
+    }
+  ]
 }
+If only one leg exists, flights can contain one item.
 For times, use ISO 8601 format (YYYY-MM-DDTHH:mm) if date is visible, otherwise HH:mm only.`,
           } as Message,
           {
@@ -357,7 +364,11 @@ For times, use ISO 8601 format (YYYY-MM-DDTHH:mm) if date is visible, otherwise 
       try {
         const raw = res.choices?.[0]?.message?.content;
         const content = typeof raw === "string" ? raw : "{}";
-        return JSON.parse(content);
+        const parsed = JSON.parse(content) as Record<string, unknown>;
+        if (Array.isArray(parsed.flights)) {
+          return { flights: parsed.flights };
+        }
+        return parsed;
       } catch {
         return {};
       }
@@ -994,9 +1005,15 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+    updateProfile: protectedProcedure
+      .input(z.object({ name: z.string().trim().min(2).max(24) }))
+      .mutation(async ({ ctx, input }) => {
+        await updateUserName(ctx.user.id, input.name);
+        return { success: true } as const;
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      ctx.res.clearCookie(COOKIE_NAME, cookieOptions);
       return { success: true } as const;
     }),
   }),
@@ -1013,4 +1030,3 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
-

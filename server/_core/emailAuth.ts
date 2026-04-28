@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import type { Express, Request, Response } from "express";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import * as db from "../db";
@@ -6,10 +5,35 @@ import { getSessionCookieOptions } from "./cookies";
 import { ENV } from "./env";
 import { sdk } from "./sdk";
 
+type BcryptModule = {
+  hash: (text: string, saltOrRounds: string | number) => Promise<string>;
+  compare: (text: string, encrypted: string) => Promise<boolean>;
+};
+
+let bcryptModulePromise: Promise<BcryptModule | null> | null = null;
+
+async function loadBcrypt(): Promise<BcryptModule | null> {
+  if (!bcryptModulePromise) {
+    bcryptModulePromise = import("bcryptjs")
+      .then(mod => ({ hash: mod.hash, compare: mod.compare }))
+      .catch(error => {
+        console.error("[emailAuth] bcryptjs is not available:", error);
+        return null;
+      });
+  }
+  return bcryptModulePromise;
+}
+
 export function registerEmailAuthRoutes(app: Express) {
   // 회원가입: 아이디 + 비밀번호 + 가입 코드
   app.post("/api/auth/signup", async (req: Request, res: Response) => {
     try {
+      const bcrypt = await loadBcrypt();
+      if (!bcrypt) {
+        res.status(503).json({ error: "로그인 기능이 현재 비활성화되어 있습니다." });
+        return;
+      }
+
       const { username, password, signupSecret } = req.body ?? {};
 
       if (ENV.signupSecret && signupSecret !== ENV.signupSecret) {
@@ -51,6 +75,12 @@ export function registerEmailAuthRoutes(app: Express) {
   // 로그인: 아이디 + 비밀번호
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
+      const bcrypt = await loadBcrypt();
+      if (!bcrypt) {
+        res.status(503).json({ error: "로그인 기능이 현재 비활성화되어 있습니다." });
+        return;
+      }
+
       const { username, password } = req.body ?? {};
 
       if (!username || !password) {
