@@ -6,6 +6,10 @@ import { Plus, Wallet, TrendingUp, PiggyBank, Trash2, X, Loader2, Camera, FileTe
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import FadeIn from "@/components/FadeIn";
 import { fetchHistoricalRate, fetchRates, CURRENCY_FLAGS, CURRENCY_NAMES } from "@/utils/currency";
 import { toast } from "sonner";
@@ -78,6 +82,7 @@ export default function BudgetTab({ tripId, trip }: Props) {
   const cameraFileRef = useRef<HTMLInputElement>(null);
   const imageFileRef = useRef<HTMLInputElement>(null);
   const [krwRates, setKrwRates] = useState<Record<string, number> | null>(null);
+  const [deleteExpenseId, setDeleteExpenseId] = useState<number | null>(null);
 
   const [form, setForm] = useState({
     date: format(new Date(), "yyyy-MM-dd"), amount: "", currency, category: "기타" as Category, description: "",
@@ -530,8 +535,7 @@ export default function BudgetTab({ tripId, trip }: Props) {
                           </div>
                           <button
                             onClick={() => {
-                              if (!window.confirm("이 지출 항목을 삭제할까요?")) return;
-                              deleteExpense.mutate({ id: exp.id });
+                              setDeleteExpenseId(exp.id);
                             }}
                             className="text-muted-foreground hover:text-destructive ml-1 shrink-0"
                           >
@@ -547,6 +551,26 @@ export default function BudgetTab({ tripId, trip }: Props) {
           })}
         </div>
       )}
+      <AlertDialog open={deleteExpenseId !== null} onOpenChange={(open) => { if (!open) setDeleteExpenseId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>지출 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 지출 항목을 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteExpenseId == null) return;
+                deleteExpense.mutate({ id: deleteExpenseId });
+                setDeleteExpenseId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

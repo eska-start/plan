@@ -9,6 +9,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -56,6 +60,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
   const [dialogOpen, setDialogOpen] = useState(false);
   const [allItemsOpen, setAllItemsOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const tripStartDate = tripDays[0] ? format(tripDays[0], "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
   const [form, setForm] = useState<FormData>({
     date: tripStartDate, placeName: "", address: "", visitTime: "",
@@ -465,8 +470,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                                   </button>
                                   <button
                                     onClick={() => {
-                                      if (!window.confirm("이 일정을 삭제할까요?")) return;
-                                      deleteMutation.mutate({ id: item.id });
+                                      setDeleteItemId(item.id);
                                     }}
                                     className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                                   >
@@ -512,8 +516,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
                     <button
                       type="button"
                       onClick={() => {
-                        if (!window.confirm("이 일정을 삭제할까요?")) return;
-                        deleteMutation.mutate({ id: item.id });
+                        setDeleteItemId(item.id);
                       }}
                       className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                     >
@@ -526,6 +529,26 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={deleteItemId !== null} onOpenChange={(open) => { if (!open) setDeleteItemId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>일정 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 일정을 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteItemId == null) return;
+                deleteMutation.mutate({ id: deleteItemId });
+                setDeleteItemId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

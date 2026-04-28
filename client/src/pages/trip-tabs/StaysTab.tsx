@@ -5,6 +5,10 @@ import { toast } from "sonner";
 import { Hotel, Car, Loader2, MapPin, Hash, Calendar, Map, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,6 +65,7 @@ export default function StaysTab({ tripId }: { tripId: number }) {
   // ── Accommodation state ───────────────────────────────────────────────────
   const [accomOpen, setAccomOpen] = useState(false);
   const [accomEditId, setAccomEditId] = useState<number | null>(null);
+  const [deleteAccomId, setDeleteAccomId] = useState<number | null>(null);
   const [accomForm, setAccomForm] = useState<AccomForm>(defaultAccomForm);
 
   const { data: accommodations, isLoading: accomLoading } = trpc.accommodations.list.useQuery({ tripId }, queryOptions);
@@ -95,6 +100,7 @@ export default function StaysTab({ tripId }: { tripId: number }) {
   // ── Rental state ──────────────────────────────────────────────────────────
   const [rentalOpen, setRentalOpen] = useState(false);
   const [rentalEditId, setRentalEditId] = useState<number | null>(null);
+  const [deleteRentalId, setDeleteRentalId] = useState<number | null>(null);
   const [rentalForm, setRentalForm] = useState<RentalForm>(defaultRentalForm);
 
   const { data: rentals, isLoading: rentalLoading } = trpc.rentals.list.useQuery({ tripId }, queryOptions);
@@ -169,8 +175,7 @@ export default function StaysTab({ tripId }: { tripId: number }) {
                     <button onClick={() => openEditAccom(a)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
                     <button
                       onClick={() => {
-                        if (!window.confirm("이 숙박을 삭제할까요?")) return;
-                        deleteAccom.mutate({ id: a.id, tripId });
+                        setDeleteAccomId(a.id);
                       }}
                       className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
                     >
@@ -249,8 +254,7 @@ export default function StaysTab({ tripId }: { tripId: number }) {
                     <button onClick={() => openEditRental(r)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
                     <button
                       onClick={() => {
-                        if (!window.confirm("이 렌트카를 삭제할까요?")) return;
-                        deleteRental.mutate({ id: r.id });
+                        setDeleteRentalId(r.id);
                       }}
                       className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
                     >
@@ -408,6 +412,46 @@ export default function StaysTab({ tripId }: { tripId: number }) {
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={deleteAccomId !== null} onOpenChange={(open) => { if (!open) setDeleteAccomId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>숙박 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 숙박을 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteAccomId == null) return;
+                deleteAccom.mutate({ id: deleteAccomId, tripId });
+                setDeleteAccomId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={deleteRentalId !== null} onOpenChange={(open) => { if (!open) setDeleteRentalId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>렌트카 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 렌트카를 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteRentalId == null) return;
+                deleteRental.mutate({ id: deleteRentalId });
+                setDeleteRentalId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
