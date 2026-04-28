@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
+import { TRPCClientError } from "@trpc/client";
 import {
   Plus, Trash2, ArrowRight, Loader2, LogIn, Eye, EyeOff,
   MapPin, Calendar, Plane, Hotel, Wallet,
@@ -271,7 +272,7 @@ function DetailRow({ icon, label, value, sub }: { icon: React.ReactNode; label: 
 
 /* ── Home ─────────────────────────────────────────────────────────────────── */
 export default function Home() {
-  const { user, isAuthenticated, loading, slowLoading, logout } = useAuth();
+  const { user, isAuthenticated, loading, slowLoading, logout, error, refresh } = useAuth();
   const [, setLocation] = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTrip, setEditTrip] = useState<number | null>(null);
@@ -318,6 +319,21 @@ export default function Home() {
       )}
     </div>
   );
+
+  const isUnauthorized = error instanceof TRPCClientError && error.data?.code === "UNAUTHORIZED";
+  if (!isAuthenticated && !isUnauthorized && error) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 px-6">
+        <p className="text-sm text-muted-foreground text-center">
+          인증 정보를 불러오는 중 문제가 발생했어요. 다시 시도해주세요.
+        </p>
+        <Button onClick={() => void refresh()} className="h-10 px-5">
+          다시 시도
+        </Button>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) return <AuthScreen />;
 
   // Find featured trip: ongoing > nearest upcoming > most recent past
