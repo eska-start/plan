@@ -283,7 +283,18 @@ export default function Home() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
-  const { data: trips, isLoading } = trpc.trips.list.useQuery(undefined, { enabled: isAuthenticated });
+  const {
+    data: trips,
+    isLoading: tripsLoading,
+    isFetching: tripsFetching,
+    error: tripsError,
+    refetch: refetchTrips,
+  } = trpc.trips.list.useQuery(undefined, {
+    enabled: isAuthenticated,
+    retry: 1,
+    retryDelay: 1_000,
+    refetchOnWindowFocus: true,
+  });
 
   const createMutation = trpc.trips.create.useMutation({
     onSuccess: () => { utils.trips.list.invalidate(); setDialogOpen(false); setForm(defaultForm); toast.success("여행이 생성됐습니다!"); },
@@ -415,8 +426,17 @@ export default function Home() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8">
-        {isLoading ? (
+        {tripsLoading || (!trips && tripsFetching) ? (
           <div className="flex justify-center py-24"><Loader2 className="w-7 h-7 animate-spin text-muted-foreground" /></div>
+        ) : tripsError && !trips ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
+            <p className="text-sm text-muted-foreground text-center">
+              여행 목록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.
+            </p>
+            <Button variant="outline" onClick={() => void refetchTrips()}>
+              다시 시도
+            </Button>
+          </div>
         ) : !trips || trips.length === 0 ? (
           /* Empty state */
           <div className="flex flex-col items-center justify-center py-24 gap-6">
