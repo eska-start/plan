@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X } from "lucide-react";
+import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,6 +26,7 @@ export default function ChecklistTab({ tripId }: Props) {
   const seed = trpc.checklist.seed.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
   const create = trpc.checklist.create.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
   const toggle = trpc.checklist.toggle.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
+  const update = trpc.checklist.update.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
   const del = trpc.checklist.delete.useMutation({
     onSuccess: () => {
       utils.checklist.list.invalidate({ tripId });
@@ -36,12 +37,16 @@ export default function ChecklistTab({ tripId }: Props) {
 
   const [newLabel, setNewLabel] = useState("");
   const [newGroup, setNewGroup] = useState("기타");
+  const [newImageUrl, setNewImageUrl] = useState<string | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const [aiMode, setAiMode] = useState<"text" | "image" | null>(null);
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiItems, setAiItems] = useState<Array<{ group: string; label: string; selected: boolean }>>([]);
-  const aiFileRef = useRef<HTMLInputElement>(null);
+  const aiCameraRef = useRef<HTMLInputElement>(null);
+  const aiGalleryRef = useRef<HTMLInputElement>(null);
+  const itemImageRef = useRef<HTMLInputElement>(null);
+  const [imageTargetId, setImageTargetId] = useState<number | null>(null);
 
   const aiExtractMutation = trpc.checklist.aiExtract.useMutation();
   const aiExtractImageMutation = trpc.checklist.aiExtractFromImage.useMutation();
@@ -119,10 +124,20 @@ export default function ChecklistTab({ tripId }: Props) {
   const total = (items ?? []).length;
   const done = (items ?? []).filter(i => i.done).length;
 
+  async function toDataUrl(file: File) {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function handleAdd() {
     if (!newLabel.trim()) return;
-    await create.mutateAsync({ tripId, group: newGroup, label: newLabel.trim() });
+    await create.mutateAsync({ tripId, group: newGroup, label: newLabel.trim(), imageUrl: newImageUrl });
     setNewLabel("");
+    setNewImageUrl(null);
   }
 
   if (isLoading) {
@@ -211,12 +226,21 @@ export default function ChecklistTab({ tripId }: Props) {
             </>
           ) : (
             <>
-              <button onClick={() => aiFileRef.current?.click()}
-                className="w-full border-2 border-dashed border-border rounded-xl py-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-                <Camera className="w-6 h-6" />
-                <span className="text-sm">사진 선택 또는 카메라 촬영</span>
-              </button>
-              <input ref={aiFileRef} type="file" accept="image/*" capture="environment" className="hidden"
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button onClick={() => aiCameraRef.current?.click()}
+                  className="w-full border-2 border-dashed border-border rounded-xl py-6 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                  <Camera className="w-6 h-6" />
+                  <span className="text-sm">카메라 촬영</span>
+                </button>
+                <button onClick={() => aiGalleryRef.current?.click()}
+                  className="w-full border-2 border-dashed border-border rounded-xl py-6 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                  <ImagePlus className="w-6 h-6" />
+                  <span className="text-sm">사진 보관함</span>
+                </button>
+              </div>
+              <input ref={aiCameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
+              <input ref={aiGalleryRef} type="file" accept="image/*,image/heic,image/heif" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
             </>
           )}
@@ -254,7 +278,20 @@ export default function ChecklistTab({ tripId }: Props) {
                   </button>
                   <span className={`flex-1 text-sm ${item.done ? "line-through text-muted-foreground" : "text-foreground"}`}>
                     {item.label}
+                    {item.imageUrl && (
+                      <a href={item.imageUrl} target="_blank" rel="noreferrer" className="block mt-1">
+                        <img src={item.imageUrl} alt={item.label} className="w-20 h-20 rounded-md object-cover border" />
+                      </a>
+                    )}
                   </span>
+                  <button onClick={() => { setImageTargetId(item.id); itemImageRef.current?.click(); }} className="text-muted-foreground hover:text-primary shrink-0">
+                    <ImagePlus className="w-4 h-4" />
+                  </button>
+                  {item.imageUrl && (
+                    <button onClick={() => update.mutate({ id: item.id, imageUrl: null })} className="text-muted-foreground hover:text-destructive shrink-0" title="이미지 제거">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => setDeleteItemId(item.id)}
                     className="text-muted-foreground hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -289,11 +326,30 @@ export default function ChecklistTab({ tripId }: Props) {
             onChange={e => setNewLabel(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleAdd()}
           />
+          <button type="button" onClick={() => { setImageTargetId(null); itemImageRef.current?.click(); }} className="rounded-md border px-2 text-xs text-muted-foreground hover:text-primary">이미지</button>
           <Button size="sm" onClick={handleAdd} disabled={create.isPending || !newLabel.trim()} className="gap-1 shrink-0">
             <Plus className="w-3.5 h-3.5" />
           </Button>
         </div>
+        {newImageUrl && (
+          <div className="pt-1">
+            <img src={newImageUrl} alt="새 항목 이미지" className="w-20 h-20 rounded-md object-cover border" />
+          </div>
+        )}
       </div>
+
+      <input ref={itemImageRef} type="file" accept="image/*" className="hidden" onChange={async e => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        const dataUrl = await toDataUrl(f);
+        if (imageTargetId != null) {
+          await update.mutateAsync({ id: imageTargetId, imageUrl: dataUrl });
+          setImageTargetId(null);
+        } else {
+          setNewImageUrl(dataUrl);
+        }
+        e.target.value = "";
+      }} />
 
       <AlertDialog open={deleteItemId !== null} onOpenChange={(open) => { if (!open) setDeleteItemId(null); }}>
         <AlertDialogContent>

@@ -937,8 +937,15 @@ const checklistRouter = router({
     }),
 
   create: protectedProcedure
-    .input(z.object({ tripId: z.number(), group: z.string().optional(), label: z.string().min(1), order: z.number().optional() }))
+    .input(z.object({ tripId: z.number(), group: z.string().optional(), label: z.string().min(1), order: z.number().optional(), imageUrl: z.string().optional().nullable() }))
     .mutation(({ ctx, input }) => createChecklistItem({ ...input, userId: ctx.user.id })),
+
+  update: protectedProcedure
+    .input(z.object({ id: z.number(), done: z.boolean().optional(), label: z.string().min(1).optional(), group: z.string().optional(), imageUrl: z.string().nullable().optional() }))
+    .mutation(({ ctx, input }) => {
+      const { id, ...data } = input;
+      return updateChecklistItem(id, ctx.user.id, data);
+    }),
 
   toggle: protectedProcedure
     .input(z.object({ id: z.number(), done: z.boolean() }))
