@@ -43,7 +43,8 @@ export default function ChecklistTab({ tripId }: Props) {
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiItems, setAiItems] = useState<Array<{ group: string; label: string; selected: boolean }>>([]);
-  const aiFileRef = useRef<HTMLInputElement>(null);
+  const aiCameraRef = useRef<HTMLInputElement>(null);
+  const aiPhotoRef = useRef<HTMLInputElement>(null);
   const itemImageRef = useRef<HTMLInputElement>(null);
   const [imageTargetId, setImageTargetId] = useState<number | null>(null);
 
@@ -225,12 +226,22 @@ export default function ChecklistTab({ tripId }: Props) {
             </>
           ) : (
             <>
-              <button onClick={() => aiFileRef.current?.click()}
+              <button onClick={() => aiPhotoRef.current?.click()}
                 className="w-full border-2 border-dashed border-border rounded-xl py-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
                 <Camera className="w-6 h-6" />
                 <span className="text-sm">사진 선택 또는 카메라 촬영</span>
               </button>
-              <input ref={aiFileRef} type="file" accept="image/*" capture="environment" className="hidden"
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => aiCameraRef.current?.click()} className="gap-1.5">
+                  <Camera className="w-3.5 h-3.5" /> 카메라
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => aiPhotoRef.current?.click()} className="gap-1.5">
+                  사진 보관함
+                </Button>
+              </div>
+              <input ref={aiCameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
+              <input ref={aiPhotoRef} type="file" accept="image/*,image/heic,image/heif" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
             </>
           )}
@@ -316,7 +327,9 @@ export default function ChecklistTab({ tripId }: Props) {
             onChange={e => setNewLabel(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleAdd()}
           />
-          <button type="button" onClick={() => { setImageTargetId(null); itemImageRef.current?.click(); }} className="rounded-md border px-2 text-xs text-muted-foreground hover:text-primary">이미지</button>
+          <Button type="button" variant="outline" size="sm" onClick={() => { setImageTargetId(null); itemImageRef.current?.click(); }} className="gap-1.5 shrink-0">
+            <ImagePlus className="w-3.5 h-3.5" />이미지
+          </Button>
           <Button size="sm" onClick={handleAdd} disabled={create.isPending || !newLabel.trim()} className="gap-1 shrink-0">
             <Plus className="w-3.5 h-3.5" />
           </Button>

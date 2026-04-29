@@ -583,10 +583,19 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
             {!editId && (
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">날짜</Label>
-                <Input className="h-10" type="date" value={form.date}
-                  min={tripDays[0] ? format(tripDays[0], "yyyy-MM-dd") : undefined}
-                  max={tripDays[tripDays.length - 1] ? format(tripDays[tripDays.length - 1], "yyyy-MM-dd") : undefined}
-                  onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+                <Select value={form.date} onValueChange={v => setForm(f => ({ ...f, date: v }))}>
+                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {tripDays.map((day, idx) => {
+                      const dateStr = format(day, "yyyy-MM-dd");
+                      return (
+                        <SelectItem key={dateStr} value={dateStr}>
+                          {format(day, "M월 d일 (EEE)", { locale: ko })} · Day {idx + 1}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
             )}
             <div className="space-y-1.5">
