@@ -21,12 +21,14 @@ type AccomForm = {
   checkIn: string; checkInTime: string;
   checkOut: string; checkOutTime: string;
   bookingRef: string; price: string; currency: string; memo: string;
+  preregistrationUrl: string;
 };
 const defaultAccomForm: AccomForm = {
   name: "", address: "",
   checkIn: "", checkInTime: "15:00",
   checkOut: "", checkOutTime: "11:00",
   bookingRef: "", price: "", currency: "KRW", memo: "",
+  preregistrationUrl: "",
 };
 
 // ── Rental form ───────────────────────────────────────────────────────────────
@@ -86,13 +88,13 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
   const openCreateAccom = () => { setAccomEditId(null); setAccomForm(defaultAccomForm); setAccomOpen(true); };
   const openEditAccom = (a: NonNullable<typeof accommodations>[number]) => {
     setAccomEditId(a.id);
-    setAccomForm({ name: a.name, address: a.address ?? "", checkIn: a.checkIn ?? "", checkInTime: a.checkInTime ?? "", checkOut: a.checkOut ?? "", checkOutTime: a.checkOutTime ?? "", bookingRef: a.bookingRef ?? "", price: a.price?.toString() ?? "", currency: a.currency ?? "KRW", memo: a.memo ?? "" });
+    setAccomForm({ name: a.name, address: a.address ?? "", checkIn: a.checkIn ?? "", checkInTime: a.checkInTime ?? "", checkOut: a.checkOut ?? "", checkOutTime: a.checkOutTime ?? "", bookingRef: a.bookingRef ?? "", price: a.price?.toString() ?? "", currency: a.currency ?? "KRW", memo: a.memo ?? "", preregistrationUrl: a.preregistrationUrl ?? "" });
     setAccomOpen(true);
   };
   const submitAccom = () => {
     const trimmedName = accomForm.name.trim();
     if (!trimmedName) { toast.error("숙소명을 입력해주세요."); return; }
-    const payload = { ...accomForm, name: trimmedName, address: accomForm.address.trim() || undefined, checkIn: accomForm.checkIn || undefined, checkInTime: accomForm.checkInTime || undefined, checkOut: accomForm.checkOut || undefined, checkOutTime: accomForm.checkOutTime || undefined, bookingRef: accomForm.bookingRef.trim() || undefined, price: accomForm.price.trim() || undefined, currency: accomForm.currency || undefined, memo: accomForm.memo.trim() || undefined };
+    const payload = { ...accomForm, name: trimmedName, address: accomForm.address.trim() || undefined, checkIn: accomForm.checkIn || undefined, checkInTime: accomForm.checkInTime || undefined, checkOut: accomForm.checkOut || undefined, checkOutTime: accomForm.checkOutTime || undefined, bookingRef: accomForm.bookingRef.trim() || undefined, preregistrationUrl: accomForm.preregistrationUrl.trim() || undefined, price: accomForm.price.trim() || undefined, currency: accomForm.currency || undefined, memo: accomForm.memo.trim() || undefined };
     if (accomEditId) updateAccom.mutate({ id: accomEditId, tripId, ...payload });
     else createAccom.mutate({ tripId, ...payload });
   };
@@ -165,6 +167,7 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
                     )}
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    {a.preregistrationUrl && <a href={a.preregistrationUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:text-primary/80 px-2 py-1 rounded-md hover:bg-primary/10 transition-colors">사전등록</a>}
                     <a
                       href={`https://maps.google.com/?q=${encodeURIComponent([a.name, a.address].filter(Boolean).join(" "))}`}
                       target="_blank" rel="noopener noreferrer"
@@ -341,6 +344,10 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">메모</Label>
               <Textarea placeholder="조식 포함, 주차 가능 등..." value={accomForm.memo} onChange={e => setAccomForm(f => ({ ...f, memo: e.target.value }))} rows={2} className="resize-none" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">사전등록 링크</Label>
+              <Input className="h-10" placeholder="https://..." value={accomForm.preregistrationUrl} onChange={e => setAccomForm(f => ({ ...f, preregistrationUrl: e.target.value }))} />
             </div>
           </div>
           <div className="flex gap-2 mt-4">

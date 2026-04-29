@@ -27,6 +27,7 @@ type FormData = {
   departureTime: string;
   arrivalTime: string;
   bookingRef: string;
+  preregistrationUrl: string;
   seatNumber: string;
   memo: string;
 };
@@ -40,6 +41,7 @@ const defaultForm: FormData = {
   departureTime: "",
   arrivalTime: "",
   bookingRef: "",
+  preregistrationUrl: "",
   seatNumber: "",
   memo: "",
 };
@@ -121,6 +123,7 @@ export default function FlightsTab({ tripId, isGuestUser = false }: { tripId: nu
       departureTime: f.departureTime ?? "",
       arrivalTime: f.arrivalTime ?? "",
       bookingRef: f.bookingRef ?? "",
+      preregistrationUrl: f.preregistrationUrl ?? "",
       seatNumber: f.seatNumber ?? "",
       memo: f.memo ?? "",
     });
@@ -158,6 +161,7 @@ export default function FlightsTab({ tripId, isGuestUser = false }: { tripId: nu
                   {f.flightNumber && <span className="text-xs text-muted-foreground">{f.flightNumber}</span>}
                 </div>
                 <div className="flex gap-1 shrink-0">
+                  {f.preregistrationUrl && <a href={f.preregistrationUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:text-primary/80 px-2 py-1 rounded-md hover:bg-primary/10 transition-colors">사전등록</a>}
                   <button onClick={() => openEdit(f)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
                   <button
                     onClick={() => setDeleteFlightId(f.id)}
@@ -225,6 +229,7 @@ export default function FlightsTab({ tripId, isGuestUser = false }: { tripId: nu
                         departureTime: normalizeFlightDateTime(flight.departureTime),
                         arrivalTime: normalizeFlightDateTime(flight.arrivalTime),
                         bookingRef: typeof flight.bookingRef === "string" ? flight.bookingRef : "",
+                        preregistrationUrl: "",
                         seatNumber: typeof flight.seatNumber === "string" ? flight.seatNumber : "",
                         memo: "",
                       });
@@ -250,6 +255,7 @@ export default function FlightsTab({ tripId, isGuestUser = false }: { tripId: nu
                   departureTime: normalizeFlightDateTime(data.departureTime) || f.departureTime,
                   arrivalTime: normalizeFlightDateTime(data.arrivalTime) || f.arrivalTime,
                   bookingRef: typeof data.bookingRef === "string" ? data.bookingRef : f.bookingRef,
+                  preregistrationUrl: f.preregistrationUrl,
                   seatNumber: typeof data.seatNumber === "string" ? data.seatNumber : f.seatNumber,
                   type: (data.type === "departure" || data.type === "return" || data.type === "transit") ? data.type : f.type,
                 }));
@@ -309,6 +315,10 @@ export default function FlightsTab({ tripId, isGuestUser = false }: { tripId: nu
                 <Label className="text-sm font-medium">좌석</Label>
                 <Input className="h-10" placeholder="12A" value={form.seatNumber} onChange={e => setForm(f => ({ ...f, seatNumber: e.target.value }))} />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">사전등록 링크</Label>
+              <Input className="h-10" placeholder="https://..." value={form.preregistrationUrl} onChange={e => setForm(f => ({ ...f, preregistrationUrl: e.target.value }))} />
             </div>
             {/* 메모 */}
             <div className="space-y-1.5">
