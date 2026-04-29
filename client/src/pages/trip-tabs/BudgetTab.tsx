@@ -368,20 +368,23 @@ export default function BudgetTab({ tripId, trip }: Props) {
             </>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button onClick={() => cameraFileRef.current?.click()}
-                  className="w-full border-2 border-dashed border-border rounded-xl py-6 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-                  <Camera className="w-6 h-6" /><span className="text-sm">카메라 촬영</span>
-                </button>
-                <button onClick={() => imageFileRef.current?.click()}
-                  className="w-full border-2 border-dashed border-border rounded-xl py-6 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-                  <ImageIcon className="w-6 h-6" /><span className="text-sm">이미지 업로드</span>
-                </button>
+              <button onClick={() => imageFileRef.current?.click()}
+                className="w-full border-2 border-dashed border-border rounded-xl py-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                <Camera className="w-6 h-6" />
+                <span className="text-sm">사진 선택 또는 카메라 촬영</span>
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => cameraFileRef.current?.click()} className="gap-1.5">
+                  <Camera className="w-3.5 h-3.5" /> 카메라
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => imageFileRef.current?.click()} className="gap-1.5">
+                  이미지 업로드
+                </Button>
               </div>
               <p className="text-xs text-muted-foreground text-center">날짜 포함 시 해당일 환율로 자동 변환</p>
               <input ref={cameraFileRef} type="file" accept="image/*" capture="environment" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
-              <input ref={imageFileRef} type="file" accept="image/*" className="hidden"
+              <input ref={imageFileRef} type="file" accept="image/*,image/heic,image/heif" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
             </>
           )}
