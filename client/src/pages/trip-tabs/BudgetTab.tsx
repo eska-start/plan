@@ -18,7 +18,7 @@ interface Trip {
   id: number; name: string;
   budget?: string | null; budgetCurrency?: string | null;
 }
-interface Props { tripId: number; trip: Trip; }
+interface Props { tripId: number; trip: Trip; isGuestUser?: boolean; }
 
 const CATEGORIES = ["항공", "숙박", "식비", "교통", "쇼핑", "액티비티", "기타"] as const;
 type Category = typeof CATEGORIES[number];
@@ -55,7 +55,7 @@ type AiPreviewItem = {
   krwAmount?: number; rateUsed?: number; selected: boolean;
 };
 
-export default function BudgetTab({ tripId, trip }: Props) {
+export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) {
   const utils = trpc.useUtils();
   const currency = trip.budgetCurrency ?? "KRW";
   const budgetNum = trip.budget ? parseFloat(trip.budget) : null;
@@ -182,6 +182,7 @@ export default function BudgetTab({ tripId, trip }: Props) {
   }
 
   async function handleAiText() {
+    if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; }
     if (!aiText.trim()) return;
     setAiLoading(true);
     try {
@@ -197,6 +198,7 @@ export default function BudgetTab({ tripId, trip }: Props) {
   }
 
   async function handleAiImage(file: File) {
+    if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; }
     setAiLoading(true);
     try {
       const b64 = await resizeImageBase64(file);
@@ -287,8 +289,8 @@ export default function BudgetTab({ tripId, trip }: Props) {
       <FadeIn>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={() => setShowAdd(true)} className="gap-1.5"><Plus className="w-3.5 h-3.5" /> 지출 추가</Button>
-          <Button size="sm" variant="outline" onClick={() => { setAiMode("text"); setAiPreview([]); }} className="gap-1.5"><FileText className="w-3.5 h-3.5" /> AI 텍스트</Button>
-          <Button size="sm" variant="outline" onClick={() => { setAiMode("image"); setAiPreview([]); }} className="gap-1.5"><Camera className="w-3.5 h-3.5" /> 영수증 사진</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; } setAiMode("text"); setAiPreview([]); }} className="gap-1.5"><FileText className="w-3.5 h-3.5" /> AI 텍스트</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; } setAiMode("image"); setAiPreview([]); }} className="gap-1.5"><Camera className="w-3.5 h-3.5" /> 영수증 사진</Button>
           <Button size="sm" variant="ghost" onClick={() => { setShowBudgetSetup(true); setBudgetForm({ budget: trip.budget ?? "", budgetCurrency: currency }); }} className="gap-1.5 ml-auto text-muted-foreground"><Wallet className="w-3.5 h-3.5" /> 예산 설정</Button>
         </div>
       </FadeIn>

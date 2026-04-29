@@ -58,7 +58,7 @@ function getNights(checkIn?: string | null, checkOut?: string | null) {
   } catch { return null; }
 }
 
-export default function StaysTab({ tripId }: { tripId: number }) {
+export default function StaysTab({ tripId, isGuestUser = false }: { tripId: number; isGuestUser?: boolean }) {
   const utils = trpc.useUtils();
   const queryOptions = { staleTime: 30_000, refetchOnWindowFocus: false } as const;
 
@@ -301,6 +301,8 @@ export default function StaysTab({ tripId }: { tripId: number }) {
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
             <OcrUploadButton
+              disabled={isGuestUser}
+              onBlocked={() => toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요.")}
               extractEndpoint={async (base64) => extractAccom.mutateAsync({ imageBase64: base64 })}
               onExtracted={(data) => setAccomForm(f => ({ ...f, name: data.name ?? f.name, address: data.address ?? f.address, checkIn: data.checkIn ?? f.checkIn, checkOut: data.checkOut ?? f.checkOut, bookingRef: data.bookingRef ?? f.bookingRef, price: data.price ?? f.price, currency: data.currency ?? f.currency }))}
             />
@@ -359,6 +361,8 @@ export default function StaysTab({ tripId }: { tripId: number }) {
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
             <OcrUploadButton
+              disabled={isGuestUser}
+              onBlocked={() => toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요.")}
               extractEndpoint={async (base64) => extractRental.mutateAsync({ imageBase64: base64 })}
               onExtracted={(data) => setRentalForm(f => ({ ...f, company: data.company ?? f.company, carModel: data.carModel ?? f.carModel, pickupLocation: data.pickupLocation ?? f.pickupLocation, dropoffLocation: data.dropoffLocation ?? f.dropoffLocation, pickupTime: data.pickupTime ?? f.pickupTime, dropoffTime: data.dropoffTime ?? f.dropoffTime, bookingRef: data.bookingRef ?? f.bookingRef, price: data.price ?? f.price, currency: data.currency ?? f.currency }))}
             />
