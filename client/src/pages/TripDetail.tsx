@@ -19,6 +19,8 @@ import ChecklistTab from "./trip-tabs/ChecklistTab";
 import ExchangeTab from "./trip-tabs/ExchangeTab";
 import { ShareDialog } from "@/components/ShareDialog";
 import { AiImportDialog } from "@/components/AiImportDialog";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { toast } from "sonner";
 
 const TABS = [
   { id: "overview", label: "오버뷰", icon: LayoutDashboard },
@@ -41,6 +43,8 @@ export default function TripDetail() {
   const [aiImportOpen, setAiImportOpen] = useState(false);
   const tripId = parseInt(params.id);
   const activeTab = params.tab || "overview";
+  const { user } = useAuth();
+  const isGuestUser = user?.loginMethod === "guest";
 
   const { data: trip, isLoading, error, refetch, isFetching } = trpc.trips.get.useQuery(
     { id: tripId },
@@ -120,7 +124,13 @@ export default function TripDetail() {
             <div className="flex items-center gap-3">
               {/* AI 자동 입력 */}
               <button
-                onClick={() => setAiImportOpen(true)}
+                onClick={() => {
+                  if (isGuestUser) {
+                    toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요.");
+                    return;
+                  }
+                  setAiImportOpen(true);
+                }}
                 className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
               >
                 <Bot className="w-3.5 h-3.5" />
@@ -209,13 +219,13 @@ export default function TripDetail() {
       >
         {activeTab === "overview" && <OverviewTab tripId={tripId} trip={trip} tripDays={tripDays} />}
         {activeTab === "schedule" && <ScheduleTab tripId={tripId} tripDays={tripDays} />}
-        {activeTab === "journey" && <ItineraryTab tripId={tripId} tripDays={tripDays} />}
+        {activeTab === "journey" && <ItineraryTab tripId={tripId} tripDays={tripDays} isGuestUser={isGuestUser} />}
         {activeTab === "flights" && <FlightsTab tripId={tripId} />}
         {activeTab === "stays" && <StaysTab tripId={tripId} />}
         {activeTab === "map" && <MapTab tripId={tripId} tripDays={tripDays} />}
-        {activeTab === "budget" && <BudgetTab tripId={tripId} trip={trip} />}
+        {activeTab === "budget" && <BudgetTab tripId={tripId} trip={trip} isGuestUser={isGuestUser} />}
         {activeTab === "exchange" && <ExchangeTab tripId={tripId} trip={trip} />}
-        {activeTab === "checklist" && <ChecklistTab tripId={tripId} />}
+        {activeTab === "checklist" && <ChecklistTab tripId={tripId} isGuestUser={isGuestUser} />}
         {activeTab === "memos" && <MemosTab tripId={tripId} />}
         {activeTab === "memory" && <DiaryTab tripId={tripId} tripDays={tripDays} />}
       </div>

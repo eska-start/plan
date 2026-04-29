@@ -11,6 +11,7 @@ import FadeIn from "@/components/FadeIn";
 
 interface Props {
   tripId: number;
+  isGuestUser?: boolean;
 }
 
 const GROUP_COLORS: Record<string, string> = {
@@ -20,7 +21,7 @@ const GROUP_COLORS: Record<string, string> = {
   기타: "#FBEFCC",
 };
 
-export default function ChecklistTab({ tripId }: Props) {
+export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
   const utils = trpc.useUtils();
   const { data: items, isLoading } = trpc.checklist.list.useQuery({ tripId });
   const seed = trpc.checklist.seed.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
@@ -52,6 +53,7 @@ export default function ChecklistTab({ tripId }: Props) {
   const aiExtractImageMutation = trpc.checklist.aiExtractFromImage.useMutation();
 
   async function handleAiText() {
+    if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; }
     if (!aiText.trim()) return;
     setAiLoading(true);
     try {
@@ -69,6 +71,7 @@ export default function ChecklistTab({ tripId }: Props) {
   }
 
   async function handleAiImage(file: File) {
+    if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; }
     setAiLoading(true);
     try {
       const img = new Image(); const url = URL.createObjectURL(file);
@@ -161,7 +164,7 @@ export default function ChecklistTab({ tripId }: Props) {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-[#7CC8B0]">{done} / {total}</span>
-            <Button size="sm" variant="outline" onClick={() => { setAiMode(aiMode ? null : "text"); setAiItems([]); }} className="gap-1.5 h-7 text-xs px-2">
+            <Button size="sm" variant="outline" onClick={() => { if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; } setAiMode(aiMode ? null : "text"); setAiItems([]); }} className="gap-1.5 h-7 text-xs px-2">
               <Sparkles className="w-3 h-3" />AI
             </Button>
           </div>
