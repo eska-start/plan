@@ -100,8 +100,9 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
   const pinnedMemos = (memos ?? []).filter(m => m.pinned);
   const totalSpent = (expenses ?? []).reduce((s, e) =>
     s + toBase(parseFloat(e.amount ?? "0"), e.currency ?? budgetCurrency), 0);
+  const safeTotalSpent = Number.isFinite(totalSpent) ? totalSpent : 0;
   const budgetNum = trip.budget ? parseFloat(trip.budget) : null;
-  const budgetPct = budgetNum && budgetNum > 0 ? Math.min((totalSpent / budgetNum) * 100, 100) : 0;
+  const budgetPct = budgetNum && budgetNum > 0 ? Math.min((safeTotalSpent / budgetNum) * 100, 100) : 0;
   const checkDone = (checklist ?? []).filter(i => i.done).length;
   const checkTotal = (checklist ?? []).length;
   const nightsTotal = (accommodations ?? []).reduce((sum, a) => {
@@ -176,7 +177,7 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
               <div className="space-y-2">
                 <div className="flex items-end justify-between">
                   <div>
-                    <p className="font-display text-xl font-semibold">{fmt(Math.round(totalSpent))}</p>
+                    <p className="font-display text-xl font-semibold">{fmt(Math.round(safeTotalSpent))}</p>
                     <p className="text-xs text-muted-foreground">/ {fmt(budgetNum)} {budgetCurrency}</p>
                   </div>
                   <p className="text-lg font-semibold" style={{ color: budgetPct > 90 ? "#F18A6A" : "#5BB4D8" }}>{Math.round(budgetPct)}%</p>
@@ -229,7 +230,7 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
           <ProgressCard icon={<Plane className="w-4 h-4" />} label="항공편" value={`${(flights ?? []).length}편`} sub="등록된 항공편" pct={(flights ?? []).length > 0 ? 100 : 0} tint="#5BB4D8" />
           <ProgressCard icon={<Hotel className="w-4 h-4" />} label="숙박" value={`${nightsTotal}박`} sub={`${(accommodations ?? []).length}곳 예약`} pct={(accommodations ?? []).length > 0 ? 100 : 0} tint="#7CC8B0" />
           <ProgressCard icon={<CheckSquare className="w-4 h-4" />} label="준비물" value={`${checkDone}/${checkTotal}`} sub={checkDone === checkTotal && checkTotal > 0 ? "모두 완료!" : `${checkTotal - checkDone}개 남음`} pct={checkTotal > 0 ? (checkDone / checkTotal) * 100 : 0} tint="#F18A6A" />
-          <ProgressCard icon={<Wallet className="w-4 h-4" />} label="예산" value={budgetNum != null ? `${Math.round(budgetPct)}%` : `${fmt(Math.round(totalSpent))}`} sub={budgetNum != null ? `${fmt(Math.round(totalSpent))} 사용` : `${budgetCurrency} 기록`} pct={budgetPct} tint="#F2C75A" />
+          <ProgressCard icon={<Wallet className="w-4 h-4" />} label="예산" value={budgetNum != null ? `${Math.round(budgetPct)}%` : `${fmt(Math.round(safeTotalSpent))}`} sub={budgetNum != null ? `${fmt(Math.round(safeTotalSpent))} 사용` : `${budgetCurrency} 기록`} pct={budgetPct} tint="#F2C75A" />
         </div>
       </FadeIn>
     </div>

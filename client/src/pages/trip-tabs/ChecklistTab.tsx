@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X } from "lucide-react";
+import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,6 +26,7 @@ export default function ChecklistTab({ tripId }: Props) {
   const seed = trpc.checklist.seed.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
   const create = trpc.checklist.create.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
   const toggle = trpc.checklist.toggle.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
+  const update = trpc.checklist.update.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
   const del = trpc.checklist.delete.useMutation({
     onSuccess: () => {
       utils.checklist.list.invalidate({ tripId });
@@ -42,6 +43,8 @@ export default function ChecklistTab({ tripId }: Props) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiItems, setAiItems] = useState<Array<{ group: string; label: string; selected: boolean }>>([]);
   const aiFileRef = useRef<HTMLInputElement>(null);
+  const itemImageRef = useRef<HTMLInputElement>(null);
+  const [imageTargetId, setImageTargetId] = useState<number | null>(null);
 
   const aiExtractMutation = trpc.checklist.aiExtract.useMutation();
   const aiExtractImageMutation = trpc.checklist.aiExtractFromImage.useMutation();
@@ -118,6 +121,15 @@ export default function ChecklistTab({ tripId }: Props) {
 
   const total = (items ?? []).length;
   const done = (items ?? []).filter(i => i.done).length;
+
+  async function toDataUrl(file: File) {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
 
   async function handleAdd() {
     if (!newLabel.trim()) return;
@@ -254,7 +266,15 @@ export default function ChecklistTab({ tripId }: Props) {
                   </button>
                   <span className={`flex-1 text-sm ${item.done ? "line-through text-muted-foreground" : "text-foreground"}`}>
                     {item.label}
+                    {item.imageUrl && (
+                      <a href={item.imageUrl} target="_blank" rel="noreferrer" className="block mt-1">
+                        <img src={item.imageUrl} alt={item.label} className="w-20 h-20 rounded-md object-cover border" />
+                      </a>
+                    )}
                   </span>
+                  <button onClick={() => { setImageTargetId(item.id); itemImageRef.current?.click(); }} className="text-muted-foreground hover:text-primary shrink-0">
+                    <ImagePlus className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => setDeleteItemId(item.id)}
                     className="text-muted-foreground hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
