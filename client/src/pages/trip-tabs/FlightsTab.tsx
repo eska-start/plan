@@ -82,7 +82,7 @@ function normalizeFlightDateTime(v: unknown): string {
   return raw;
 }
 
-export default function FlightsTab({ tripId }: { tripId: number }) {
+export default function FlightsTab({ tripId, isGuestUser = false }: { tripId: number; isGuestUser?: boolean }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteFlightId, setDeleteFlightId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
@@ -206,6 +206,8 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
             {/* OCR 자동 입력 */}
             <OcrUploadButton
+              disabled={isGuestUser}
+              onBlocked={() => toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요.")}
               extractEndpoint={async (base64) => extractMutation.mutateAsync({ imageBase64: base64 })}
               onExtracted={async (data) => {
                 const flights = Array.isArray(data.flights) ? data.flights as Array<Record<string, unknown>> : [];

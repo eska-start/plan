@@ -6,6 +6,8 @@ interface OcrUploadButtonProps<T extends Record<string, unknown>> {
   onExtracted: (data: T) => void;
   extractEndpoint: (imageBase64: string) => Promise<T>;
   label?: string;
+  disabled?: boolean;
+  onBlocked?: () => void;
 }
 
 function resizeToBase64(file: File, maxPx = 1400, quality = 0.85): Promise<string> {
@@ -30,13 +32,17 @@ function resizeToBase64(file: File, maxPx = 1400, quality = 0.85): Promise<strin
   });
 }
 
-export function OcrUploadButton<T extends Record<string, unknown>>({ onExtracted, extractEndpoint, label = "사진으로 자동 입력" }: OcrUploadButtonProps<T>) {
+export function OcrUploadButton<T extends Record<string, unknown>>({ onExtracted, extractEndpoint, label = "사진으로 자동 입력", disabled = false, onBlocked }: OcrUploadButtonProps<T>) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
 
   const handleFile = async (file: File) => {
+    if (disabled) {
+      onBlocked?.();
+      return;
+    }
     if (!file.type.startsWith("image/")) {
       toast.error("이미지 파일만 업로드할 수 있습니다.");
       return;
@@ -81,7 +87,10 @@ export function OcrUploadButton<T extends Record<string, unknown>>({ onExtracted
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={() => cameraRef.current?.click()}
+            onClick={() => {
+              if (disabled) { onBlocked?.(); return; }
+              cameraRef.current?.click();
+            }}
             className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-all text-sm font-medium text-primary"
           >
             <Camera className="w-4 h-4 shrink-0" />
@@ -89,7 +98,10 @@ export function OcrUploadButton<T extends Record<string, unknown>>({ onExtracted
           </button>
           <button
             type="button"
-            onClick={() => fileRef.current?.click()}
+            onClick={() => {
+              if (disabled) { onBlocked?.(); return; }
+              fileRef.current?.click();
+            }}
             className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-400 transition-all text-sm font-medium text-indigo-600"
           >
             <FolderOpen className="w-4 h-4 shrink-0" />
