@@ -42,6 +42,7 @@ export default function ChecklistTab({ tripId }: Props) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiItems, setAiItems] = useState<Array<{ group: string; label: string; selected: boolean }>>([]);
   const aiFileRef = useRef<HTMLInputElement>(null);
+  const quickImageFileRef = useRef<HTMLInputElement>(null);
 
   const aiExtractMutation = trpc.checklist.aiExtract.useMutation();
   const aiExtractImageMutation = trpc.checklist.aiExtractFromImage.useMutation();
@@ -92,6 +93,11 @@ export default function ChecklistTab({ tripId }: Props) {
     } catch (e: any) {
       toast.error(e?.message?.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "이미지 분석 실패");
     } finally { setAiLoading(false); }
+  }
+
+  async function handleAiQuickImport(file: File) {
+    await handleAiImage(file);
+    setAiMode("image");
   }
 
   async function handleAiSave() {
@@ -289,10 +295,28 @@ export default function ChecklistTab({ tripId }: Props) {
             onChange={e => setNewLabel(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleAdd()}
           />
+          <Button size="sm" variant="outline" onClick={() => quickImageFileRef.current?.click()} className="gap-1 shrink-0">
+            <Camera className="w-3.5 h-3.5" />
+          </Button>
           <Button size="sm" onClick={handleAdd} disabled={create.isPending || !newLabel.trim()} className="gap-1 shrink-0">
             <Plus className="w-3.5 h-3.5" />
           </Button>
         </div>
+        <input
+          ref={quickImageFileRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={e => {
+            const f = e.target.files?.[0];
+            if (f) void handleAiQuickImport(f);
+            e.target.value = "";
+          }}
+        />
+        <p className="text-xs text-muted-foreground">
+          카메라 아이콘으로 체크리스트 사진을 올리면 AI가 항목을 자동 추출합니다.
+        </p>
       </div>
 
       <AlertDialog open={deleteItemId !== null} onOpenChange={(open) => { if (!open) setDeleteItemId(null); }}>
