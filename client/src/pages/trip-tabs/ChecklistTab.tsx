@@ -37,6 +37,7 @@ export default function ChecklistTab({ tripId }: Props) {
 
   const [newLabel, setNewLabel] = useState("");
   const [newGroup, setNewGroup] = useState("기타");
+  const [newImageUrl, setNewImageUrl] = useState<string | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const [aiMode, setAiMode] = useState<"text" | "image" | null>(null);
   const [aiText, setAiText] = useState("");
@@ -133,8 +134,9 @@ export default function ChecklistTab({ tripId }: Props) {
 
   async function handleAdd() {
     if (!newLabel.trim()) return;
-    await create.mutateAsync({ tripId, group: newGroup, label: newLabel.trim() });
+    await create.mutateAsync({ tripId, group: newGroup, label: newLabel.trim(), imageUrl: newImageUrl });
     setNewLabel("");
+    setNewImageUrl(null);
   }
 
   if (isLoading) {
@@ -275,6 +277,11 @@ export default function ChecklistTab({ tripId }: Props) {
                   <button onClick={() => { setImageTargetId(item.id); itemImageRef.current?.click(); }} className="text-muted-foreground hover:text-primary shrink-0">
                     <ImagePlus className="w-4 h-4" />
                   </button>
+                  {item.imageUrl && (
+                    <button onClick={() => update.mutate({ id: item.id, imageUrl: null })} className="text-muted-foreground hover:text-destructive shrink-0" title="이미지 제거">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => setDeleteItemId(item.id)}
                     className="text-muted-foreground hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -309,11 +316,30 @@ export default function ChecklistTab({ tripId }: Props) {
             onChange={e => setNewLabel(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleAdd()}
           />
+          <button type="button" onClick={() => { setImageTargetId(null); itemImageRef.current?.click(); }} className="rounded-md border px-2 text-xs text-muted-foreground hover:text-primary">이미지</button>
           <Button size="sm" onClick={handleAdd} disabled={create.isPending || !newLabel.trim()} className="gap-1 shrink-0">
             <Plus className="w-3.5 h-3.5" />
           </Button>
         </div>
+        {newImageUrl && (
+          <div className="pt-1">
+            <img src={newImageUrl} alt="새 항목 이미지" className="w-20 h-20 rounded-md object-cover border" />
+          </div>
+        )}
       </div>
+
+      <input ref={itemImageRef} type="file" accept="image/*" className="hidden" onChange={async e => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        const dataUrl = await toDataUrl(f);
+        if (imageTargetId != null) {
+          await update.mutateAsync({ id: imageTargetId, imageUrl: dataUrl });
+          setImageTargetId(null);
+        } else {
+          setNewImageUrl(dataUrl);
+        }
+        e.target.value = "";
+      }} />
 
       <AlertDialog open={deleteItemId !== null} onOpenChange={(open) => { if (!open) setDeleteItemId(null); }}>
         <AlertDialogContent>

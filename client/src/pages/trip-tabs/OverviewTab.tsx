@@ -230,7 +230,7 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
           <ProgressCard icon={<Plane className="w-4 h-4" />} label="항공편" value={`${(flights ?? []).length}편`} sub="등록된 항공편" pct={(flights ?? []).length > 0 ? 100 : 0} tint="#5BB4D8" />
           <ProgressCard icon={<Hotel className="w-4 h-4" />} label="숙박" value={`${nightsTotal}박`} sub={`${(accommodations ?? []).length}곳 예약`} pct={(accommodations ?? []).length > 0 ? 100 : 0} tint="#7CC8B0" />
           <ProgressCard icon={<CheckSquare className="w-4 h-4" />} label="준비물" value={`${checkDone}/${checkTotal}`} sub={checkDone === checkTotal && checkTotal > 0 ? "모두 완료!" : `${checkTotal - checkDone}개 남음`} pct={checkTotal > 0 ? (checkDone / checkTotal) * 100 : 0} tint="#F18A6A" />
-          <ProgressCard icon={<Wallet className="w-4 h-4" />} label="예산" value={budgetNum != null ? `${Math.round(budgetPct)}%` : `${fmt(Math.round(safeTotalSpent))}`} sub={budgetNum != null ? `${fmt(Math.round(safeTotalSpent))} 사용` : `${budgetCurrency} 기록`} pct={budgetPct} tint="#F2C75A" />
+          <ProgressCard icon={<Wallet className="w-4 h-4" />} label="예산" value={budgetNum != null ? `${Math.round(budgetPct)}%` : `${fmt(Math.round(safeTotalSpent))}`} sub={budgetNum != null ? `${fmt(Math.round(safeTotalSpent))} 사용` : `${fmt(Math.round(safeTotalSpent))} ${budgetCurrency}`} pct={budgetPct} tint="#F2C75A" />
         </div>
       </FadeIn>
     </div>
