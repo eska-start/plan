@@ -4,7 +4,7 @@ import { loadMapScript } from "@/components/Map";
 import { toast } from "sonner";
 import {
   CalendarDays, Loader2, MapPin, Clock, CheckCircle2, Circle,
-  Plus, Utensils, Camera, ShoppingBag, Hotel,
+  Plus, Utensils, Camera, ShoppingBag, Hotel, FolderOpen,
   Sparkles, FileText, X, Pencil, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -74,7 +74,8 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
     date: string | null; placeName: string; visitTime: string | null;
     category: string; memo: string | null; address: string | null; selected: boolean;
   }>>([]);
-  const aiFileRef = useRef<HTMLInputElement>(null);
+  const aiCameraRef = useRef<HTMLInputElement>(null);
+  const aiPhotoRef = useRef<HTMLInputElement>(null);
   const placeInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
@@ -321,12 +322,33 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
             </>
           ) : (
             <>
-              <button onClick={() => aiFileRef.current?.click()}
-                className="w-full border-2 border-dashed border-border rounded-xl py-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-                <Camera className="w-6 h-6" /><span className="text-sm">사진 선택 또는 카메라 촬영</span>
-              </button>
-              <input ref={aiFileRef} type="file" accept="image/*" capture="environment" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
+              <input
+                ref={aiCameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }}
+              />
+              <input
+                ref={aiPhotoRef}
+                type="file"
+                accept="image/*,image/heic,image/heif"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }}
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => aiCameraRef.current?.click()}
+                  className="flex flex-col items-center gap-2 py-8 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 transition-all text-primary">
+                  <Camera className="w-6 h-6" />
+                  <span className="text-sm font-medium">카메라 촬영</span>
+                </button>
+                <button onClick={() => aiPhotoRef.current?.click()}
+                  className="flex flex-col items-center gap-2 py-8 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 hover:bg-indigo-100 transition-all text-indigo-600">
+                  <FolderOpen className="w-6 h-6" />
+                  <span className="text-sm font-medium">사진 보관함</span>
+                </button>
+              </div>
             </>
           )}
         </div>
