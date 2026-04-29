@@ -220,6 +220,7 @@ export const checklistItems = mysqlTable("checklist_items", {
   userId: int("userId").notNull(),
   group: varchar("group", { length: 50 }).notNull().default("기타"),
   label: varchar("label", { length: 255 }).notNull(),
+  imageUrl: text("imageUrl"),
   done: boolean("done").default(false),
   order: int("order").default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
