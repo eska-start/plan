@@ -375,15 +375,19 @@ export default function Home() {
       toast.error("공지 내용 또는 이미지를 입력해주세요.");
       return;
     }
-    const nextNotice = { content, images: noticeImages, updatedAt: new Date().toISOString() };
-    localStorage.setItem(NOTICE_STORAGE_KEY, JSON.stringify(nextNotice));
-    localStorage.removeItem(NOTICE_HIDE_UNTIL_KEY);
-    setGlobalNotice(nextNotice);
-    setNoticeDraft("");
-    setNoticeImages([]);
-    setNoticeEditorOpen(false);
-    setNoticePopupOpen(true);
-    toast.success("공지가 등록되었습니다.");
+    try {
+      const nextNotice = { content, images: noticeImages, updatedAt: new Date().toISOString() };
+      localStorage.setItem(NOTICE_STORAGE_KEY, JSON.stringify(nextNotice));
+      localStorage.removeItem(NOTICE_HIDE_UNTIL_KEY);
+      setGlobalNotice(nextNotice);
+      setNoticeDraft("");
+      setNoticeImages([]);
+      setNoticeEditorOpen(false);
+      setNoticePopupOpen(true);
+      toast.success("공지가 등록되었습니다.");
+    } catch {
+      toast.error("공지 저장에 실패했습니다. 이미지 크기를 줄여 다시 시도해주세요.");
+    }
   };
   const removeNotice = () => {
     localStorage.removeItem(NOTICE_STORAGE_KEY);
@@ -724,16 +728,16 @@ export default function Home() {
 
       {/* Notice Popup */}
       <Dialog open={noticePopupOpen && Boolean(globalNotice)} onOpenChange={setNoticePopupOpen}>
-        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-4xl rounded-xl p-5 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold">공지사항</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 max-h-[80vh] overflow-y-auto">
             <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{globalNotice?.content}</p>
             {globalNotice?.images?.length ? (
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 gap-3">
                 {globalNotice.images.map((imageUrl, idx) => (
-                  <img key={`notice-image-${idx}`} src={imageUrl} alt={`공지 이미지 ${idx + 1}`} className="max-h-64 rounded-md border object-contain" />
+                  <img key={`notice-image-${idx}`} src={imageUrl} alt={`공지 이미지 ${idx + 1}`} className="w-full max-h-[65vh] rounded-md border object-contain bg-muted/20" />
                 ))}
               </div>
             ) : null}
