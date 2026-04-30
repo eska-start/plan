@@ -6,70 +6,18 @@ import superjson from "superjson";
 import App from "./App";
 import "./index.css";
 
-(window as Window & { __APP_BOOTSTRAPPED__?: boolean }).__APP_BOOTSTRAPPED__ = true;
-const TRPC_REQUEST_TIMEOUT_MS = 10_000;
-const PLANLOG_ICON_SRC = "/apple-touch-icon.svg?v=planlog-2";
-
-const PLANLOG_ICON_MARKUP = `<img src="${PLANLOG_ICON_SRC}" width="32" height="32" alt="" aria-hidden="true" data-planlog-logo="true" style="border-radius:8px;display:block;object-fit:contain" />`;
-
-function replaceNearbyLogo(element: Element) {
-  const candidateGroups = [
-    element.closest(".text-center"),
-    element.closest(".flex"),
-    element.parentElement,
-    element.parentElement?.parentElement,
-  ].filter(Boolean) as Element[];
-
-  for (const group of candidateGroups) {
-    const logo = group.querySelector("svg:not([data-planlog-logo]), img:not([data-planlog-logo])");
-    if (logo) {
-      logo.outerHTML = PLANLOG_ICON_MARKUP;
-      return;
-    }
-  }
-}
-
-function applyPlanLogBranding() {
-  const elements = Array.from(document.querySelectorAll("h1, h2, span, p, a"));
-
-  elements.forEach(element => {
-    const text = element.textContent?.trim();
-    if (!text) return;
-
-    if (text.includes("Voya") || text.includes("Travel Journal") || text.includes("Voya·journal")) {
-      element.textContent = "플랜로그";
-      element.classList.add("planlog-brand-text");
-      replaceNearbyLogo(element);
-    }
-  });
-}
-
-const brandObserver = new MutationObserver(() => applyPlanLogBranding());
-brandObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
-queueMicrotask(applyPlanLogBranding);
+const TRPC_REQUEST_TIMEOUT_MS = 10000;
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: 30_000,
+      staleTime: 30000,
       retry: 1,
-      retryDelay: 1_000,
+      retryDelay: 1000,
     },
   },
-});
-
-queryClient.getQueryCache().subscribe(event => {
-  if (event.type === "updated" && event.action.type === "error") {
-    console.error("[API Query Error]", event.query.state.error);
-  }
-});
-
-queryClient.getMutationCache().subscribe(event => {
-  if (event.type === "updated" && event.action.type === "error") {
-    console.error("[API Mutation Error]", event.mutation.state.error);
-  }
 });
 
 const trpcClient = trpc.createClient({
@@ -96,8 +44,7 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-const rootElement = document.getElementById("root")!;
-const root = createRoot(rootElement);
+const root = createRoot(document.getElementById("root"));
 
 root.render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
@@ -107,4 +54,13 @@ root.render(
   </trpc.Provider>
 );
 
-requestAnimationFrame(applyPlanLogBranding);
+// 👉 스플래시 2.2초 유지 후 제거
+const splash = document.getElementById("planlog-splash");
+if (splash) {
+  setTimeout(() => {
+    splash.classList.add("is-hiding");
+    setTimeout(() => {
+      splash.remove();
+    }, 320);
+  }, 2200);
+}
