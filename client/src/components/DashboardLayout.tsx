@@ -37,53 +37,25 @@ const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 260;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 400;
+const PLANLOG_ICON_SRC = "/apple-touch-icon.svg?v=planlog-2";
 
 function PlanLogIcon({ className = "h-7 w-7" }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 64 64"
+    <img
+      src={PLANLOG_ICON_SRC}
       className={className}
+      alt=""
       aria-hidden="true"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <rect width="64" height="64" rx="17" fill="url(#planlog-bg)" />
-      <path
-        d="M12 46C18 41 24 43 31 46C38 49 46 49 52 43"
-        stroke="#34D399"
-        strokeWidth="4"
-        strokeLinecap="round"
-      />
-      <path
-        d="M32 9C22.6 9 15 16.6 15 26C15 39.5 32 54 32 54C32 54 49 39.5 49 26C49 16.6 41.4 9 32 9Z"
-        fill="url(#planlog-pin)"
-      />
-      <circle cx="32" cy="26" r="11" fill="white" />
-      <path
-        d="M26 26L30 30L38 21"
-        stroke="#2563EB"
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <defs>
-        <linearGradient id="planlog-bg" x1="8" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#EFF6FF" />
-          <stop offset="1" stopColor="#F0FDFA" />
-        </linearGradient>
-        <linearGradient id="planlog-pin" x1="18" y1="9" x2="49" y2="54" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#60A5FA" />
-          <stop offset="1" stopColor="#2563EB" />
-        </linearGradient>
-      </defs>
-    </svg>
+      data-planlog-logo="true"
+      draggable={false}
+    />
   );
 }
 
 function PlanLogBrand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="group flex items-center gap-2 min-w-0 rounded-xl px-1 py-1 transition-all duration-300 hover:bg-sidebar-accent/70">
-      <PlanLogIcon className={`${compact ? "h-6 w-6" : "h-8 w-8"} shrink-0 drop-shadow-sm transition-all duration-300 group-hover:-translate-y-0.5 group-hover:scale-110 group-hover:rotate-[-3deg]`} />
+      <PlanLogIcon className={`${compact ? "h-6 w-6" : "h-8 w-8"} shrink-0 rounded-lg drop-shadow-sm transition-all duration-300 group-hover:-translate-y-0.5 group-hover:scale-110 group-hover:rotate-[-3deg]`} />
       <div className="min-w-0 leading-none transition-transform duration-300 group-hover:translate-x-0.5">
         <p className="font-semibold text-sidebar-foreground tracking-tight truncate">
           플랜로그
