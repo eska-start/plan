@@ -44,6 +44,7 @@ const NOTICE_HIDE_UNTIL_KEY = "app-global-notice-hide-until";
 
 /* ── Auth Screen ──────────────────────────────────────────────────────────── */
 function AuthScreen() {
+  const nextPath = new URLSearchParams(window.location.search).get("next") || "/";
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -61,7 +62,7 @@ function AuthScreen() {
       const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "include" });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "오류가 발생했습니다."); return; }
-      window.location.href = "/";
+      window.location.href = nextPath;
     } catch { setError("서버에 연결할 수 없습니다."); }
     finally { setLoading(false); }
   };
