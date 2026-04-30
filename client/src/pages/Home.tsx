@@ -315,7 +315,7 @@ export default function Home() {
       setGlobalNotice({ content: normalizedContent, images: normalizedImages, updatedAt: parsed?.updatedAt ?? new Date().toISOString() });
       const hideUntil = localStorage.getItem(NOTICE_HIDE_UNTIL_KEY);
       const todayKey = format(new Date(), "yyyy-MM-dd");
-      if (hideUntil !== todayKey) setNoticePopupOpen(true);
+      setNoticePopupOpen(hideUntil !== todayKey);
     } catch {
       // ignore invalid localStorage
     }
@@ -371,14 +371,15 @@ export default function Home() {
   const displayName = user?.name?.trim() || "사용자";
   const saveNotice = () => {
     const content = noticeDraft.trim();
-    if (!content) {
-      toast.error("공지 내용을 입력해주세요.");
+    if (!content && noticeImages.length === 0) {
+      toast.error("공지 내용 또는 이미지를 입력해주세요.");
       return;
     }
     const nextNotice = { content, images: noticeImages, updatedAt: new Date().toISOString() };
     localStorage.setItem(NOTICE_STORAGE_KEY, JSON.stringify(nextNotice));
     localStorage.removeItem(NOTICE_HIDE_UNTIL_KEY);
     setGlobalNotice(nextNotice);
+    setNoticeDraft("");
     setNoticeImages([]);
     setNoticeEditorOpen(false);
     setNoticePopupOpen(true);
