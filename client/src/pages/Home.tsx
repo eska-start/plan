@@ -364,6 +364,10 @@ export default function Home() {
       toast.error("공지 내용 또는 이미지를 입력해주세요.");
       return;
     }
+    if (noticeImages.length > 5) {
+      toast.error("이미지는 최대 5개까지 첨부할 수 있습니다.");
+      return;
+    }
     try {
       const nextNotice = await setNoticeMutation.mutateAsync({ content, images: noticeImages });
       localStorage.removeItem(NOTICE_HIDE_UNTIL_KEY);
@@ -374,8 +378,9 @@ export default function Home() {
       setNoticePopupOpen(true);
       toast.success("공지가 등록되었습니다.");
       void refetchNotice();
-    } catch {
-      toast.error("공지 저장에 실패했습니다.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "공지 저장에 실패했습니다.";
+      toast.error(message);
     }
   };
   const removeNotice = async () => {
