@@ -10,7 +10,7 @@ import { getLoginUrl } from "@/const";
 import { TRPCClientError } from "@trpc/client";
 import {
   Plus, Trash2, ArrowRight, Loader2, LogIn, Eye, EyeOff,
-  MapPin, Calendar, Plane, Hotel, Wallet,
+  MapPin, Calendar, Plane, Hotel, Wallet, Megaphone,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
@@ -399,22 +399,26 @@ export default function Home() {
     setNoticePopupOpen(false);
     toast.success("오늘은 공지를 숨겼습니다.");
   };
-  const handleNoticeImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNoticeImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("이미지 파일만 업로드할 수 있습니다.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") return;
-      setNoticeImages(prev => [...prev, reader.result as string]);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload-ocr", { method: "POST", body: formData, credentials: "include" });
+      const data = await res.json();
+      if (!res.ok || !data?.url) throw new Error(data?.error ?? "업로드 실패");
+      setNoticeImages(prev => [...prev, data.url as string]);
       toast.success("이미지를 공지에 추가했습니다.");
-    };
-    reader.onerror = () => toast.error("이미지 업로드에 실패했습니다.");
-    reader.readAsDataURL(file);
-    event.target.value = "";
+    } catch {
+      toast.error("이미지 업로드에 실패했습니다.");
+    } finally {
+      event.target.value = "";
+    }
   };
 
   if (loading) return (
@@ -509,15 +513,17 @@ export default function Home() {
             </button>
             {isAdminUser && (
               <Button
-                variant="outline"
-                size="sm"
+                variant="ghost"
+                size="icon"
                 onClick={() => {
                   setNoticeDraft(globalNotice?.content ?? "");
                   setNoticeImages(globalNotice?.images ?? []);
                   setNoticeEditorOpen(true);
                 }}
+                aria-label="공지사항 관리"
+                title="공지사항 관리"
               >
-                공지사항 관리
+                <Megaphone className="w-4 h-4" />
               </Button>
             )}
           </div>
