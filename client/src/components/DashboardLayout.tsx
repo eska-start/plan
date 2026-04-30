@@ -47,34 +47,44 @@ function PlanLogIcon({ className = "h-7 w-7" }: { className?: string }) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <rect width="64" height="64" rx="16" fill="#EFF6FF" />
+      <rect width="64" height="64" rx="17" fill="url(#planlog-bg)" />
       <path
-        d="M13 46C19 41 25 43 31 46C38 49 46 49 52 43"
-        stroke="#22C55E"
+        d="M12 46C18 41 24 43 31 46C38 49 46 49 52 43"
+        stroke="#34D399"
         strokeWidth="4"
         strokeLinecap="round"
       />
       <path
         d="M32 9C22.6 9 15 16.6 15 26C15 39.5 32 54 32 54C32 54 49 39.5 49 26C49 16.6 41.4 9 32 9Z"
-        fill="#3B82F6"
+        fill="url(#planlog-pin)"
       />
       <circle cx="32" cy="26" r="11" fill="white" />
       <path
         d="M26 26L30 30L38 21"
-        stroke="#3B82F6"
+        stroke="#2563EB"
         strokeWidth="4"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+      <defs>
+        <linearGradient id="planlog-bg" x1="8" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#EFF6FF" />
+          <stop offset="1" stopColor="#F0FDFA" />
+        </linearGradient>
+        <linearGradient id="planlog-pin" x1="18" y1="9" x2="49" y2="54" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#60A5FA" />
+          <stop offset="1" stopColor="#2563EB" />
+        </linearGradient>
+      </defs>
     </svg>
   );
 }
 
 function PlanLogBrand({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex items-center gap-2 min-w-0">
-      <PlanLogIcon className={compact ? "h-6 w-6 shrink-0" : "h-8 w-8 shrink-0"} />
-      <div className="min-w-0 leading-none">
+    <div className="group flex items-center gap-2 min-w-0 rounded-xl px-1 py-1 transition-all duration-300 hover:bg-sidebar-accent/70">
+      <PlanLogIcon className={`${compact ? "h-6 w-6" : "h-8 w-8"} shrink-0 drop-shadow-sm transition-all duration-300 group-hover:-translate-y-0.5 group-hover:scale-110 group-hover:rotate-[-3deg]`} />
+      <div className="min-w-0 leading-none transition-transform duration-300 group-hover:translate-x-0.5">
         <p className="font-semibold text-sidebar-foreground tracking-tight truncate">
           플랜로그
         </p>
@@ -176,7 +186,6 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
     <>
       <div className="relative" ref={sidebarRef}>
         <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
-          {/* Header */}
           <SidebarHeader className="h-16 justify-center border-b border-sidebar-border">
             <div className="flex items-center gap-3 px-3">
               <button
@@ -190,7 +199,6 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
             </div>
           </SidebarHeader>
 
-          {/* Navigation */}
           <SidebarContent className="gap-0 pt-2">
             <SidebarMenu className="px-2 py-1">
               {menuItems.map(item => {
@@ -212,7 +220,6 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
             </SidebarMenu>
           </SidebarContent>
 
-          {/* Footer */}
           <SidebarFooter className="p-3 border-t border-sidebar-border">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -247,7 +254,6 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
           </SidebarFooter>
         </Sidebar>
 
-        {/* Resize handle */}
         <div
           className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
           onMouseDown={() => { if (!isCollapsed) setIsResizing(true); }}
