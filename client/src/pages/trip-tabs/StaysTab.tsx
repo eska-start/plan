@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Hotel, Car, Loader2, MapPin, Hash, Calendar, Map, Plus } from "lucide-react";
+import { Hotel, Car, Loader2, MapPin, Hash, Calendar, Map, Plus, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -20,13 +20,13 @@ type AccomForm = {
   name: string; address: string;
   checkIn: string; checkInTime: string;
   checkOut: string; checkOutTime: string;
-  bookingRef: string; price: string; currency: string; memo: string;
+  bookingRef: string; price: string; currency: string; memo: string; preRegisterUrl: string;
 };
 const defaultAccomForm: AccomForm = {
   name: "", address: "",
   checkIn: "", checkInTime: "15:00",
   checkOut: "", checkOutTime: "11:00",
-  bookingRef: "", price: "", currency: "KRW", memo: "",
+  bookingRef: "", price: "", currency: "KRW", memo: "", preRegisterUrl: "",
 };
 
 // ── Rental form ───────────────────────────────────────────────────────────────
@@ -39,6 +39,12 @@ const defaultRentalForm: RentalForm = {
   company: "", carModel: "", pickupLocation: "", dropoffLocation: "",
   pickupTime: "", dropoffTime: "", bookingRef: "", price: "", currency: "KRW", memo: "",
 };
+
+
+const PRE_REGISTER_TAG = "[PREREG]";
+const extractPreRegisterUrl = (memo?: string | null) => memo?.match(/\[PREREG\](\S+)/)?.[1] ?? "";
+const removePreRegisterTag = (memo?: string | null) => (memo ?? "").replace(/\s*\[PREREG\]\S+/g, "").trim();
+const normalizeUrl = (raw: string) => (/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
 
 function formatDate(d?: string | null) {
   if (!d) return "-";
@@ -86,13 +92,15 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
   const openCreateAccom = () => { setAccomEditId(null); setAccomForm(defaultAccomForm); setAccomOpen(true); };
   const openEditAccom = (a: NonNullable<typeof accommodations>[number]) => {
     setAccomEditId(a.id);
-    setAccomForm({ name: a.name, address: a.address ?? "", checkIn: a.checkIn ?? "", checkInTime: a.checkInTime ?? "", checkOut: a.checkOut ?? "", checkOutTime: a.checkOutTime ?? "", bookingRef: a.bookingRef ?? "", price: a.price?.toString() ?? "", currency: a.currency ?? "KRW", memo: a.memo ?? "" });
+    setAccomForm({ name: a.name, address: a.address ?? "", checkIn: a.checkIn ?? "", checkInTime: a.checkInTime ?? "", checkOut: a.checkOut ?? "", checkOutTime: a.checkOutTime ?? "", bookingRef: a.bookingRef ?? "", price: a.price?.toString() ?? "", currency: a.currency ?? "KRW", memo: removePreRegisterTag(a.memo), preRegisterUrl: extractPreRegisterUrl(a.memo) });
     setAccomOpen(true);
   };
   const submitAccom = () => {
     const trimmedName = accomForm.name.trim();
     if (!trimmedName) { toast.error("숙소명을 입력해주세요."); return; }
-    const payload = { ...accomForm, name: trimmedName, address: accomForm.address.trim() || undefined, checkIn: accomForm.checkIn || undefined, checkInTime: accomForm.checkInTime || undefined, checkOut: accomForm.checkOut || undefined, checkOutTime: accomForm.checkOutTime || undefined, bookingRef: accomForm.bookingRef.trim() || undefined, price: accomForm.price.trim() || undefined, currency: accomForm.currency || undefined, memo: accomForm.memo.trim() || undefined };
+    const cleanedMemo = removePreRegisterTag(accomForm.memo).trim();
+    const taggedMemo = accomForm.preRegisterUrl.trim() ? `${cleanedMemo}${cleanedMemo ? "\n" : ""}${PRE_REGISTER_TAG}${normalizeUrl(accomForm.preRegisterUrl.trim())}` : cleanedMemo;
+    const payload = { name: trimmedName, address: accomForm.address.trim() || undefined, checkIn: accomForm.checkIn || undefined, checkInTime: accomForm.checkInTime || undefined, checkOut: accomForm.checkOut || undefined, checkOutTime: accomForm.checkOutTime || undefined, bookingRef: accomForm.bookingRef.trim() || undefined, price: accomForm.price.trim() || undefined, currency: accomForm.currency || undefined, memo: taggedMemo || undefined };
     if (accomEditId) updateAccom.mutate({ id: accomEditId, tripId, ...payload });
     else createAccom.mutate({ tripId, ...payload });
   };
@@ -203,7 +211,7 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
                   {a.bookingRef && <span className="flex items-center gap-1"><Hash className="w-3 h-3" /> 예약번호: <span className="font-mono font-medium text-foreground">{a.bookingRef}</span></span>}
                   {a.price && <span className="font-medium text-foreground">{Number(a.price).toLocaleString()} {a.currency}</span>}
                 </div>
-                {a.memo && <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">{a.memo}</p>}
+                {(a.memo || extractPreRegisterUrl(a.memo)) && <div className="mt-2 pt-2 border-t border-border space-y-2">{removePreRegisterTag(a.memo) && <p className="text-xs text-muted-foreground">{removePreRegisterTag(a.memo)}</p>}{extractPreRegisterUrl(a.memo) && <Button size="sm" variant="outline" asChild><a href={normalizeUrl(extractPreRegisterUrl(a.memo))} target="_blank" rel="noopener noreferrer" className="gap-1"><ExternalLink className="w-3.5 h-3.5" />사전등록</a></Button>}</div>}
               </div>
             ))}
           </div>
@@ -337,6 +345,10 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
                 <Label className="text-sm font-medium">금액</Label>
                 <Input className="h-10" placeholder="200000" value={accomForm.price} onChange={e => setAccomForm(f => ({ ...f, price: e.target.value }))} />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">사전등록 링크</Label>
+              <Input className="h-10" placeholder="https://..." value={accomForm.preRegisterUrl} onChange={e => setAccomForm(f => ({ ...f, preRegisterUrl: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">메모</Label>
