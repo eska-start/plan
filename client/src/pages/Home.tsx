@@ -40,6 +40,7 @@ const defaultForm: TripFormData = {
 const ADMIN_OPEN_ID = "eska";
 const NOTICE_STORAGE_KEY = "app-global-notice";
 type GlobalNotice = { content: string; updatedAt: string };
+const NOTICE_HIDE_UNTIL_KEY = "app-global-notice-hide-until";
 
 /* ── Auth Screen ──────────────────────────────────────────────────────────── */
 function AuthScreen() {
@@ -305,7 +306,9 @@ export default function Home() {
       const parsed = JSON.parse(raw) as GlobalNotice | null;
       if (!parsed?.content?.trim()) return;
       setGlobalNotice(parsed);
-      setNoticePopupOpen(true);
+      const hideUntil = localStorage.getItem(NOTICE_HIDE_UNTIL_KEY);
+      const todayKey = format(new Date(), "yyyy-MM-dd");
+      if (hideUntil !== todayKey) setNoticePopupOpen(true);
     } catch {
       // ignore invalid localStorage
     }
@@ -367,6 +370,7 @@ export default function Home() {
     }
     const nextNotice = { content, updatedAt: new Date().toISOString() };
     localStorage.setItem(NOTICE_STORAGE_KEY, JSON.stringify(nextNotice));
+    localStorage.removeItem(NOTICE_HIDE_UNTIL_KEY);
     setGlobalNotice(nextNotice);
     setNoticeEditorOpen(false);
     setNoticePopupOpen(true);
@@ -374,11 +378,35 @@ export default function Home() {
   };
   const removeNotice = () => {
     localStorage.removeItem(NOTICE_STORAGE_KEY);
+    localStorage.removeItem(NOTICE_HIDE_UNTIL_KEY);
     setGlobalNotice(null);
     setNoticeDraft("");
     setNoticePopupOpen(false);
     setNoticeEditorOpen(false);
     toast.success("공지가 삭제되었습니다.");
+  };
+  const hideNoticeToday = () => {
+    const todayKey = format(new Date(), "yyyy-MM-dd");
+    localStorage.setItem(NOTICE_HIDE_UNTIL_KEY, todayKey);
+    setNoticePopupOpen(false);
+    toast.success("오늘은 공지를 숨겼습니다.");
+  };
+  const handleNoticeImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") return;
+      setNoticeDraft(prev => `${prev}${prev ? "\n\n" : ""}![공지 이미지](${reader.result})`);
+      toast.success("이미지를 공지에 추가했습니다.");
+    };
+    reader.onerror = () => toast.error("이미지 업로드에 실패했습니다.");
+    reader.readAsDataURL(file);
+    event.target.value = "";
   };
 
   if (loading) return (
@@ -690,9 +718,22 @@ export default function Home() {
             <DialogTitle className="text-lg font-semibold">공지사항</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{globalNotice?.content}</p>
+            {globalNotice?.content?.includes("![") ? (
+              <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed space-y-2">
+                {globalNotice.content.split("\n").map((line, idx) => {
+                  const imageMatch = line.match(/!\[[^\]]*\]\((.+)\)/);
+                  if (imageMatch?.[1]) {
+                    return <img key={`notice-img-${idx}`} src={imageMatch[1]} alt="공지 이미지" className="max-h-64 rounded-md border object-contain" />;
+                  }
+                  return <p key={`notice-text-${idx}`}>{line}</p>;
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{globalNotice?.content}</p>
+            )}
             {noticeUpdatedLabel && <p className="text-xs text-muted-foreground">업데이트: {noticeUpdatedLabel}</p>}
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={hideNoticeToday}>오늘은 보지 않기</Button>
               <Button variant="outline" onClick={() => setNoticePopupOpen(false)}>닫기</Button>
             </div>
           </div>
@@ -710,9 +751,10 @@ export default function Home() {
               value={noticeDraft}
               onChange={e => setNoticeDraft(e.target.value)}
               rows={6}
-              placeholder="공지 내용을 입력하세요."
+              placeholder="공지 내용을 입력하세요. (이미지는 아래 업로드 버튼으로 추가)"
               className="resize-none"
             />
+            <Input type="file" accept="image/*" onChange={handleNoticeImageUpload} />
             <div className="flex gap-2">
               <Button className="flex-1" onClick={saveNotice}>공지 저장/팝업 표시</Button>
               <Button variant="destructive" className="flex-1" onClick={removeNotice} disabled={!globalNotice}>공지 삭제</Button>
