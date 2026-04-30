@@ -24,18 +24,19 @@
       @keyframes planlog-check-draw { 0% { stroke-dashoffset: 260; opacity: 0; } 18% { opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 1; } }
       @keyframes planlog-ring-pop { 0% { opacity: 0; transform: scale(.72); } 70% { opacity: .36; transform: scale(1.07); } 100% { opacity: .2; transform: scale(1); } }
       @keyframes planlog-text-in { 0% { opacity: 0; transform: translateY(12px); letter-spacing: .04em; } 100% { opacity: 1; transform: translateY(0); letter-spacing: -.04em; } }
-      @keyframes planlog-shine { 0% { transform: translateX(-160%) rotate(18deg); opacity: 0; } 35% { opacity: .42; } 100% { transform: translateX(160%) rotate(18deg); opacity: 0; } }
-      .planlog-splash { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 35%, rgba(59,130,246,.13), transparent 32%), linear-gradient(145deg, #f8fbff 0%, #eef6ff 48%, #ecfdf5 100%); font-family: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: #0f172a; animation: planlog-screen-in .45s ease both; }
-      .planlog-splash-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 18px; animation: planlog-card-in .7s cubic-bezier(.2,.85,.2,1) both; }
-      .planlog-splash-icon-wrap { position: relative; width: 132px; height: 132px; display: grid; place-items: center; overflow: hidden; border-radius: 32px; filter: drop-shadow(0 26px 42px rgba(37, 99, 235, .20)); }
-      .planlog-splash-icon-wrap::after { content: ""; position: absolute; inset: -30%; width: 60%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.72), transparent); animation: planlog-shine 2.7s .9s ease-in-out infinite; }
-      .planlog-splash-icon { width: 118px; height: 118px; overflow: visible; }
+      @keyframes planlog-shine { 0% { transform: translateX(-185%) rotate(18deg); opacity: 0; } 35% { opacity: .42; } 100% { transform: translateX(185%) rotate(18deg); opacity: 0; } }
+      .planlog-splash { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 35%, rgba(59,130,246,.13), transparent 32%), linear-gradient(145deg, #f8fbff 0%, #eef6ff 48%, #ecfdf5 100%); font-family: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: #0f172a; animation: planlog-screen-in .45s ease both; overflow: hidden; }
+      .planlog-splash-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 20px; animation: planlog-card-in .7s cubic-bezier(.2,.85,.2,1) both; }
+      .planlog-splash-icon-wrap { position: relative; width: 220px; height: 220px; display: grid; place-items: center; overflow: visible; border-radius: 44px; filter: drop-shadow(0 28px 44px rgba(37, 99, 235, .20)); }
+      .planlog-splash-icon-wrap::after { content: ""; position: absolute; inset: 16px; width: 34%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.70), transparent); animation: planlog-shine 2.9s 1s ease-in-out infinite; pointer-events: none; border-radius: 30px; }
+      .planlog-splash-icon { width: 188px; height: 188px; overflow: visible; display: block; }
+      @media (max-width: 480px) { .planlog-splash-icon-wrap { width: 190px; height: 190px; } .planlog-splash-icon { width: 164px; height: 164px; } }
       .planlog-map-piece { transform-box: fill-box; transform-origin: center; animation: planlog-map-in .9s .2s cubic-bezier(.2,.85,.2,1) both; }
       .planlog-pin { transform-box: fill-box; transform-origin: center bottom; animation: planlog-pin-drop 1.15s .55s cubic-bezier(.18,.9,.2,1.18) both; }
       .planlog-check { stroke-dasharray: 260; stroke-dashoffset: 260; animation: planlog-check-draw .62s 1.45s cubic-bezier(.25,.9,.25,1) both; }
       .planlog-ring { transform-box: fill-box; transform-origin: center; animation: planlog-ring-pop .72s 1.18s ease both; }
-      .planlog-splash-title { margin: 2px 0 0; font-size: 27px; font-weight: 850; letter-spacing: -0.04em; animation: planlog-text-in .62s 1.55s ease both; }
-      .planlog-splash-sub { margin: -9px 0 0; font-size: 13px; font-weight: 650; color: #64748b; letter-spacing: .02em; opacity: 0; animation: planlog-text-in .62s 1.75s ease forwards; }
+      .planlog-splash-title { margin: -2px 0 0; font-size: 31px; font-weight: 850; letter-spacing: -0.04em; animation: planlog-text-in .62s 1.55s ease both; }
+      .planlog-splash-sub { margin: -10px 0 0; font-size: 14px; font-weight: 650; color: #64748b; letter-spacing: .02em; opacity: 0; animation: planlog-text-in .62s 1.75s ease forwards; }
     </style>
     <link rel="apple-touch-icon" href="/apple-touch-icon.svg?v=planlog-2" />
     <link rel="manifest" href="/manifest.webmanifest" />
