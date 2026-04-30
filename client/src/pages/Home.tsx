@@ -10,7 +10,7 @@ import { getLoginUrl } from "@/const";
 import { TRPCClientError } from "@trpc/client";
 import {
   Plus, Trash2, ArrowRight, Loader2, LogIn, Eye, EyeOff,
-  MapPin, Calendar, Plane, Hotel, Wallet,
+  MapPin, Calendar, Plane, Hotel, Wallet, Megaphone,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
@@ -364,6 +364,10 @@ export default function Home() {
       toast.error("공지 내용 또는 이미지를 입력해주세요.");
       return;
     }
+    if (noticeImages.length > 5) {
+      toast.error("이미지는 최대 5개까지 첨부할 수 있습니다.");
+      return;
+    }
     try {
       const nextNotice = await setNoticeMutation.mutateAsync({ content, images: noticeImages });
       localStorage.removeItem(NOTICE_HIDE_UNTIL_KEY);
@@ -374,8 +378,13 @@ export default function Home() {
       setNoticePopupOpen(true);
       toast.success("공지가 등록되었습니다.");
       void refetchNotice();
-    } catch {
-      toast.error("공지 저장에 실패했습니다.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "공지 저장에 실패했습니다.";
+      if (message.includes("FORBIDDEN") || message.includes("권한") || message.includes("10002")) {
+        toast.error("공지 등록 권한이 없습니다. 관리자 권한을 확인해주세요.");
+      } else {
+        toast.error(message);
+      }
     }
   };
   const removeNotice = async () => {
@@ -399,22 +408,38 @@ export default function Home() {
     setNoticePopupOpen(false);
     toast.success("오늘은 공지를 숨겼습니다.");
   };
-  const handleNoticeImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNoticeImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("이미지 파일만 업로드할 수 있습니다.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") return;
-      setNoticeImages(prev => [...prev, reader.result as string]);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload-notice", { method: "POST", body: formData, credentials: "include" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.url) throw new Error((data as { error?: string })?.error ?? "업로드 실패");
+      setNoticeImages(prev => [...prev, data.url as string]);
       toast.success("이미지를 공지에 추가했습니다.");
-    };
-    reader.onerror = () => toast.error("이미지 업로드에 실패했습니다.");
-    reader.readAsDataURL(file);
-    event.target.value = "";
+    } catch {
+      // 서버 업로드 실패 시 fallback: data URL로 공지에 포함
+      try {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("invalid image"));
+          reader.onerror = () => reject(new Error("file read failed"));
+          reader.readAsDataURL(file);
+        });
+        setNoticeImages(prev => [...prev, base64]);
+        toast.success("이미지를 공지에 추가했습니다. (임시 저장 방식)");
+      } catch {
+        toast.error("이미지 업로드에 실패했습니다.");
+      }
+    } finally {
+      event.target.value = "";
+    }
   };
 
   if (loading) return (
@@ -509,15 +534,17 @@ export default function Home() {
             </button>
             {isAdminUser && (
               <Button
-                variant="outline"
-                size="sm"
+                variant="ghost"
+                size="icon"
                 onClick={() => {
                   setNoticeDraft(globalNotice?.content ?? "");
                   setNoticeImages(globalNotice?.images ?? []);
                   setNoticeEditorOpen(true);
                 }}
+                aria-label="공지사항 관리"
+                title="공지사항 관리"
               >
-                공지사항 관리
+                <Megaphone className="w-4 h-4" />
               </Button>
             )}
           </div>

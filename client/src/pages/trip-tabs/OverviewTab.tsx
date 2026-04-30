@@ -6,6 +6,7 @@ import { useLocation } from "wouter";
 import FadeIn from "@/components/FadeIn";
 import { useEffect, useState } from "react";
 import { fetchRates } from "@/utils/currency";
+import LinkifiedText from "@/components/LinkifiedText";
 
 interface Trip {
   id: number;
@@ -207,7 +208,11 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
                       <span className="mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#F2C75A]/20 text-[#7A5A1E]">고정</span>
                       <div className="min-w-0">
                         {memo.title && <p className="text-sm font-semibold truncate">{memo.title}</p>}
-                        {memo.content && <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap line-clamp-3">{memo.content}</p>}
+                        {memo.content && (
+                          <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap line-clamp-3">
+                            <LinkifiedText text={memo.content} />
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
