@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { Loader2, Plane, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TRPCClientError } from "@trpc/client";
@@ -71,7 +70,7 @@ export default function JoinTrip() {
           </p>
         </div>
         <Button
-          onClick={() => window.location.href = getLoginUrl()}
+          onClick={() => setLocation("/")}
           className="w-full max-w-xs"
         >
           로그인 후 참여하기

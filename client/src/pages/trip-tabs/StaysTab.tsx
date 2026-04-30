@@ -141,7 +141,7 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
             <p className="text-xs text-muted-foreground mt-0.5">숙소 예약 정보를 기록하세요.</p>
           </div>
           <Button size="sm" onClick={openCreateAccom} className="gap-1.5">
-            <Plus className="w-3.5 h-3.5" /> 숙박 추가
+            <Plus className="w-3.5 h-3.5" /> 사전등록
           </Button>
         </div>
 
@@ -215,7 +215,7 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
               <p className="text-xs text-muted-foreground mt-1">숙소 예약 정보를 추가해보세요.</p>
             </div>
             <Button size="sm" variant="outline" onClick={openCreateAccom} className="gap-1.5">
-              <Plus className="w-3.5 h-3.5" /> 숙박 추가
+              <Plus className="w-3.5 h-3.5" /> 사전등록
             </Button>
           </div>
         )}

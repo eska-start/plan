@@ -512,12 +512,14 @@ export default function Home() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setNoticeDraft(globalNotice?.content ?? "");
-                  setNoticeImages(globalNotice?.images ?? []);
-                  setNoticeEditorOpen(true);
+                  if (!featuredTrip) {
+                    toast.info("먼저 여행을 생성한 뒤 게시물 페이지에서 공지사항을 관리해주세요.");
+                    return;
+                  }
+                  setLocation(`/trips/${featuredTrip.id}/memos`);
                 }}
               >
-                공지사항 관리
+                공지사항 관리(게시물)
               </Button>
             )}
           </div>
@@ -739,30 +741,6 @@ export default function Home() {
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={hideNoticeToday}>오늘은 보지 않기</Button>
               <Button variant="outline" onClick={() => setNoticePopupOpen(false)}>닫기</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Notice Editor (admin only) */}
-      <Dialog open={noticeEditorOpen && isAdminUser} onOpenChange={setNoticeEditorOpen}>
-        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">공지사항 관리</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <Textarea
-              value={noticeDraft}
-              onChange={e => setNoticeDraft(e.target.value)}
-              rows={6}
-              placeholder="공지 내용을 입력하세요."
-              className="resize-none"
-            />
-            <Input type="file" accept="image/*" onChange={handleNoticeImageUpload} />
-            {noticeImages.length > 0 && <p className="text-xs text-muted-foreground">이미지 {noticeImages.length}개 첨부됨</p>}
-            <div className="flex gap-2">
-              <Button className="flex-1" onClick={saveNotice}>공지 저장/팝업 표시</Button>
-              <Button variant="destructive" className="flex-1" onClick={removeNotice} disabled={!globalNotice}>공지 삭제</Button>
             </div>
           </div>
         </DialogContent>
