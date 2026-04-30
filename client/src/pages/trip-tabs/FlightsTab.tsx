@@ -152,7 +152,18 @@ export default function FlightsTab({ tripId, isGuestUser = false }: { tripId: nu
   const handleSubmit = () => {
     const cleanedMemo = removePreRegisterTag(form.memo);
     const taggedMemo = form.preRegisterUrl.trim() ? `${cleanedMemo}${cleanedMemo ? "\n" : ""}${PRE_REGISTER_TAG}${normalizeUrl(form.preRegisterUrl.trim())}` : cleanedMemo;
-    const payload = { ...form, memo: taggedMemo };
+    const payload = {
+      type: form.type,
+      airline: form.airline,
+      flightNumber: form.flightNumber,
+      departureAirport: form.departureAirport,
+      arrivalAirport: form.arrivalAirport,
+      departureTime: form.departureTime,
+      arrivalTime: form.arrivalTime,
+      bookingRef: form.bookingRef,
+      seatNumber: form.seatNumber,
+      memo: taggedMemo,
+    };
     if (editId) updateMutation.mutate({ id: editId, ...payload });
     else createMutation.mutate({ tripId, ...payload });
   };

@@ -100,7 +100,7 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
     if (!trimmedName) { toast.error("숙소명을 입력해주세요."); return; }
     const cleanedMemo = removePreRegisterTag(accomForm.memo).trim();
     const taggedMemo = accomForm.preRegisterUrl.trim() ? `${cleanedMemo}${cleanedMemo ? "\n" : ""}${PRE_REGISTER_TAG}${normalizeUrl(accomForm.preRegisterUrl.trim())}` : cleanedMemo;
-    const payload = { ...accomForm, name: trimmedName, address: accomForm.address.trim() || undefined, checkIn: accomForm.checkIn || undefined, checkInTime: accomForm.checkInTime || undefined, checkOut: accomForm.checkOut || undefined, checkOutTime: accomForm.checkOutTime || undefined, bookingRef: accomForm.bookingRef.trim() || undefined, price: accomForm.price.trim() || undefined, currency: accomForm.currency || undefined, memo: taggedMemo || undefined };
+    const payload = { name: trimmedName, address: accomForm.address.trim() || undefined, checkIn: accomForm.checkIn || undefined, checkInTime: accomForm.checkInTime || undefined, checkOut: accomForm.checkOut || undefined, checkOutTime: accomForm.checkOutTime || undefined, bookingRef: accomForm.bookingRef.trim() || undefined, price: accomForm.price.trim() || undefined, currency: accomForm.currency || undefined, memo: taggedMemo || undefined };
     if (accomEditId) updateAccom.mutate({ id: accomEditId, tripId, ...payload });
     else createAccom.mutate({ tripId, ...payload });
   };
