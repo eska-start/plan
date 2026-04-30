@@ -415,12 +415,24 @@ export default function Home() {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch("/api/upload-notice", { method: "POST", body: formData, credentials: "include" });
-      const data = await res.json();
-      if (!res.ok || !data?.url) throw new Error(data?.error ?? "업로드 실패");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.url) throw new Error((data as { error?: string })?.error ?? "업로드 실패");
       setNoticeImages(prev => [...prev, data.url as string]);
       toast.success("이미지를 공지에 추가했습니다.");
     } catch {
-      toast.error("이미지 업로드에 실패했습니다.");
+      // 서버 업로드 실패 시 fallback: data URL로 공지에 포함
+      try {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("invalid image"));
+          reader.onerror = () => reject(new Error("file read failed"));
+          reader.readAsDataURL(file);
+        });
+        setNoticeImages(prev => [...prev, base64]);
+        toast.success("이미지를 공지에 추가했습니다. (임시 저장 방식)");
+      } catch {
+        toast.error("이미지 업로드에 실패했습니다.");
+      }
     } finally {
       event.target.value = "";
     }
