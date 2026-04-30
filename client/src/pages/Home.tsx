@@ -12,7 +12,7 @@ import {
   Plus, Trash2, ArrowRight, Loader2, LogIn, Eye, EyeOff,
   MapPin, Calendar, Plane, Hotel, Wallet,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { format, differenceInDays, parseISO, isBefore, isAfter } from "date-fns";
@@ -36,6 +36,11 @@ const defaultForm: TripFormData = {
   name: "", destination: "", startDate: "", endDate: "",
   coverColor: COVER_COLORS[0], description: "",
 };
+
+const ADMIN_OPEN_ID = "eska";
+const ADMIN_LOCAL_OPEN_ID = `local_${ADMIN_OPEN_ID}`;
+type GlobalNotice = { content: string; updatedAt: string; images?: string[] };
+const NOTICE_HIDE_UNTIL_KEY = "app-global-notice-hide-until";
 
 /* ── Auth Screen ──────────────────────────────────────────────────────────── */
 function AuthScreen() {
@@ -281,6 +286,29 @@ export default function Home() {
   const [editTrip, setEditTrip] = useState<number | null>(null);
   const [form, setForm] = useState<TripFormData>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [noticeEditorOpen, setNoticeEditorOpen] = useState(false);
+  const [noticePopupOpen, setNoticePopupOpen] = useState(false);
+  const [noticeDraft, setNoticeDraft] = useState("");
+  const [globalNotice, setGlobalNotice] = useState<GlobalNotice | null>(null);
+  const [noticeImages, setNoticeImages] = useState<string[]>([]);
+  const { data: serverNotice, refetch: refetchNotice } = trpc.system.getNotice.useQuery();
+  const setNoticeMutation = trpc.system.setNotice.useMutation();
+  const clearNoticeMutation = trpc.system.clearNotice.useMutation();
+
+  const isAdminUser = user?.role === "admin" || user?.openId === ADMIN_OPEN_ID || user?.openId === ADMIN_LOCAL_OPEN_ID;
+  const noticeUpdatedLabel = useMemo(() => {
+    if (!globalNotice?.updatedAt) return "";
+    const parsed = new Date(globalNotice.updatedAt);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return format(parsed, "yyyy.MM.dd HH:mm");
+  }, [globalNotice?.updatedAt]);
+
+  useEffect(() => {
+    setGlobalNotice(serverNotice ?? null);
+    const hideUntil = localStorage.getItem(NOTICE_HIDE_UNTIL_KEY);
+    const todayKey = format(new Date(), "yyyy-MM-dd");
+    setNoticePopupOpen(Boolean(serverNotice) && hideUntil !== todayKey);
+  }, [serverNotice]);
 
   const utils = trpc.useUtils();
   const {
@@ -330,6 +358,64 @@ export default function Home() {
     else createMutation.mutate(form);
   };
   const displayName = user?.name?.trim() || "사용자";
+  const saveNotice = async () => {
+    const content = noticeDraft.trim();
+    if (!content && noticeImages.length === 0) {
+      toast.error("공지 내용 또는 이미지를 입력해주세요.");
+      return;
+    }
+    try {
+      const nextNotice = await setNoticeMutation.mutateAsync({ content, images: noticeImages });
+      localStorage.removeItem(NOTICE_HIDE_UNTIL_KEY);
+      setGlobalNotice(nextNotice as GlobalNotice);
+      setNoticeDraft("");
+      setNoticeImages([]);
+      setNoticeEditorOpen(false);
+      setNoticePopupOpen(true);
+      toast.success("공지가 등록되었습니다.");
+      void refetchNotice();
+    } catch {
+      toast.error("공지 저장에 실패했습니다.");
+    }
+  };
+  const removeNotice = async () => {
+    try {
+      await clearNoticeMutation.mutateAsync();
+      localStorage.removeItem(NOTICE_HIDE_UNTIL_KEY);
+      setGlobalNotice(null);
+      setNoticeDraft("");
+      setNoticeImages([]);
+      setNoticePopupOpen(false);
+      setNoticeEditorOpen(false);
+      toast.success("공지가 삭제되었습니다.");
+      void refetchNotice();
+    } catch {
+      toast.error("공지 삭제에 실패했습니다.");
+    }
+  };
+  const hideNoticeToday = () => {
+    const todayKey = format(new Date(), "yyyy-MM-dd");
+    localStorage.setItem(NOTICE_HIDE_UNTIL_KEY, todayKey);
+    setNoticePopupOpen(false);
+    toast.success("오늘은 공지를 숨겼습니다.");
+  };
+  const handleNoticeImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") return;
+      setNoticeImages(prev => [...prev, reader.result as string]);
+      toast.success("이미지를 공지에 추가했습니다.");
+    };
+    reader.onerror = () => toast.error("이미지 업로드에 실패했습니다.");
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
 
   if (loading) return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3">
@@ -421,6 +507,19 @@ export default function Home() {
               </div>
               <span className="hidden sm:inline">{displayName}</span>
             </button>
+            {isAdminUser && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setNoticeDraft(globalNotice?.content ?? "");
+                  setNoticeImages(globalNotice?.images ?? []);
+                  setNoticeEditorOpen(true);
+                }}
+              >
+                공지사항 관리
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -584,7 +683,7 @@ export default function Home() {
 
       {/* Profile Dialog */}
       <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
-        <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl p-5 sm:p-6">
+        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="w-[calc(100%-2rem)] max-w-sm rounded-xl p-5 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold">프로필</DialogTitle>
           </DialogHeader>
@@ -616,6 +715,54 @@ export default function Home() {
               >
                 로그아웃
               </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notice Popup */}
+      <Dialog open={noticePopupOpen && Boolean(globalNotice)} onOpenChange={setNoticePopupOpen}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">공지사항</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{globalNotice?.content}</p>
+            {globalNotice?.images?.length ? (
+              <div className="grid grid-cols-1 gap-2">
+                {globalNotice.images.map((imageUrl, idx) => (
+                  <img key={`notice-image-${idx}`} src={imageUrl} alt={`공지 이미지 ${idx + 1}`} className="max-h-64 rounded-md border object-contain" />
+                ))}
+              </div>
+            ) : null}
+            {noticeUpdatedLabel && <p className="text-xs text-muted-foreground">업데이트: {noticeUpdatedLabel}</p>}
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={hideNoticeToday}>오늘은 보지 않기</Button>
+              <Button variant="outline" onClick={() => setNoticePopupOpen(false)}>닫기</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notice Editor (admin only) */}
+      <Dialog open={noticeEditorOpen && isAdminUser} onOpenChange={setNoticeEditorOpen}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">공지사항 관리</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              value={noticeDraft}
+              onChange={e => setNoticeDraft(e.target.value)}
+              rows={6}
+              placeholder="공지 내용을 입력하세요."
+              className="resize-none"
+            />
+            <Input type="file" accept="image/*" onChange={handleNoticeImageUpload} />
+            {noticeImages.length > 0 && <p className="text-xs text-muted-foreground">이미지 {noticeImages.length}개 첨부됨</p>}
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={saveNotice}>공지 저장/팝업 표시</Button>
+              <Button variant="destructive" className="flex-1" onClick={removeNotice} disabled={!globalNotice}>공지 삭제</Button>
             </div>
           </div>
         </DialogContent>
