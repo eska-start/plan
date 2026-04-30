@@ -8,28 +8,9 @@ import "./index.css";
 
 (window as Window & { __APP_BOOTSTRAPPED__?: boolean }).__APP_BOOTSTRAPPED__ = true;
 const TRPC_REQUEST_TIMEOUT_MS = 10_000;
-const MIN_SPLASH_MS = 2200;
+const PLANLOG_ICON_SRC = "/apple-touch-icon.svg?v=planlog-2";
 
-const PLANLOG_ICON_MARKUP = `
-<svg viewBox="0 0 64 64" width="32" height="32" fill="none" xmlns="http://www.w3.org/2000/svg" data-planlog-logo="true" aria-hidden="true">
-  <defs>
-    <linearGradient id="pl-small-pin" x1="18" y1="9" x2="49" y2="54" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#3B82F6"/><stop offset="1" stop-color="#2563EB"/>
-    </linearGradient>
-    <linearGradient id="pl-small-green" x1="11" y1="41" x2="29" y2="53" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#87DCCA"/><stop offset="1" stop-color="#55C7A9"/>
-    </linearGradient>
-    <linearGradient id="pl-small-blue" x1="38" y1="41" x2="56" y2="53" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#77B7FF"/><stop offset="1" stop-color="#3B82F6"/>
-    </linearGradient>
-  </defs>
-  <path d="M12 44C12 41 15 39 18 40L28 42C30 43 31 44 31 46L32 54C32 57 30 59 27 58L14 55C12 55 11 53 11 51L12 44Z" fill="url(#pl-small-green)"/>
-  <path d="M32 43L38 41C41 40 43 42 44 45L45 54C45 57 43 59 40 58L33 55C32 55 31 53 31 51L31 46C31 44 31 43 32 43Z" fill="#E5E7EB"/>
-  <path d="M44 42L55 40C58 39 60 41 59 44L58 51C58 53 57 55 55 55L42 58C39 59 37 57 38 54L40 46C41 44 42 42 44 42Z" fill="url(#pl-small-blue)"/>
-  <path d="M32 6C21 6 13 14 13 25C13 41 32 55 32 55C32 55 51 41 51 25C51 14 43 6 32 6Z" fill="url(#pl-small-pin)"/>
-  <circle cx="32" cy="25" r="11" fill="white"/>
-  <path d="M26 25L30 29L38 20" stroke="#2563EB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`;
+const PLANLOG_ICON_MARKUP = `<img src="${PLANLOG_ICON_SRC}" width="32" height="32" alt="" aria-hidden="true" data-planlog-logo="true" style="border-radius:8px;display:block;object-fit:contain" />`;
 
 function replaceNearbyLogo(element: Element) {
   const candidateGroups = [
@@ -40,9 +21,9 @@ function replaceNearbyLogo(element: Element) {
   ].filter(Boolean) as Element[];
 
   for (const group of candidateGroups) {
-    const svg = group.querySelector("svg:not([data-planlog-logo])");
-    if (svg) {
-      svg.outerHTML = PLANLOG_ICON_MARKUP;
+    const logo = group.querySelector("svg:not([data-planlog-logo]), img:not([data-planlog-logo])");
+    if (logo) {
+      logo.outerHTML = PLANLOG_ICON_MARKUP;
       return;
     }
   }
@@ -61,20 +42,11 @@ function applyPlanLogBranding() {
       replaceNearbyLogo(element);
     }
   });
-
-  document.querySelectorAll("svg:not([data-planlog-logo])").forEach(svg => {
-    const parentText = svg.parentElement?.textContent ?? "";
-    const nearbyText = svg.parentElement?.parentElement?.textContent ?? "";
-    if (parentText.includes("플랜로그") || nearbyText.includes("플랜로그")) {
-      svg.outerHTML = PLANLOG_ICON_MARKUP;
-    }
-  });
 }
 
 const brandObserver = new MutationObserver(() => applyPlanLogBranding());
 brandObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 queueMicrotask(applyPlanLogBranding);
-setInterval(applyPlanLogBranding, 350);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -127,13 +99,12 @@ const trpcClient = trpc.createClient({
 const rootElement = document.getElementById("root")!;
 const root = createRoot(rootElement);
 
-setTimeout(() => {
-  root.render(
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <App />
-      </QueryClientProvider>
-    </trpc.Provider>
-  );
-  requestAnimationFrame(applyPlanLogBranding);
-}, MIN_SPLASH_MS);
+root.render(
+  <trpc.Provider client={trpcClient} queryClient={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
+  </trpc.Provider>
+);
+
+requestAnimationFrame(applyPlanLogBranding);
