@@ -19,8 +19,13 @@ import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 function isMissingPreregistrationColumn(error: unknown) {
-  if (!(error instanceof Error)) return false;
-  return /Unknown column .*preregistrationUrl/i.test(error.message);
+  const message = typeof error === "object" && error !== null && "message" in error
+    ? String((error as { message?: unknown }).message ?? "")
+    : (error instanceof Error ? error.message : String(error ?? ""));
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code?: unknown }).code ?? "")
+    : "";
+  return /Unknown column .*preregistrationUrl/i.test(message) || code === "ER_BAD_FIELD_ERROR";
 }
 
 export async function getDb() {
