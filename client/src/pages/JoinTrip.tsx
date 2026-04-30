@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { Loader2, Plane, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TRPCClientError } from "@trpc/client";
@@ -10,6 +9,7 @@ import { TRPCClientError } from "@trpc/client";
 export default function JoinTrip() {
   const { token } = useParams<{ token: string }>();
   const [, setLocation] = useLocation();
+  const loginNextPath = `/?next=${encodeURIComponent(`/join/${token ?? ""}`)}`;
   const { user, isAuthenticated, loading: authLoading, error: authError, refresh } = useAuth();
   const isGuestUser = user?.loginMethod === "guest";
   const [status, setStatus] = useState<"idle" | "joining" | "success" | "error">("idle");
@@ -71,10 +71,10 @@ export default function JoinTrip() {
           </p>
         </div>
         <Button
-          onClick={() => window.location.href = getLoginUrl()}
+          onClick={() => setLocation(loginNextPath)}
           className="w-full max-w-xs"
         >
-          로그인 후 참여하기
+          초대 수락하고 로그인/회원가입
         </Button>
       </div>
     );
