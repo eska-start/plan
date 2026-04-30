@@ -25,12 +25,35 @@ type FormData = {
   price: string;
   currency: string;
   memo: string;
+  preRegistrationUrl: string;
 };
 
 const defaultForm: FormData = {
   name: "", address: "", checkIn: "", checkOut: "",
   bookingRef: "", price: "", currency: "KRW", memo: "",
+  preRegistrationUrl: "",
 };
+
+const PRE_REG_PREFIX = "[사전등록]";
+const urlRegex = /(https?:\/\/[^\s]+)/g;
+const isUrl = (value: string) => /^https?:\/\/[^\s]+$/.test(value);
+
+function parseMemoAndPreRegistration(rawMemo?: string | null) {
+  if (!rawMemo) return { memo: "", preRegistrationUrl: "" };
+  const lines = rawMemo.split("\n");
+  const preRegLine = lines.find((line) => line.trim().startsWith(PRE_REG_PREFIX));
+  const preRegistrationUrl = preRegLine ? preRegLine.replace(PRE_REG_PREFIX, "").trim() : "";
+  const memo = lines.filter((line) => !line.trim().startsWith(PRE_REG_PREFIX)).join("\n").trim();
+  return { memo, preRegistrationUrl };
+}
+
+function buildMemoWithPreRegistration(memo: string, preRegistrationUrl: string) {
+  const cleanedMemo = memo.trim();
+  const cleanedUrl = preRegistrationUrl.trim();
+  if (cleanedMemo && cleanedUrl) return `${cleanedMemo}\n${PRE_REG_PREFIX} ${cleanedUrl}`;
+  if (cleanedUrl) return `${PRE_REG_PREFIX} ${cleanedUrl}`;
+  return cleanedMemo;
+}
 
 function formatDate(d?: string | null) {
   if (!d) return "-";
@@ -88,6 +111,7 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
 
   const openCreate = () => { setEditId(null); setForm(defaultForm); setDialogOpen(true); };
   const openEdit = (a: NonNullable<typeof accommodations>[number]) => {
+    const parsedMemo = parseMemoAndPreRegistration(a.memo);
     setEditId(a.id);
     setForm({
       name: a.name,
@@ -97,7 +121,8 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
       bookingRef: a.bookingRef ?? "",
       price: a.price?.toString() ?? "",
       currency: a.currency ?? "KRW",
-      memo: a.memo ?? "",
+      memo: parsedMemo.memo,
+      preRegistrationUrl: parsedMemo.preRegistrationUrl,
     });
     setDialogOpen(true);
   };
@@ -118,7 +143,7 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
       bookingRef: form.bookingRef.trim() || undefined,
       price: form.price.trim() || undefined,
       currency: form.currency || undefined,
-      memo: form.memo.trim() || undefined,
+      memo: buildMemoWithPreRegistration(form.memo, form.preRegistrationUrl) || undefined,
     };
     if (editId) {
       updateMutation.mutate({ id: editId, tripId, ...payload });
@@ -142,7 +167,9 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
         emptyDescription="숙소 예약 정보를 추가해보세요."
       >
         <div className="space-y-3">
-          {accommodations?.map(a => (
+          {accommodations?.map(a => {
+            const parsedMemo = parseMemoAndPreRegistration(a.memo);
+            return (
             <div key={a.id} className="card-hover p-4 sm:p-5">
               <div className="flex items-start justify-between mb-3 gap-2">
                 <div className="min-w-0">
@@ -158,6 +185,17 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
                   )}
                 </div>
                 <div className="flex gap-1 shrink-0">
+                  {parsedMemo.preRegistrationUrl && (
+                    <a
+                      href={parsedMemo.preRegistrationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors"
+                      title="사전등록 링크 열기"
+                    >
+                      사전등록
+                    </a>
+                  )}
                   <a
                     href={`https://maps.google.com/?q=${encodeURIComponent([a.name, a.address].filter(Boolean).join(" "))}`}
                     target="_blank"
@@ -204,9 +242,21 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
                   <span className="font-medium text-foreground">{Number(a.price).toLocaleString()} {a.currency}</span>
                 )}
               </div>
-              {a.memo && <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">{a.memo}</p>}
+              {parsedMemo.memo && (
+                <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border whitespace-pre-wrap break-words">
+                  {parsedMemo.memo.split(urlRegex).map((part, idx) => (
+                    isUrl(part) ? (
+                      <a key={`${a.id}-memo-link-${idx}`} href={part} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 break-all">
+                        {part}
+                      </a>
+                    ) : (
+                      <span key={`${a.id}-memo-text-${idx}`}>{part}</span>
+                    )
+                  ))}
+                </p>
+              )}
             </div>
-          ))}
+          )})}
         </div>
       </TabShell>
 
@@ -282,6 +332,10 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
                 <Label className="text-sm font-medium">금액</Label>
                 <Input className="h-10" placeholder="200000" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">사전등록 URL</Label>
+              <Input className="h-10" placeholder="https://..." value={form.preRegistrationUrl} onChange={e => setForm(f => ({ ...f, preRegistrationUrl: e.target.value }))} />
             </div>
             {/* 메모 */}
             <div className="space-y-1.5">

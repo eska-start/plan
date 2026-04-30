@@ -16,6 +16,8 @@ import { ko } from "date-fns/locale";
 
 type FormData = { title: string; content: string; pinned: boolean };
 const defaultForm: FormData = { title: "", content: "", pinned: false };
+const urlRegex = /(https?:\/\/[^\s]+)/g;
+const isUrl = (value: string) => /^https?:\/\/[^\s]+$/.test(value);
 
 export default function MemosTab({ tripId }: { tripId: number }) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -89,7 +91,17 @@ export default function MemosTab({ tripId }: { tripId: number }) {
                 </p>
               </div>
               {m.content && (
-                <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap mb-3 line-clamp-6">{m.content}</p>
+                <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap mb-3 line-clamp-6 break-words">
+                  {m.content.split(urlRegex).map((part, idx) => (
+                    isUrl(part) ? (
+                      <a key={`${m.id}-link-${idx}`} href={part} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 break-all">
+                        {part}
+                      </a>
+                    ) : (
+                      <span key={`${m.id}-text-${idx}`}>{part}</span>
+                    )
+                  ))}
+                </p>
               )}
               <div className="flex items-center gap-1 pt-2 border-t border-border">
                 <button onClick={() => togglePin(m)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
