@@ -38,6 +38,7 @@ const defaultForm: TripFormData = {
 };
 
 const ADMIN_OPEN_ID = "eska";
+const ADMIN_LOCAL_OPEN_ID = `local_${ADMIN_OPEN_ID}`;
 const NOTICE_STORAGE_KEY = "app-global-notice";
 type GlobalNotice = { content: string; updatedAt: string };
 const NOTICE_HIDE_UNTIL_KEY = "app-global-notice-hide-until";
@@ -291,7 +292,7 @@ export default function Home() {
   const [noticeDraft, setNoticeDraft] = useState("");
   const [globalNotice, setGlobalNotice] = useState<GlobalNotice | null>(null);
 
-  const isAdminUser = user?.openId === ADMIN_OPEN_ID;
+  const isAdminUser = user?.role === "admin" || user?.openId === ADMIN_OPEN_ID || user?.openId === ADMIN_LOCAL_OPEN_ID;
   const noticeUpdatedLabel = useMemo(() => {
     if (!globalNotice?.updatedAt) return "";
     const parsed = new Date(globalNotice.updatedAt);
