@@ -55,7 +55,7 @@ function CategoryPill({ category }: { category: string }) {
   );
 }
 
-export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tripDays: Date[] }) {
+export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: { tripId: number; tripDays: Date[]; isGuestUser?: boolean }) {
   const utils = trpc.useUtils();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [allItemsOpen, setAllItemsOpen] = useState(false);
@@ -191,6 +191,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
   }
 
   async function handleAiText() {
+    if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; }
     if (!aiText.trim()) return;
     setAiLoading(true);
     try {
@@ -209,6 +210,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
   }
 
   async function handleAiImage(file: File) {
+    if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; }
     setAiLoading(true);
     try {
       const img = new Image(); const url = URL.createObjectURL(file);
@@ -265,7 +267,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => { setAiMode(aiMode ? null : "text"); setAiItems([]); }} size="sm" variant="outline" className="gap-1.5">
+          <Button onClick={() => { if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; } setAiMode(aiMode ? null : "text"); setAiItems([]); }} size="sm" variant="outline" className="gap-1.5">
             <Sparkles className="w-3.5 h-3.5" />AI 입력
           </Button>
           <Button onClick={() => openCreate()} size="sm" className="gap-1.5">
