@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X, ImagePlus } from "lucide-react";
+import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,6 +11,7 @@ import FadeIn from "@/components/FadeIn";
 
 interface Props {
   tripId: number;
+  isGuestUser?: boolean;
 }
 
 const GROUP_COLORS: Record<string, string> = {
@@ -20,7 +21,7 @@ const GROUP_COLORS: Record<string, string> = {
   기타: "#FBEFCC",
 };
 
-export default function ChecklistTab({ tripId }: Props) {
+export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
   const utils = trpc.useUtils();
   const { data: items, isLoading } = trpc.checklist.list.useQuery({ tripId });
   const seed = trpc.checklist.seed.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
@@ -37,7 +38,6 @@ export default function ChecklistTab({ tripId }: Props) {
 
   const [newLabel, setNewLabel] = useState("");
   const [newGroup, setNewGroup] = useState("기타");
-  const [newImageUrl, setNewImageUrl] = useState<string | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const [aiMode, setAiMode] = useState<"text" | "image" | null>(null);
   const [aiText, setAiText] = useState("");
@@ -45,13 +45,12 @@ export default function ChecklistTab({ tripId }: Props) {
   const [aiItems, setAiItems] = useState<Array<{ group: string; label: string; selected: boolean }>>([]);
   const aiCameraRef = useRef<HTMLInputElement>(null);
   const aiPhotoRef = useRef<HTMLInputElement>(null);
-  const itemImageRef = useRef<HTMLInputElement>(null);
-  const [imageTargetId, setImageTargetId] = useState<number | null>(null);
 
   const aiExtractMutation = trpc.checklist.aiExtract.useMutation();
   const aiExtractImageMutation = trpc.checklist.aiExtractFromImage.useMutation();
 
   async function handleAiText() {
+    if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; }
     if (!aiText.trim()) return;
     setAiLoading(true);
     try {
@@ -69,6 +68,7 @@ export default function ChecklistTab({ tripId }: Props) {
   }
 
   async function handleAiImage(file: File) {
+    if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; }
     setAiLoading(true);
     try {
       const img = new Image(); const url = URL.createObjectURL(file);
@@ -124,20 +124,10 @@ export default function ChecklistTab({ tripId }: Props) {
   const total = (items ?? []).length;
   const done = (items ?? []).filter(i => i.done).length;
 
-  async function toDataUrl(file: File) {
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
   async function handleAdd() {
     if (!newLabel.trim()) return;
-    await create.mutateAsync({ tripId, group: newGroup, label: newLabel.trim(), imageUrl: newImageUrl });
+    await create.mutateAsync({ tripId, group: newGroup, label: newLabel.trim() });
     setNewLabel("");
-    setNewImageUrl(null);
   }
 
   if (isLoading) {
@@ -161,7 +151,7 @@ export default function ChecklistTab({ tripId }: Props) {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-[#7CC8B0]">{done} / {total}</span>
-            <Button size="sm" variant="outline" onClick={() => { setAiMode(aiMode ? null : "text"); setAiItems([]); }} className="gap-1.5 h-7 text-xs px-2">
+            <Button size="sm" variant="outline" onClick={() => { if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; } setAiMode(aiMode ? null : "text"); setAiItems([]); }} className="gap-1.5 h-7 text-xs px-2">
               <Sparkles className="w-3 h-3" />AI
             </Button>
           </div>
@@ -285,9 +275,6 @@ export default function ChecklistTab({ tripId }: Props) {
                       </a>
                     )}
                   </span>
-                  <button onClick={() => { setImageTargetId(item.id); itemImageRef.current?.click(); }} className="text-muted-foreground hover:text-primary shrink-0">
-                    <ImagePlus className="w-4 h-4" />
-                  </button>
                   {item.imageUrl && (
                     <button onClick={() => update.mutate({ id: item.id, imageUrl: null })} className="text-muted-foreground hover:text-destructive shrink-0" title="이미지 제거">
                       <X className="w-4 h-4" />
@@ -327,32 +314,11 @@ export default function ChecklistTab({ tripId }: Props) {
             onChange={e => setNewLabel(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleAdd()}
           />
-          <Button type="button" variant="outline" size="sm" onClick={() => { setImageTargetId(null); itemImageRef.current?.click(); }} className="gap-1.5 shrink-0">
-            <ImagePlus className="w-3.5 h-3.5" />이미지
-          </Button>
           <Button size="sm" onClick={handleAdd} disabled={create.isPending || !newLabel.trim()} className="gap-1 shrink-0">
             <Plus className="w-3.5 h-3.5" />
           </Button>
         </div>
-        {newImageUrl && (
-          <div className="pt-1">
-            <img src={newImageUrl} alt="새 항목 이미지" className="w-20 h-20 rounded-md object-cover border" />
-          </div>
-        )}
       </div>
-
-      <input ref={itemImageRef} type="file" accept="image/*" className="hidden" onChange={async e => {
-        const f = e.target.files?.[0];
-        if (!f) return;
-        const dataUrl = await toDataUrl(f);
-        if (imageTargetId != null) {
-          await update.mutateAsync({ id: imageTargetId, imageUrl: dataUrl });
-          setImageTargetId(null);
-        } else {
-          setNewImageUrl(dataUrl);
-        }
-        e.target.value = "";
-      }} />
 
       <AlertDialog open={deleteItemId !== null} onOpenChange={(open) => { if (!open) setDeleteItemId(null); }}>
         <AlertDialogContent>
