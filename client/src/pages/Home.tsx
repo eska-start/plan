@@ -39,7 +39,6 @@ const defaultForm: TripFormData = {
 
 const ADMIN_OPEN_ID = "eska";
 const ADMIN_LOCAL_OPEN_ID = `local_${ADMIN_OPEN_ID}`;
-const NOTICE_STORAGE_KEY = "app-global-notice";
 type GlobalNotice = { content: string; updatedAt: string; images?: string[] };
 const NOTICE_HIDE_UNTIL_KEY = "app-global-notice-hide-until";
 
@@ -302,23 +301,22 @@ export default function Home() {
   }, [globalNotice?.updatedAt]);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(NOTICE_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as GlobalNotice | null;
-      const legacyImages = typeof parsed?.content === "string"
-        ? Array.from(parsed.content.matchAll(/!\[[^\]]*\]\((.+)\)/g)).map(match => match[1]).filter(Boolean)
-        : [];
-      const normalizedContent = (parsed?.content ?? "").replace(/!\[[^\]]*\]\((.+)\)/g, "").trim();
-      const normalizedImages = Array.isArray(parsed?.images) ? parsed.images : legacyImages;
-      if (!normalizedContent && normalizedImages.length === 0) return;
-      setGlobalNotice({ content: normalizedContent, images: normalizedImages, updatedAt: parsed?.updatedAt ?? new Date().toISOString() });
-      const hideUntil = localStorage.getItem(NOTICE_HIDE_UNTIL_KEY);
-      const todayKey = format(new Date(), "yyyy-MM-dd");
-      setNoticePopupOpen(hideUntil !== todayKey);
-    } catch {
-      // ignore invalid localStorage
-    }
+    const loadNotice = async () => {
+      try {
+        const res = await fetch("/api/notice", { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json() as { notice?: GlobalNotice | null };
+        const parsed = data.notice;
+        if (!parsed) return;
+        setGlobalNotice(parsed);
+        const hideUntil = localStorage.getItem(NOTICE_HIDE_UNTIL_KEY);
+        const todayKey = format(new Date(), "yyyy-MM-dd");
+        setNoticePopupOpen(hideUntil !== todayKey);
+      } catch {
+        // ignore notice load failure
+      }
+    };
+    void loadNotice();
   }, []);
 
   const utils = trpc.useUtils();
@@ -369,17 +367,23 @@ export default function Home() {
     else createMutation.mutate(form);
   };
   const displayName = user?.name?.trim() || "사용자";
-  const saveNotice = () => {
+  const saveNotice = async () => {
     const content = noticeDraft.trim();
     if (!content && noticeImages.length === 0) {
       toast.error("공지 내용 또는 이미지를 입력해주세요.");
       return;
     }
     try {
-      const nextNotice = { content, images: noticeImages, updatedAt: new Date().toISOString() };
-      localStorage.setItem(NOTICE_STORAGE_KEY, JSON.stringify(nextNotice));
+      const res = await fetch("/api/notice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ content, images: noticeImages }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      const data = await res.json() as { notice: GlobalNotice };
       localStorage.removeItem(NOTICE_HIDE_UNTIL_KEY);
-      setGlobalNotice(nextNotice);
+      setGlobalNotice(data.notice);
       setNoticeDraft("");
       setNoticeImages([]);
       setNoticeEditorOpen(false);
@@ -389,8 +393,8 @@ export default function Home() {
       toast.error("공지 저장에 실패했습니다. 이미지 크기를 줄여 다시 시도해주세요.");
     }
   };
-  const removeNotice = () => {
-    localStorage.removeItem(NOTICE_STORAGE_KEY);
+  const removeNotice = async () => {
+    await fetch("/api/notice", { method: "DELETE", credentials: "include" });
     localStorage.removeItem(NOTICE_HIDE_UNTIL_KEY);
     setGlobalNotice(null);
     setNoticeDraft("");
