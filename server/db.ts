@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import {
@@ -18,6 +18,10 @@ import {
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+function isMissingPreregistrationColumn(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  return /Unknown column .*preregistrationUrl/i.test(error.message);
+}
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
@@ -206,13 +210,29 @@ export async function getFlightsByTrip(tripId: number, userId: number) {
   if (!db) return [];
   const trip = await getTripById(tripId, userId);
   if (!trip) return [];
-  return db.select().from(flights).where(eq(flights.tripId, tripId)).orderBy(asc(flights.departureTime));
+  try {
+    return await db.select().from(flights).where(eq(flights.tripId, tripId)).orderBy(asc(flights.departureTime));
+  } catch (error) {
+    if (!isMissingPreregistrationColumn(error)) throw error;
+    return db.select({
+      id: flights.id, tripId: flights.tripId, userId: flights.userId, type: flights.type, airline: flights.airline,
+      flightNumber: flights.flightNumber, departureAirport: flights.departureAirport, arrivalAirport: flights.arrivalAirport,
+      departureTime: flights.departureTime, arrivalTime: flights.arrivalTime, bookingRef: flights.bookingRef, seatNumber: flights.seatNumber,
+      memo: flights.memo, createdAt: flights.createdAt, updatedAt: flights.updatedAt, preregistrationUrl: sql`null`,
+    }).from(flights).where(eq(flights.tripId, tripId)).orderBy(asc(flights.departureTime));
+  }
 }
 
 export async function createFlight(data: InsertFlight) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.insert(flights).values(data);
+  try {
+    await db.insert(flights).values(data);
+  } catch (error) {
+    if (!isMissingPreregistrationColumn(error)) throw error;
+    const { preregistrationUrl: _ignored, ...legacyData } = data as InsertFlight & { preregistrationUrl?: string | null };
+    await db.insert(flights).values(legacyData);
+  }
 }
 
 export async function updateFlight(id: number, userId: number, data: Partial<InsertFlight>) {
@@ -223,7 +243,13 @@ export async function updateFlight(id: number, userId: number, data: Partial<Ins
   if (!row[0]) throw new Error("Not found");
   const trip = await getTripById(row[0].tripId, userId);
   if (!trip) throw new Error("No access");
-  await db.update(flights).set(data).where(eq(flights.id, id));
+  try {
+    await db.update(flights).set(data).where(eq(flights.id, id));
+  } catch (error) {
+    if (!isMissingPreregistrationColumn(error)) throw error;
+    const { preregistrationUrl: _ignored, ...legacyData } = data as Partial<InsertFlight> & { preregistrationUrl?: string | null };
+    await db.update(flights).set(legacyData).where(eq(flights.id, id));
+  }
 }
 
 export async function deleteFlight(id: number, userId: number) {
@@ -277,13 +303,30 @@ export async function getAccommodationsByTrip(tripId: number, userId: number) {
   if (!db) return [];
   const trip = await getTripById(tripId, userId);
   if (!trip) return [];
-  return db.select().from(accommodations).where(eq(accommodations.tripId, tripId)).orderBy(asc(accommodations.checkIn));
+  try {
+    return await db.select().from(accommodations).where(eq(accommodations.tripId, tripId)).orderBy(asc(accommodations.checkIn));
+  } catch (error) {
+    if (!isMissingPreregistrationColumn(error)) throw error;
+    return db.select({
+      id: accommodations.id, tripId: accommodations.tripId, userId: accommodations.userId, name: accommodations.name, address: accommodations.address,
+      checkIn: accommodations.checkIn, checkInTime: accommodations.checkInTime, checkOut: accommodations.checkOut, checkOutTime: accommodations.checkOutTime,
+      bookingRef: accommodations.bookingRef, price: accommodations.price, currency: accommodations.currency, memo: accommodations.memo,
+      createdAt: accommodations.createdAt, updatedAt: accommodations.updatedAt, preregistrationUrl: sql`null`,
+    }).from(accommodations).where(eq(accommodations.tripId, tripId)).orderBy(asc(accommodations.checkIn));
+  }
 }
 
 export async function createAccommodation(data: InsertAccommodation) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const r = await db.insert(accommodations).values(data);
+  let r;
+  try {
+    r = await db.insert(accommodations).values(data);
+  } catch (error) {
+    if (!isMissingPreregistrationColumn(error)) throw error;
+    const { preregistrationUrl: _ignored, ...legacyData } = data as InsertAccommodation & { preregistrationUrl?: string | null };
+    r = await db.insert(accommodations).values(legacyData);
+  }
   // insertId from mysql2
   const insertId = (r[0] as any).insertId as number;
   return insertId;
@@ -296,7 +339,13 @@ export async function updateAccommodation(id: number, userId: number, data: Part
   if (!row[0]) throw new Error("Not found");
   const trip = await getTripById(row[0].tripId, userId);
   if (!trip) throw new Error("No access");
-  await db.update(accommodations).set(data).where(eq(accommodations.id, id));
+  try {
+    await db.update(accommodations).set(data).where(eq(accommodations.id, id));
+  } catch (error) {
+    if (!isMissingPreregistrationColumn(error)) throw error;
+    const { preregistrationUrl: _ignored, ...legacyData } = data as Partial<InsertAccommodation> & { preregistrationUrl?: string | null };
+    await db.update(accommodations).set(legacyData).where(eq(accommodations.id, id));
+  }
 }
 
 export async function deleteAccommodation(id: number, userId: number) {
