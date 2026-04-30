@@ -6,19 +6,55 @@
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta name="theme-color" content="#3B82F6" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="플랜로그" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>플랜로그 PlanLog</title>
     <link rel="icon" href="/apple-touch-icon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet" />
-    <style>@keyframes _ld{to{transform:rotate(360deg)}}</style>
+    <style>
+      @keyframes planlog-float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-8px) scale(1.04); } }
+      @keyframes planlog-dash { to { stroke-dashoffset: -160; } }
+      @keyframes planlog-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      .planlog-splash { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(145deg, #f8fbff 0%, #eef6ff 48%, #ecfdf5 100%); font-family: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: #0f172a; }
+      .planlog-splash-card { display: flex; flex-direction: column; align-items: center; gap: 18px; animation: planlog-fade .45s ease both; }
+      .planlog-splash-icon { width: 92px; height: 92px; filter: drop-shadow(0 18px 28px rgba(37, 99, 235, .18)); animation: planlog-float 1.9s ease-in-out infinite; }
+      .planlog-route { stroke-dasharray: 18 14; animation: planlog-dash 2s linear infinite; }
+      .planlog-splash-title { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.04em; }
+      .planlog-splash-sub { margin: -8px 0 0; font-size: 13px; font-weight: 600; color: #64748b; letter-spacing: .02em; }
+    </style>
     <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
   </head>
 
   <body>
-    <div id="root"><div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff"><div style="width:28px;height:28px;border:3px solid #e2e8f0;border-top-color:#5BB4D8;border-radius:50%;animation:_ld 0.8s linear infinite"></div></div></div>
+    <div id="root">
+      <div class="planlog-splash" role="status" aria-label="플랜로그를 불러오는 중">
+        <div class="planlog-splash-card">
+          <svg class="planlog-splash-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="splash-bg" x1="120" y1="80" x2="920" y2="960" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#EFF6FF"/><stop offset="1" stop-color="#ECFDF5"/>
+              </linearGradient>
+              <linearGradient id="splash-pin" x1="300" y1="170" x2="730" y2="880" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#60A5FA"/><stop offset="1" stop-color="#2563EB"/>
+              </linearGradient>
+            </defs>
+            <rect width="1024" height="1024" rx="230" fill="url(#splash-bg)"/>
+            <path class="planlog-route" d="M176 724 C304 626 418 650 540 720 C690 806 818 780 900 650" fill="none" stroke="#34D399" stroke-width="44" stroke-linecap="round"/>
+            <path d="M512 170 C376 170 272 276 272 412 C272 652 512 882 512 882 C512 882 752 652 752 412 C752 276 648 170 512 170 Z" fill="url(#splash-pin)"/>
+            <circle cx="512" cy="410" r="124" fill="#FFFFFF"/>
+            <path d="M438 410 L498 470 L624 338" fill="none" stroke="#2563EB" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <h1 class="planlog-splash-title">플랜로그</h1>
+          <p class="planlog-splash-sub">여행을 계획하고 기록하는 중</p>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 
