@@ -31,18 +31,25 @@ async function hasColumn(tableName: "flights" | "accommodations", columnName: "p
   if (cached !== undefined) return cached;
   const db = await getDb();
   if (!db) return false;
-  const res = await db.execute(sql`
-    SELECT 1 as ok
-    FROM information_schema.columns
-    WHERE table_schema = database()
-      AND table_name = ${tableName}
-      AND column_name = ${columnName}
-    LIMIT 1
-  `);
-  const rows = Array.isArray(res) ? res : ((res as { rows?: unknown[] })?.rows ?? []);
-  const exists = Array.isArray(rows) && rows.length > 0;
-  columnExistsCache.set(cacheKey, exists);
-  return exists;
+  try {
+    const res = await db.execute(sql`
+      SELECT 1 as ok
+      FROM information_schema.columns
+      WHERE table_schema = database()
+        AND table_name = ${tableName}
+        AND column_name = ${columnName}
+      LIMIT 1
+    `);
+    const rows = Array.isArray(res)
+      ? (Array.isArray(res[0]) ? res[0] : res)
+      : ((res as { rows?: unknown[] })?.rows ?? []);
+    const exists = Array.isArray(rows) && rows.length > 0;
+    columnExistsCache.set(cacheKey, exists);
+    return exists;
+  } catch {
+    columnExistsCache.set(cacheKey, false);
+    return false;
+  }
 }
 
 export async function getDb() {
