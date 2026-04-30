@@ -8,41 +8,73 @@ import "./index.css";
 
 (window as Window & { __APP_BOOTSTRAPPED__?: boolean }).__APP_BOOTSTRAPPED__ = true;
 const TRPC_REQUEST_TIMEOUT_MS = 10_000;
+const MIN_SPLASH_MS = 2200;
 
 const PLANLOG_ICON_MARKUP = `
 <svg viewBox="0 0 64 64" width="32" height="32" fill="none" xmlns="http://www.w3.org/2000/svg" data-planlog-logo="true" aria-hidden="true">
-  <rect width="64" height="64" rx="17" fill="#EFF6FF"/>
-  <path d="M12 46C18 41 24 43 31 46C38 49 46 49 52 43" stroke="#34D399" stroke-width="4" stroke-linecap="round"/>
-  <path d="M32 9C22.6 9 15 16.6 15 26C15 39.5 32 54 32 54C32 54 49 39.5 49 26C49 16.6 41.4 9 32 9Z" fill="#3B82F6"/>
-  <circle cx="32" cy="26" r="11" fill="white"/>
-  <path d="M26 26L30 30L38 21" stroke="#2563EB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="pl-small-pin" x1="18" y1="9" x2="49" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3B82F6"/><stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="pl-small-green" x1="11" y1="41" x2="29" y2="53" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#87DCCA"/><stop offset="1" stop-color="#55C7A9"/>
+    </linearGradient>
+    <linearGradient id="pl-small-blue" x1="38" y1="41" x2="56" y2="53" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#77B7FF"/><stop offset="1" stop-color="#3B82F6"/>
+    </linearGradient>
+  </defs>
+  <path d="M12 44C12 41 15 39 18 40L28 42C30 43 31 44 31 46L32 54C32 57 30 59 27 58L14 55C12 55 11 53 11 51L12 44Z" fill="url(#pl-small-green)"/>
+  <path d="M32 43L38 41C41 40 43 42 44 45L45 54C45 57 43 59 40 58L33 55C32 55 31 53 31 51L31 46C31 44 31 43 32 43Z" fill="#E5E7EB"/>
+  <path d="M44 42L55 40C58 39 60 41 59 44L58 51C58 53 57 55 55 55L42 58C39 59 37 57 38 54L40 46C41 44 42 42 44 42Z" fill="url(#pl-small-blue)"/>
+  <path d="M32 6C21 6 13 14 13 25C13 41 32 55 32 55C32 55 51 41 51 25C51 14 43 6 32 6Z" fill="url(#pl-small-pin)"/>
+  <circle cx="32" cy="25" r="11" fill="white"/>
+  <path d="M26 25L30 29L38 20" stroke="#2563EB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-function applyPlanLogBranding() {
-  const brandTexts = Array.from(document.querySelectorAll("h1, span, p"));
+function replaceNearbyLogo(element: Element) {
+  const candidateGroups = [
+    element.closest(".text-center"),
+    element.closest(".flex"),
+    element.parentElement,
+    element.parentElement?.parentElement,
+  ].filter(Boolean) as Element[];
 
-  brandTexts.forEach(element => {
+  for (const group of candidateGroups) {
+    const svg = group.querySelector("svg:not([data-planlog-logo])");
+    if (svg) {
+      svg.outerHTML = PLANLOG_ICON_MARKUP;
+      return;
+    }
+  }
+}
+
+function applyPlanLogBranding() {
+  const elements = Array.from(document.querySelectorAll("h1, h2, span, p, a"));
+
+  elements.forEach(element => {
     const text = element.textContent?.trim();
     if (!text) return;
 
-    if (text.includes("Voya") || text.includes("Travel Journal")) {
+    if (text.includes("Voya") || text.includes("Travel Journal") || text.includes("Voya·journal")) {
       element.textContent = "플랜로그";
       element.classList.add("planlog-brand-text");
+      replaceNearbyLogo(element);
     }
   });
 
-  document.querySelectorAll(".planlog-brand-text").forEach(element => {
-    const headerGroup = element.closest(".text-center, .flex, div");
-    const targetSvg = headerGroup?.querySelector("svg:not([data-planlog-logo])");
-    if (targetSvg) {
-      targetSvg.outerHTML = PLANLOG_ICON_MARKUP;
+  document.querySelectorAll("svg:not([data-planlog-logo])").forEach(svg => {
+    const parentText = svg.parentElement?.textContent ?? "";
+    const nearbyText = svg.parentElement?.parentElement?.textContent ?? "";
+    if (parentText.includes("플랜로그") || nearbyText.includes("플랜로그")) {
+      svg.outerHTML = PLANLOG_ICON_MARKUP;
     }
   });
 }
 
 const brandObserver = new MutationObserver(() => applyPlanLogBranding());
-brandObserver.observe(document.documentElement, { childList: true, subtree: true });
+brandObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 queueMicrotask(applyPlanLogBranding);
+setInterval(applyPlanLogBranding, 350);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,8 +82,6 @@ const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: 30_000,
-      // 인증 오류 시 자동 리다이렉트 제거 — 리다이렉트 루프 방지
-      // 각 페이지에서 isAuthenticated 상태로 직접 처리
       retry: 1,
       retryDelay: 1_000,
     },
@@ -72,8 +102,6 @@ queryClient.getMutationCache().subscribe(event => {
 
 const trpcClient = trpc.createClient({
   links: [
-    // 전체 왕복 횟수를 줄이기 위해 batch 링크 사용.
-    // 각 batch 요청에도 abort timeout을 적용해 무한 대기 방지.
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
@@ -96,10 +124,16 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-createRoot(document.getElementById("root")!).render(
-  <trpc.Provider client={trpcClient} queryClient={queryClient}>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
-  </trpc.Provider>
-);
+const rootElement = document.getElementById("root")!;
+const root = createRoot(rootElement);
+
+setTimeout(() => {
+  root.render(
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </trpc.Provider>
+  );
+  requestAnimationFrame(applyPlanLogBranding);
+}, MIN_SPLASH_MS);
