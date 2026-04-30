@@ -18,9 +18,31 @@ import {
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+const columnExistsCache = new Map<string, boolean>();
+
 function withoutPreregistrationUrl<T extends object>(data: T): Omit<T, "preregistrationUrl"> {
   const { preregistrationUrl: _ignored, ...rest } = data as T & { preregistrationUrl?: unknown };
   return rest;
+}
+
+async function hasColumn(tableName: "flights" | "accommodations", columnName: "preregistrationUrl") {
+  const cacheKey = `${tableName}.${columnName}`;
+  const cached = columnExistsCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const db = await getDb();
+  if (!db) return false;
+  const res = await db.execute(sql`
+    SELECT 1 as ok
+    FROM information_schema.columns
+    WHERE table_schema = database()
+      AND table_name = ${tableName}
+      AND column_name = ${columnName}
+    LIMIT 1
+  `);
+  const rows = Array.isArray(res) ? res : ((res as { rows?: unknown[] })?.rows ?? []);
+  const exists = Array.isArray(rows) && rows.length > 0;
+  columnExistsCache.set(cacheKey, exists);
+  return exists;
 }
 
 export async function getDb() {
@@ -210,6 +232,10 @@ export async function getFlightsByTrip(tripId: number, userId: number) {
   if (!db) return [];
   const trip = await getTripById(tripId, userId);
   if (!trip) return [];
+  const canUsePreregistrationUrl = await hasColumn("flights", "preregistrationUrl");
+  if (canUsePreregistrationUrl) {
+    return db.select().from(flights).where(eq(flights.tripId, tripId)).orderBy(asc(flights.departureTime));
+  }
   return db.select({
     id: flights.id, tripId: flights.tripId, userId: flights.userId, type: flights.type, airline: flights.airline,
     flightNumber: flights.flightNumber, departureAirport: flights.departureAirport, arrivalAirport: flights.arrivalAirport,
@@ -221,7 +247,8 @@ export async function getFlightsByTrip(tripId: number, userId: number) {
 export async function createFlight(data: InsertFlight) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.insert(flights).values(withoutPreregistrationUrl(data));
+  const canUsePreregistrationUrl = await hasColumn("flights", "preregistrationUrl");
+  await db.insert(flights).values(canUsePreregistrationUrl ? data : withoutPreregistrationUrl(data));
 }
 
 export async function updateFlight(id: number, userId: number, data: Partial<InsertFlight>) {
@@ -232,7 +259,8 @@ export async function updateFlight(id: number, userId: number, data: Partial<Ins
   if (!row[0]) throw new Error("Not found");
   const trip = await getTripById(row[0].tripId, userId);
   if (!trip) throw new Error("No access");
-  await db.update(flights).set(withoutPreregistrationUrl(data)).where(eq(flights.id, id));
+  const canUsePreregistrationUrl = await hasColumn("flights", "preregistrationUrl");
+  await db.update(flights).set(canUsePreregistrationUrl ? data : withoutPreregistrationUrl(data)).where(eq(flights.id, id));
 }
 
 export async function deleteFlight(id: number, userId: number) {
@@ -286,6 +314,10 @@ export async function getAccommodationsByTrip(tripId: number, userId: number) {
   if (!db) return [];
   const trip = await getTripById(tripId, userId);
   if (!trip) return [];
+  const canUsePreregistrationUrl = await hasColumn("accommodations", "preregistrationUrl");
+  if (canUsePreregistrationUrl) {
+    return db.select().from(accommodations).where(eq(accommodations.tripId, tripId)).orderBy(asc(accommodations.checkIn));
+  }
   return db.select({
     id: accommodations.id, tripId: accommodations.tripId, userId: accommodations.userId, name: accommodations.name, address: accommodations.address,
     checkIn: accommodations.checkIn, checkInTime: accommodations.checkInTime, checkOut: accommodations.checkOut, checkOutTime: accommodations.checkOutTime,
@@ -297,7 +329,8 @@ export async function getAccommodationsByTrip(tripId: number, userId: number) {
 export async function createAccommodation(data: InsertAccommodation) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const r = await db.insert(accommodations).values(withoutPreregistrationUrl(data));
+  const canUsePreregistrationUrl = await hasColumn("accommodations", "preregistrationUrl");
+  const r = await db.insert(accommodations).values(canUsePreregistrationUrl ? data : withoutPreregistrationUrl(data));
   // insertId from mysql2
   const insertId = (r[0] as any).insertId as number;
   return insertId;
@@ -310,7 +343,8 @@ export async function updateAccommodation(id: number, userId: number, data: Part
   if (!row[0]) throw new Error("Not found");
   const trip = await getTripById(row[0].tripId, userId);
   if (!trip) throw new Error("No access");
-  await db.update(accommodations).set(withoutPreregistrationUrl(data)).where(eq(accommodations.id, id));
+  const canUsePreregistrationUrl = await hasColumn("accommodations", "preregistrationUrl");
+  await db.update(accommodations).set(canUsePreregistrationUrl ? data : withoutPreregistrationUrl(data)).where(eq(accommodations.id, id));
 }
 
 export async function deleteAccommodation(id: number, userId: number) {
