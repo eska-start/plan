@@ -33,7 +33,12 @@ export const adminProcedure = t.procedure.use(
     const { ctx, next } = opts;
     const ownerOpenId = ENV.ownerOpenId?.trim();
     const localOwnerOpenId = ownerOpenId ? `local_${ownerOpenId}` : "";
-    const isOwnerByOpenId = Boolean(ctx.user?.openId) && (ctx.user?.openId === ownerOpenId || ctx.user?.openId === localOwnerOpenId);
+    const legacyAdminOpenIds = ["eska", "local_eska"];
+    const isOwnerByOpenId = Boolean(ctx.user?.openId) && (
+      ctx.user?.openId === ownerOpenId
+      || ctx.user?.openId === localOwnerOpenId
+      || legacyAdminOpenIds.includes(ctx.user?.openId)
+    );
 
     if (!ctx.user || (ctx.user.role !== 'admin' && !isOwnerByOpenId)) {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });

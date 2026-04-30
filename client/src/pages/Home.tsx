@@ -380,7 +380,11 @@ export default function Home() {
       void refetchNotice();
     } catch (err) {
       const message = err instanceof Error ? err.message : "공지 저장에 실패했습니다.";
-      toast.error(message);
+      if (message.includes("FORBIDDEN") || message.includes("권한") || message.includes("10002")) {
+        toast.error("공지 등록 권한이 없습니다. 관리자 권한을 확인해주세요.");
+      } else {
+        toast.error(message);
+      }
     }
   };
   const removeNotice = async () => {
