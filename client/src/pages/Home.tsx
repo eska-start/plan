@@ -409,7 +409,7 @@ export default function Home() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/upload-ocr", { method: "POST", body: formData, credentials: "include" });
+      const res = await fetch("/api/upload-notice", { method: "POST", body: formData, credentials: "include" });
       const data = await res.json();
       if (!res.ok || !data?.url) throw new Error(data?.error ?? "업로드 실패");
       setNoticeImages(prev => [...prev, data.url as string]);

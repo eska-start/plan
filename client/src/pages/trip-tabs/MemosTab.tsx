@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import TabShell from "./TabShell";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
+import LinkifiedText from "@/components/LinkifiedText";
 
 type FormData = { title: string; content: string; pinned: boolean };
 const defaultForm: FormData = { title: "", content: "", pinned: false };
@@ -89,7 +90,9 @@ export default function MemosTab({ tripId }: { tripId: number }) {
                 </p>
               </div>
               {m.content && (
-                <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap mb-3 line-clamp-6">{m.content}</p>
+                <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap mb-3 line-clamp-6">
+                  <LinkifiedText text={m.content} />
+                </p>
               )}
               <div className="flex items-center gap-1 pt-2 border-t border-border">
                 <button onClick={() => togglePin(m)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">

@@ -33,5 +33,23 @@ export function registerUploadRoutes(app: import("express").Express) {
     }
   });
 
+  router.post("/api/upload-notice", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ error: "파일이 없습니다." });
+        return;
+      }
+      const ext = req.file.originalname.split(".").pop() ?? "jpg";
+      const key = `notice/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { url } = await storagePut(key, req.file.buffer, req.file.mimetype);
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const absoluteUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
+      res.json({ url: absoluteUrl, key });
+    } catch (e) {
+      console.error("[upload-notice]", e);
+      res.status(500).json({ error: "업로드 실패" });
+    }
+  });
+
   app.use(router);
 }
