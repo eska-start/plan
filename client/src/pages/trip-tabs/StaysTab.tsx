@@ -20,13 +20,13 @@ type AccomForm = {
   name: string; address: string;
   checkIn: string; checkInTime: string;
   checkOut: string; checkOutTime: string;
-  bookingRef: string; price: string; currency: string; memo: string;
+  bookingRef: string; preregUrl: string; price: string; currency: string; memo: string;
 };
 const defaultAccomForm: AccomForm = {
   name: "", address: "",
   checkIn: "", checkInTime: "15:00",
   checkOut: "", checkOutTime: "11:00",
-  bookingRef: "", price: "", currency: "KRW", memo: "",
+  bookingRef: "", preregUrl: "", price: "", currency: "KRW", memo: "",
 };
 
 // ── Rental form ───────────────────────────────────────────────────────────────
@@ -86,13 +86,14 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
   const openCreateAccom = () => { setAccomEditId(null); setAccomForm(defaultAccomForm); setAccomOpen(true); };
   const openEditAccom = (a: NonNullable<typeof accommodations>[number]) => {
     setAccomEditId(a.id);
-    setAccomForm({ name: a.name, address: a.address ?? "", checkIn: a.checkIn ?? "", checkInTime: a.checkInTime ?? "", checkOut: a.checkOut ?? "", checkOutTime: a.checkOutTime ?? "", bookingRef: a.bookingRef ?? "", price: a.price?.toString() ?? "", currency: a.currency ?? "KRW", memo: a.memo ?? "" });
+    const preregUrl = (a as { preregUrl?: string | null }).preregUrl ?? "";
+    setAccomForm({ name: a.name, address: a.address ?? "", checkIn: a.checkIn ?? "", checkInTime: a.checkInTime ?? "", checkOut: a.checkOut ?? "", checkOutTime: a.checkOutTime ?? "", bookingRef: a.bookingRef ?? "", preregUrl, price: a.price?.toString() ?? "", currency: a.currency ?? "KRW", memo: a.memo ?? "" });
     setAccomOpen(true);
   };
   const submitAccom = () => {
     const trimmedName = accomForm.name.trim();
     if (!trimmedName) { toast.error("숙소명을 입력해주세요."); return; }
-    const payload = { ...accomForm, name: trimmedName, address: accomForm.address.trim() || undefined, checkIn: accomForm.checkIn || undefined, checkInTime: accomForm.checkInTime || undefined, checkOut: accomForm.checkOut || undefined, checkOutTime: accomForm.checkOutTime || undefined, bookingRef: accomForm.bookingRef.trim() || undefined, price: accomForm.price.trim() || undefined, currency: accomForm.currency || undefined, memo: accomForm.memo.trim() || undefined };
+    const payload = { ...accomForm, name: trimmedName, address: accomForm.address.trim() || undefined, checkIn: accomForm.checkIn || undefined, checkInTime: accomForm.checkInTime || undefined, checkOut: accomForm.checkOut || undefined, checkOutTime: accomForm.checkOutTime || undefined, bookingRef: accomForm.bookingRef.trim() || undefined, preregUrl: accomForm.preregUrl.trim() || undefined, price: accomForm.price.trim() || undefined, currency: accomForm.currency || undefined, memo: accomForm.memo.trim() || undefined };
     if (accomEditId) updateAccom.mutate({ id: accomEditId, tripId, ...payload });
     else createAccom.mutate({ tripId, ...payload });
   };
@@ -141,7 +142,7 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
             <p className="text-xs text-muted-foreground mt-0.5">숙소 예약 정보를 기록하세요.</p>
           </div>
           <Button size="sm" onClick={openCreateAccom} className="gap-1.5">
-            <Plus className="w-3.5 h-3.5" /> 사전등록
+            <Plus className="w-3.5 h-3.5" /> 숙박 추가
           </Button>
         </div>
 
@@ -203,6 +204,18 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
                   {a.bookingRef && <span className="flex items-center gap-1"><Hash className="w-3 h-3" /> 예약번호: <span className="font-mono font-medium text-foreground">{a.bookingRef}</span></span>}
                   {a.price && <span className="font-medium text-foreground">{Number(a.price).toLocaleString()} {a.currency}</span>}
                 </div>
+                {(a as { preregUrl?: string | null }).preregUrl && (
+                  <div className="mt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.open((a as { preregUrl?: string | null }).preregUrl ?? "", "_blank", "noopener,noreferrer")}
+                    >
+                      사전등록 링크 열기
+                    </Button>
+                  </div>
+                )}
                 {a.memo && <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">{a.memo}</p>}
               </div>
             ))}
@@ -215,7 +228,7 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
               <p className="text-xs text-muted-foreground mt-1">숙소 예약 정보를 추가해보세요.</p>
             </div>
             <Button size="sm" variant="outline" onClick={openCreateAccom} className="gap-1.5">
-              <Plus className="w-3.5 h-3.5" /> 사전등록
+              <Plus className="w-3.5 h-3.5" /> 숙박 추가
             </Button>
           </div>
         )}
@@ -332,6 +345,10 @@ export default function StaysTab({ tripId, isGuestUser = false }: { tripId: numb
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">예약번호</Label>
                 <Input className="h-10" placeholder="HTL12345" value={accomForm.bookingRef} onChange={e => setAccomForm(f => ({ ...f, bookingRef: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">사전등록 링크</Label>
+                <Input className="h-10" placeholder="https://..." value={accomForm.preregUrl} onChange={e => setAccomForm(f => ({ ...f, preregUrl: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">금액</Label>
