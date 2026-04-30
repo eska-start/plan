@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plane, Loader2, ArrowRight, Hash, Armchair } from "lucide-react";
+import { Plane, Loader2, ArrowRight, Hash, Armchair, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -29,6 +29,7 @@ type FormData = {
   bookingRef: string;
   seatNumber: string;
   memo: string;
+  preRegisterUrl: string;
 };
 
 const defaultForm: FormData = {
@@ -42,6 +43,7 @@ const defaultForm: FormData = {
   bookingRef: "",
   seatNumber: "",
   memo: "",
+  preRegisterUrl: "",
 };
 
 const TYPE_LABELS: Record<FlightType, string> = {
@@ -49,6 +51,25 @@ const TYPE_LABELS: Record<FlightType, string> = {
   return: "귀국편",
   transit: "경유편",
 };
+
+
+const PRE_REGISTER_TAG = "[PREREG]";
+
+function extractPreRegisterUrl(memo?: string | null) {
+  if (!memo) return "";
+  const m = memo.match(/\[PREREG\](\S+)/);
+  return m?.[1] ?? "";
+}
+
+function removePreRegisterTag(memo?: string | null) {
+  if (!memo) return "";
+  return memo.replace(/\s*\[PREREG\]\S+/g, "").trim();
+}
+
+function normalizeUrl(raw: string) {
+  if (!raw) return "";
+  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+}
 
 const TYPE_STYLES: Record<FlightType, string> = {
   departure: "bg-blue-50 text-blue-700 border-blue-200",
@@ -89,7 +110,7 @@ export default function FlightsTab({ tripId, isGuestUser = false }: { tripId: nu
   const [form, setForm] = useState<FormData>(defaultForm);
   const utils = trpc.useUtils();
 
-  const { data: flights, isLoading } = trpc.flights.list.useQuery({ tripId });
+  const { data: flights, isLoading } = trpc.flights.list.useQuery({ tripId }, { staleTime: 30_000, refetchOnWindowFocus: false });
 
   const createMutation = trpc.flights.create.useMutation({
     onSuccess: () => { utils.flights.list.invalidate(); setDialogOpen(false); setForm(defaultForm); toast.success("항공편이 추가되었습니다."); },
@@ -122,14 +143,18 @@ export default function FlightsTab({ tripId, isGuestUser = false }: { tripId: nu
       arrivalTime: f.arrivalTime ?? "",
       bookingRef: f.bookingRef ?? "",
       seatNumber: f.seatNumber ?? "",
-      memo: f.memo ?? "",
+      memo: removePreRegisterTag(f.memo),
+      preRegisterUrl: extractPreRegisterUrl(f.memo),
     });
     setDialogOpen(true);
   };
 
   const handleSubmit = () => {
-    if (editId) updateMutation.mutate({ id: editId, ...form });
-    else createMutation.mutate({ tripId, ...form });
+    const cleanedMemo = removePreRegisterTag(form.memo);
+    const taggedMemo = form.preRegisterUrl.trim() ? `${cleanedMemo}${cleanedMemo ? "\n" : ""}${PRE_REGISTER_TAG}${normalizeUrl(form.preRegisterUrl.trim())}` : cleanedMemo;
+    const payload = { ...form, memo: taggedMemo };
+    if (editId) updateMutation.mutate({ id: editId, ...payload });
+    else createMutation.mutate({ tripId, ...payload });
   };
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
@@ -192,7 +217,7 @@ export default function FlightsTab({ tripId, isGuestUser = false }: { tripId: nu
                   <span className="flex items-center gap-1"><Armchair className="w-3 h-3" /> 좌석: <span className="font-medium text-foreground">{f.seatNumber}</span></span>
                 )}
               </div>
-              {f.memo && <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border">{f.memo}</p>}
+              {(f.memo || extractPreRegisterUrl(f.memo)) && <div className="mt-2 pt-2 border-t border-border space-y-2">{removePreRegisterTag(f.memo) && <p className="text-xs text-muted-foreground">{removePreRegisterTag(f.memo)}</p>}{extractPreRegisterUrl(f.memo) && <Button size="sm" variant="outline" asChild><a href={normalizeUrl(extractPreRegisterUrl(f.memo))} target="_blank" rel="noopener noreferrer" className="gap-1"><ExternalLink className="w-3.5 h-3.5" />사전등록</a></Button>}</div>}
             </div>
           ))}
         </div>
@@ -309,6 +334,11 @@ export default function FlightsTab({ tripId, isGuestUser = false }: { tripId: nu
                 <Label className="text-sm font-medium">좌석</Label>
                 <Input className="h-10" placeholder="12A" value={form.seatNumber} onChange={e => setForm(f => ({ ...f, seatNumber: e.target.value }))} />
               </div>
+            </div>
+            {/* 사전등록 링크 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">사전등록 링크</Label>
+              <Input className="h-10" placeholder="https://..." value={form.preRegisterUrl} onChange={e => setForm(f => ({ ...f, preRegisterUrl: e.target.value }))} />
             </div>
             {/* 메모 */}
             <div className="space-y-1.5">

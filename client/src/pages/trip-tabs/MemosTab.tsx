@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { toast } from "sonner";
 import { StickyNote, Loader2, Pin, PinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,25 @@ import { ko } from "date-fns/locale";
 
 type FormData = { title: string; content: string; pinned: boolean };
 const defaultForm: FormData = { title: "", content: "", pinned: false };
+
+
+function normalizeUrl(raw: string) {
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+}
+
+function renderLinkText(content: string) {
+  const urlRegex = /(https?:\/\/[^\s]+|(?:www\.)[^\s]+)/gi;
+  const parts = content.split(urlRegex);
+  return parts.map((part, idx) => {
+    if (!part) return null;
+    if (/^(https?:\/\/|www\.)/i.test(part)) {
+      const href = normalizeUrl(part);
+      return <a key={idx} href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all">{part}</a>;
+    }
+    return <Fragment key={idx}>{part}</Fragment>;
+  });
+}
 
 export default function MemosTab({ tripId }: { tripId: number }) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -89,7 +108,7 @@ export default function MemosTab({ tripId }: { tripId: number }) {
                 </p>
               </div>
               {m.content && (
-                <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap mb-3 line-clamp-6">{m.content}</p>
+                <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap mb-3 line-clamp-6">{renderLinkText(m.content)}</p>
               )}
               <div className="flex items-center gap-1 pt-2 border-t border-border">
                 <button onClick={() => togglePin(m)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
