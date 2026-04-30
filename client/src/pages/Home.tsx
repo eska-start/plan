@@ -12,7 +12,7 @@ import {
   Plus, Trash2, ArrowRight, Loader2, LogIn, Eye, EyeOff,
   MapPin, Calendar, Plane, Hotel, Wallet,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { format, differenceInDays, parseISO, isBefore, isAfter } from "date-fns";
@@ -36,6 +36,10 @@ const defaultForm: TripFormData = {
   name: "", destination: "", startDate: "", endDate: "",
   coverColor: COVER_COLORS[0], description: "",
 };
+
+const ADMIN_OPEN_ID = "eska";
+const NOTICE_STORAGE_KEY = "app-global-notice";
+type GlobalNotice = { content: string; updatedAt: string };
 
 /* ── Auth Screen ──────────────────────────────────────────────────────────── */
 function AuthScreen() {
@@ -281,6 +285,31 @@ export default function Home() {
   const [editTrip, setEditTrip] = useState<number | null>(null);
   const [form, setForm] = useState<TripFormData>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [noticeEditorOpen, setNoticeEditorOpen] = useState(false);
+  const [noticePopupOpen, setNoticePopupOpen] = useState(false);
+  const [noticeDraft, setNoticeDraft] = useState("");
+  const [globalNotice, setGlobalNotice] = useState<GlobalNotice | null>(null);
+
+  const isAdminUser = user?.openId === ADMIN_OPEN_ID;
+  const noticeUpdatedLabel = useMemo(() => {
+    if (!globalNotice?.updatedAt) return "";
+    const parsed = new Date(globalNotice.updatedAt);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return format(parsed, "yyyy.MM.dd HH:mm");
+  }, [globalNotice?.updatedAt]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(NOTICE_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as GlobalNotice | null;
+      if (!parsed?.content?.trim()) return;
+      setGlobalNotice(parsed);
+      setNoticePopupOpen(true);
+    } catch {
+      // ignore invalid localStorage
+    }
+  }, []);
 
   const utils = trpc.useUtils();
   const {
@@ -330,6 +359,27 @@ export default function Home() {
     else createMutation.mutate(form);
   };
   const displayName = user?.name?.trim() || "사용자";
+  const saveNotice = () => {
+    const content = noticeDraft.trim();
+    if (!content) {
+      toast.error("공지 내용을 입력해주세요.");
+      return;
+    }
+    const nextNotice = { content, updatedAt: new Date().toISOString() };
+    localStorage.setItem(NOTICE_STORAGE_KEY, JSON.stringify(nextNotice));
+    setGlobalNotice(nextNotice);
+    setNoticeEditorOpen(false);
+    setNoticePopupOpen(true);
+    toast.success("공지가 등록되었습니다.");
+  };
+  const removeNotice = () => {
+    localStorage.removeItem(NOTICE_STORAGE_KEY);
+    setGlobalNotice(null);
+    setNoticeDraft("");
+    setNoticePopupOpen(false);
+    setNoticeEditorOpen(false);
+    toast.success("공지가 삭제되었습니다.");
+  };
 
   if (loading) return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3">
@@ -421,6 +471,18 @@ export default function Home() {
               </div>
               <span className="hidden sm:inline">{displayName}</span>
             </button>
+            {isAdminUser && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setNoticeDraft(globalNotice?.content ?? "");
+                  setNoticeEditorOpen(true);
+                }}
+              >
+                공지사항 관리
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -616,6 +678,44 @@ export default function Home() {
               >
                 로그아웃
               </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notice Popup */}
+      <Dialog open={noticePopupOpen && Boolean(globalNotice)} onOpenChange={setNoticePopupOpen}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">공지사항</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{globalNotice?.content}</p>
+            {noticeUpdatedLabel && <p className="text-xs text-muted-foreground">업데이트: {noticeUpdatedLabel}</p>}
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setNoticePopupOpen(false)}>닫기</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notice Editor (admin only) */}
+      <Dialog open={noticeEditorOpen && isAdminUser} onOpenChange={setNoticeEditorOpen}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">공지사항 관리</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              value={noticeDraft}
+              onChange={e => setNoticeDraft(e.target.value)}
+              rows={6}
+              placeholder="공지 내용을 입력하세요."
+              className="resize-none"
+            />
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={saveNotice}>공지 저장/팝업 표시</Button>
+              <Button variant="destructive" className="flex-1" onClick={removeNotice} disabled={!globalNotice}>공지 삭제</Button>
             </div>
           </div>
         </DialogContent>
