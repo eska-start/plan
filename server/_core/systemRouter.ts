@@ -2,6 +2,14 @@ import { z } from "zod";
 import { notifyOwner } from "./notification";
 import { adminProcedure, publicProcedure, router } from "./trpc";
 
+type GlobalNotice = {
+  content: string;
+  images?: string[];
+  updatedAt: string;
+};
+
+let globalNotice: GlobalNotice | null = null;
+
 export const systemRouter = router({
   health: publicProcedure
     .input(
@@ -26,4 +34,24 @@ export const systemRouter = router({
         success: delivered,
       } as const;
     }),
+  getNotice: publicProcedure.query(() => globalNotice),
+  setNotice: adminProcedure
+    .input(
+      z.object({
+        content: z.string().max(5000),
+        images: z.array(z.string()).max(5).optional(),
+      })
+    )
+    .mutation(({ input }) => {
+      globalNotice = {
+        content: input.content.trim(),
+        images: input.images?.filter(Boolean) ?? [],
+        updatedAt: new Date().toISOString(),
+      };
+      return globalNotice;
+    }),
+  clearNotice: adminProcedure.mutation(() => {
+    globalNotice = null;
+    return { success: true } as const;
+  }),
 });
