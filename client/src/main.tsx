@@ -7,6 +7,56 @@ import App from "./App";
 import "./index.css";
 
 const TRPC_REQUEST_TIMEOUT_MS = 10000;
+const PLANLOG_ICON_SRC = "/apple-touch-icon.svg?v=planlog-2";
+
+function replaceLegacyLogoNear(element: Element) {
+  const groups = [
+    element.closest(".text-center"),
+    element.closest(".flex"),
+    element.parentElement,
+    element.parentElement?.parentElement,
+  ].filter(Boolean) as Element[];
+
+  for (const group of groups) {
+    const legacyLogo = group.querySelector("svg:not([data-planlog-logo]), img:not([data-planlog-logo])");
+    if (!legacyLogo) continue;
+
+    const img = document.createElement("img");
+    img.src = PLANLOG_ICON_SRC;
+    img.alt = "플랜로그";
+    img.dataset.planlogLogo = "true";
+    img.draggable = false;
+    img.className = legacyLogo.getAttribute("class") || "rounded-lg shrink-0";
+    img.style.width = legacyLogo.getAttribute("width") ? `${legacyLogo.getAttribute("width")}px` : "32px";
+    img.style.height = legacyLogo.getAttribute("height") ? `${legacyLogo.getAttribute("height")}px` : "32px";
+    img.style.objectFit = "contain";
+    img.style.borderRadius = "10px";
+    legacyLogo.replaceWith(img);
+    break;
+  }
+}
+
+function applyPlanLogBranding() {
+  const elements = Array.from(document.querySelectorAll("h1, h2, span, p, a"));
+
+  for (const element of elements) {
+    const text = element.textContent?.trim();
+    if (!text) continue;
+
+    if (text.includes("Voya") || text.includes("Travel Journal") || text.includes("Voya·journal")) {
+      element.textContent = "플랜로그";
+      element.classList.add("planlog-brand-text");
+      replaceLegacyLogoNear(element);
+    }
+  }
+}
+
+const brandObserver = new MutationObserver(() => applyPlanLogBranding());
+brandObserver.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  characterData: true,
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,7 +94,7 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-const root = createRoot(document.getElementById("root"));
+const root = createRoot(document.getElementById("root")!);
 
 root.render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
@@ -54,13 +104,16 @@ root.render(
   </trpc.Provider>
 );
 
-// 👉 스플래시 2.2초 유지 후 제거
+queueMicrotask(applyPlanLogBranding);
+requestAnimationFrame(applyPlanLogBranding);
+
 const splash = document.getElementById("planlog-splash");
 if (splash) {
   setTimeout(() => {
     splash.classList.add("is-hiding");
     setTimeout(() => {
       splash.remove();
+      requestAnimationFrame(applyPlanLogBranding);
     }, 320);
   }, 2200);
 }
