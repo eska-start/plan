@@ -6,39 +6,72 @@ import superjson from "superjson";
 import App from "./App";
 import "./index.css";
 
-(window as Window & { __APP_BOOTSTRAPPED__?: boolean }).__APP_BOOTSTRAPPED__ = true;
-const TRPC_REQUEST_TIMEOUT_MS = 10_000;
+const TRPC_REQUEST_TIMEOUT_MS = 10000;
+const PLANLOG_ICON_SRC = "/apple-touch-icon.svg?v=planlog-2";
+
+function replaceLegacyLogoNear(element: Element) {
+  const groups = [
+    element.closest(".text-center"),
+    element.closest(".flex"),
+    element.parentElement,
+    element.parentElement?.parentElement,
+  ].filter(Boolean) as Element[];
+
+  for (const group of groups) {
+    const legacyLogo = group.querySelector("svg:not([data-planlog-logo]), img:not([data-planlog-logo])");
+    if (!legacyLogo) continue;
+
+    const img = document.createElement("img");
+    img.src = PLANLOG_ICON_SRC;
+    img.alt = "플랜로그";
+    img.dataset.planlogLogo = "true";
+    img.draggable = false;
+    img.className = legacyLogo.getAttribute("class") || "rounded-lg shrink-0";
+    img.style.width = legacyLogo.getAttribute("width") ? `${legacyLogo.getAttribute("width")}px` : "32px";
+    img.style.height = legacyLogo.getAttribute("height") ? `${legacyLogo.getAttribute("height")}px` : "32px";
+    img.style.objectFit = "contain";
+    img.style.borderRadius = "10px";
+    legacyLogo.replaceWith(img);
+    break;
+  }
+}
+
+function applyPlanLogBranding() {
+  const elements = Array.from(document.querySelectorAll("h1, h2, span, p, a"));
+
+  for (const element of elements) {
+    const text = element.textContent?.trim();
+    if (!text) continue;
+
+    if (text.includes("Voya") || text.includes("Travel Journal") || text.includes("Voya·journal")) {
+      element.textContent = "플랜로그";
+      element.classList.add("planlog-brand-text");
+      replaceLegacyLogoNear(element);
+    }
+  }
+}
+
+const brandObserver = new MutationObserver(() => applyPlanLogBranding());
+brandObserver.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  characterData: true,
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: 30_000,
-      // 인증 오류 시 자동 리다이렉트 제거 — 리다이렉트 루프 방지
-      // 각 페이지에서 isAuthenticated 상태로 직접 처리
+      staleTime: 30000,
       retry: 1,
-      retryDelay: 1_000,
+      retryDelay: 1000,
     },
   },
 });
 
-queryClient.getQueryCache().subscribe(event => {
-  if (event.type === "updated" && event.action.type === "error") {
-    console.error("[API Query Error]", event.query.state.error);
-  }
-});
-
-queryClient.getMutationCache().subscribe(event => {
-  if (event.type === "updated" && event.action.type === "error") {
-    console.error("[API Mutation Error]", event.mutation.state.error);
-  }
-});
-
 const trpcClient = trpc.createClient({
   links: [
-    // 전체 왕복 횟수를 줄이기 위해 batch 링크 사용.
-    // 각 batch 요청에도 abort timeout을 적용해 무한 대기 방지.
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
@@ -61,10 +94,26 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-createRoot(document.getElementById("root")!).render(
+const root = createRoot(document.getElementById("root")!);
+
+root.render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
       <App />
     </QueryClientProvider>
   </trpc.Provider>
 );
+
+queueMicrotask(applyPlanLogBranding);
+requestAnimationFrame(applyPlanLogBranding);
+
+const splash = document.getElementById("planlog-splash");
+if (splash) {
+  setTimeout(() => {
+    splash.classList.add("is-hiding");
+    setTimeout(() => {
+      splash.remove();
+      requestAnimationFrame(applyPlanLogBranding);
+    }, 320);
+  }, 2200);
+}

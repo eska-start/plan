@@ -1,6 +1,25 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* PlanLog Logo Typography */
+.font-logo {
+  font-family: "Playfair Display", serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.font-logo-tight {
+  letter-spacing: -0.04em;
+}
+
+.logo-hover {
+  transition: all 0.25s ease;
+}
+
+.logo-hover:hover {
+  transform: translateY(-1px) scale(1.04);
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
