@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* --- PlanLog Logo Typography 추가 --- */
+/* PlanLog Logo Typography */
 .font-logo {
   font-family: "Playfair Display", serif;
   font-weight: 600;
@@ -62,4 +62,176 @@
   --font-sans: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-serif: 'Fraunces', 'Playfair Display', 'Noto Serif KR', ui-serif, Georgia, serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
+
+
+:root {
+  --radius: 0.875rem; /* 14px — Voya md radius */
+
+  /* iOS 구버전(Safari < 15.4) 호환을 위해 OKLCH 대신 HEX 기반 토큰 사용 */
+  --background:           #F4F8FB;
+  --foreground:           #142033;
+  --card:                 #FFFFFF;
+  --card-foreground:      #142033;
+  --popover:              #FFFFFF;
+  --popover-foreground:   #142033;
+
+  --primary:              #5BB4D8;
+  --primary-foreground:   #FFFFFF;
+  --secondary:            #EAF2F7;
+  --secondary-foreground: #2B7FA6;
+  --muted:                #EAF2F7;
+  --muted-foreground:     #8A99AA;
+
+  --accent:               #F18A6A;
+  --accent-foreground:    #FFFFFF;
+  --destructive:          #DC5A3D;
+  --destructive-foreground: #FFFFFF;
+
+  --border:               #E1E9EF;
+  --input:                #E1E9EF;
+  --ring:                 #5BB4D8;
+
+  --chart-1:              #5BB4D8;
+  --chart-2:              #7CC8B0;
+  --chart-3:              #F2C75A;
+  --chart-4:              #F18A6A;
+  --chart-5:              #2B7FA6;
+
+  --sidebar:              #142033;
+  --sidebar-foreground:   #E2E8F0;
+  --sidebar-primary:      #5BB4D8;
+  --sidebar-primary-foreground: #142033;
+  --sidebar-accent:       #263347;
+  --sidebar-accent-foreground: #EAF2F7;
+  --sidebar-border:       #334155;
+  --sidebar-ring:         #5BB4D8;
+
+  /* ── Voya custom tokens (use in className with arbitrary values) ── */
+  --voya-sky:             #5BB4D8;
+  --voya-sky-deep:        #2B7FA6;
+  --voya-sky-soft:        #DBEEF6;
+  --voya-coral:           #F18A6A;
+  --voya-coral-soft:      #FDE2D7;
+  --voya-mint:            #7CC8B0;
+  --voya-mint-soft:       #DEF1EA;
+  --voya-sun:             #F2C75A;
+  --voya-sun-soft:        #FBEFCC;
+  --voya-ink:             #142033;
+  --voya-ink-soft:        #516274;
+  --voya-ink-muted:       #8A99AA;
+  --voya-line:            #E1E9EF;
+  --voya-surface-alt:     #EAF2F7;
+  --voya-bg-warm:         #FBF7F1;
+  --voya-cream:           #FBF6EC;
+}
+
+
+.dark {
+  --background:           #141923;
+  --foreground:           #E8EDF4;
+  --card:                 #1D2430;
+  --card-foreground:      #E8EDF4;
+  --popover:              #1D2430;
+  --popover-foreground:   #E8EDF4;
+  --primary:              #7C68FF;
+  --primary-foreground:   #141923;
+  --secondary:            #2A3342;
+  --secondary-foreground: #E8EDF4;
+  --muted:                #252D3B;
+  --muted-foreground:     #9AA7B8;
+  --accent:               #43A0E8;
+  --accent-foreground:    #141923;
+  --destructive:          #DC5A3D;
+  --destructive-foreground: #FFFFFF;
+  --border:               #313B4D;
+  --input:                #313B4D;
+  --ring:                 #7C68FF;
+  --chart-1:              #43A0E8;
+  --chart-2:              #64C89A;
+  --chart-3:              #E7C45A;
+  --chart-4:              #E68668;
+  --chart-5:              #9E79E8;
+  --sidebar:              #111722;
+  --sidebar-foreground:   #E2E8F0;
+  --sidebar-primary:      #43A0E8;
+  --sidebar-primary-foreground: #111722;
+  --sidebar-accent:       #232D3E;
+  --sidebar-accent-foreground: #E2E8F0;
+  --sidebar-border:       #2D3748;
+  --sidebar-ring:         #43A0E8;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Only h1 uses serif — h2/h3 use sans for cleaner mobile look */
+  h1 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.02em;
+  }
+  h2, h3, h4 {
+    font-family: var(--font-sans);
+    letter-spacing: -0.015em;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cdd5df; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #a8b4c3; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+@layer components {
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .flex {
+    min-height: 0;
+    min-width: 0;
+  }
+  @media (min-width: 640px) {
+    .container { padding-left: 1.5rem; padding-right: 1.5rem; }
+  }
+  @media (min-width: 1024px) {
+    .container { padding-left: 2rem; padding-right: 2rem; max-width: 1280px; }
+  }
+
+  /* ── Card variants ── */
+  .card-flat {
+    @apply bg-card border border-border rounded-xl;
+  }
+  .card-hover {
+    @apply bg-card border border-border rounded-xl transition-all duration-200 hover:shadow-[0_16px_32px_-16px_rgba(20,40,60,0.18)] hover:-translate-y-px;
+  }
+  .card-elevated {
+    @apply bg-card border border-border rounded-2xl shadow-[0_6px_20px_-10px_rgba(20,40,60,0.12)];
+  }
+  .font-display {
+    font-family: var(--font-serif);
+  }
 }
