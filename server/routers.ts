@@ -35,6 +35,58 @@ import {
   updateUserName,
 } from "./db";
 
+// ─── Helper: 구조화된 일정 텍스트 직접 파싱 ──────────────────────────────────
+// "2026년 5월 07일 00시 장소: X / 내용: Y" 형식을 AI 없이 직접 파싱
+const STRUCTURED_LINE = /^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2})시(?:\s*(\d{1,2})분)?\s*장소:\s*([^/]+)\s*\/\s*내용:\s*(.+)$/;
+
+const SKIP_CONTENT = new Set(["숙면", "정리"]);
+
+const CATEGORY_MAP: Record<string, "place" | "food" | "activity" | "shopping"> = {
+  맛집: "food", 아침: "food", 점심: "food", 저녁: "food", 음식: "food", 카페: "food", 베이커리: "food",
+  쇼핑: "shopping",
+  마사지: "activity", 물놀이: "activity", 기상: "activity", 알코: "activity",
+};
+
+type ParsedItineraryItem = {
+  date: string;
+  placeName: string;
+  visitTime: string;
+  category: "place" | "food" | "activity" | "shopping";
+  memo: string | null;
+  address: null;
+};
+
+function parseStructuredItinerary(text: string): ParsedItineraryItem[] | null {
+  const lines = text.trim().split("\n").map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) return null;
+
+  // 첫 번째 비어있지 않은 줄이 해당 형식인지 확인
+  const firstLine = lines.find(l => STRUCTURED_LINE.test(l));
+  if (!firstLine) return null;
+
+  const items: ParsedItineraryItem[] = [];
+  for (const line of lines) {
+    const m = line.match(STRUCTURED_LINE);
+    if (!m) continue;
+    const [, yr, month, day, hour, minute, placeRaw, contentRaw] = m;
+    const place = placeRaw.trim();
+    const content = contentRaw.trim();
+
+    if (SKIP_CONTENT.has(content)) continue;
+    // "장소: 숙소 / 내용: 숙소" 같이 둘 다 동일한 단순 카테고리어면 스킵
+    if (content === place && CATEGORY_MAP[place] === undefined && place.length <= 3) continue;
+
+    const date = `${yr}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    const time = `${hour.padStart(2, "0")}:${(minute ?? "00").padStart(2, "0")}`;
+    const placeName = content !== place ? content : place;
+    const category = CATEGORY_MAP[place] ?? "place";
+
+    items.push({ date, placeName, visitTime: time, category, memo: null, address: null });
+  }
+
+  return items.length > 0 ? items : null;
+}
+
 // ─── Helper: 스프레드시트 텍스트 전처리 ─────────────────────────────────────
 function preprocessItineraryText(text: string, year: number): string {
   const hasTabs = text.includes("\t");
@@ -723,8 +775,15 @@ const itineraryRouter = router({
     .input(z.object({ tripId: z.number(), text: z.string(), tripStartDate: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       await getTripById(input.tripId, ctx.user.id);
-      if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
       const year = input.tripStartDate ? new Date(input.tripStartDate).getFullYear() : new Date().getFullYear();
+
+      // 구조화된 형식 직접 파싱 (AI 불필요)
+      const directItems = parseStructuredItinerary(input.text);
+      if (directItems) {
+        return { items: directItems, reply: `${directItems.length}개 일정을 추출했습니다.` };
+      }
+
+      if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
       const processedText = preprocessItineraryText(input.text, year);
       const res = await invokeLLM({
         messages: [
