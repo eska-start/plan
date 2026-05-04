@@ -35,6 +35,56 @@ import {
   updateUserName,
 } from "./db";
 
+// ─── Helper: 스프레드시트 텍스트 전처리 ─────────────────────────────────────
+function preprocessItineraryText(text: string, year: number): string {
+  const hasTabs = text.includes("\t");
+  if (!hasTabs) return text;
+
+  const rows = text.split("\n").map(r => r.split("\t"));
+  if (rows.length < 2) return text;
+
+  // 첫 행에서 날짜 헤더 감지 (N월M일 패턴)
+  const headerRow = rows[0];
+  const datePattern = /(\d{1,2})월\s*(\d{1,2})일/;
+  const dateHeaders: (string | null)[] = headerRow.map(cell => {
+    const m = cell.match(datePattern);
+    if (!m) return null;
+    const month = m[1].padStart(2, "0");
+    const day = m[2].padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  });
+
+  const hasDateHeaders = dateHeaders.some(d => d !== null);
+  if (!hasDateHeaders) return text;
+
+  // TSV → 날짜별 일정 텍스트 변환
+  const byDate: Record<string, string[]> = {};
+  for (let ri = 1; ri < rows.length; ri++) {
+    const row = rows[ri];
+    // 첫 열: 시간(숫자) 또는 레이블
+    const timeCell = row[0]?.trim() ?? "";
+    const hourMatch = timeCell.match(/^(\d{1,2})$/);
+    const timeStr = hourMatch ? `${hourMatch[1].padStart(2, "0")}:00` : null;
+
+    for (let ci = 1; ci < row.length; ci++) {
+      const cell = row[ci]?.trim();
+      if (!cell || cell === "" || /^숙면$|^정리$/.test(cell)) continue;
+      const date = dateHeaders[ci];
+      if (!date) continue;
+      if (!byDate[date]) byDate[date] = [];
+      const entry = timeStr ? `${timeStr} ${cell}` : cell;
+      byDate[date].push(entry);
+    }
+  }
+
+  if (Object.keys(byDate).length === 0) return text;
+
+  return Object.entries(byDate)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, items]) => `[${date}]\n${items.join("\n")}`)
+    .join("\n\n");
+}
+
 // ─── Helper: 숙박 → 일정 자동 생성 ──────────────────────────────────────────
 async function syncAccommodationToItinerary(
   tripId: number,
@@ -675,13 +725,14 @@ const itineraryRouter = router({
       await getTripById(input.tripId, ctx.user.id);
       if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
       const year = input.tripStartDate ? new Date(input.tripStartDate).getFullYear() : new Date().getFullYear();
+      const processedText = preprocessItineraryText(input.text, year);
       const res = await invokeLLM({
         messages: [
           {
             role: "system" as const,
             content: `여행 일정 파서입니다. 텍스트에서 방문 장소·일정 정보를 추출해 JSON만 반환합니다.\n반환 스키마: { "items": [{ "date": "YYYY-MM-DD|null", "placeName": "string", "visitTime": "HH:mm|null", "category": "place|food|activity|shopping", "memo": "string|null", "address": "string|null" }], "reply": "한국어 요약" }\n규칙: category는 반드시 place|food|activity|shopping 중 하나, date 모를 경우 null, 연도 미기재 시 ${year}년 기준으로 추정`,
           },
-          { role: "user" as const, content: input.text },
+          { role: "user" as const, content: processedText },
         ],
         response_format: { type: "json_object" },
       });
