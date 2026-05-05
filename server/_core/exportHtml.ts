@@ -255,7 +255,7 @@ function generateHtml(data: {
 export function registerExportRoutes(app: Express) {
   app.get("/api/trips/:id/export", async (req: Request, res: Response) => {
     try {
-      // Auth
+      // JWT만 검증 — OAuth 서버 불필요
       let userId: number | null = null;
       try {
         const rawCookies = req.headers.cookie;
@@ -265,14 +265,17 @@ export function registerExportRoutes(app: Express) {
           if (cookieValue) {
             const session = await sdk.verifySession(cookieValue);
             if (session?.openId) {
-              const user = await sdk.authenticateRequest(req);
+              const user = await db.getUserByOpenId(session.openId);
               if (user) userId = user.id;
             }
           }
         }
-      } catch { /* no-op */ }
+      } catch (authErr) {
+        console.error("[Export] Auth error:", authErr);
+      }
 
       if (!userId) {
+        console.warn("[Export] Unauthorized: no userId resolved for tripId", req.params.id);
         res.status(401).send("로그인이 필요합니다.");
         return;
       }
