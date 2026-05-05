@@ -76,13 +76,21 @@ function generateHtml(data: {
   const { trip, flights, rentals, accommodations, itinerary, memos, diary } = data;
   const coverColor = trip.coverColor ?? "#1e293b";
 
-  // Group itinerary by date
+  // Group itinerary by date, sorted by visitTime within each day
   const itineraryByDate = new Map<string, any[]>();
   for (const item of itinerary) {
     const list = itineraryByDate.get(item.date) ?? [];
     list.push(item);
     itineraryByDate.set(item.date, list);
   }
+  Array.from(itineraryByDate.values()).forEach(items => {
+    items.sort((a: any, b: any) => {
+      if (!a.visitTime && !b.visitTime) return 0;
+      if (!a.visitTime) return 1;
+      if (!b.visitTime) return -1;
+      return a.visitTime.localeCompare(b.visitTime);
+    });
+  });
 
   // Group diary by date
   const diaryByDate = new Map<string, any>();
