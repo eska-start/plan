@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "fs";
+import { join } from "path";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
@@ -31,11 +33,68 @@ export async function getDb() {
         connectionLimit: 5,
         connectTimeout: 5000,   // 5초 안에 연결 못 하면 즉시 실패
       });
-      _db = drizzle(pool);
+      _db = drizzle(pool) as unknown as typeof _db;
     }
     catch (e) { console.warn("[Database] Failed to connect:", e); _db = null; }
   }
   return _db;
+}
+
+// MySQL error codes that mean "already applied / already exists"
+const IDEMPOTENT_ERRORS = new Set([
+  1050, // ER_TABLE_EXISTS_ERROR
+  1060, // ER_DUP_FIELDNAME
+  1061, // ER_DUP_KEYNAME
+  1091, // ER_CANT_DROP_FIELD_OR_KEY
+]);
+
+export async function runPendingMigrations() {
+  if (!process.env.DATABASE_URL) return;
+  const uri = process.env.DATABASE_URL.replace(/[?&]ssl-mode=[^&]*/i, "").replace(/\?$/, "");
+  let conn: mysql.Connection | null = null;
+  try {
+    conn = await mysql.createConnection({ uri, ssl: { rejectUnauthorized: false }, connectTimeout: 10000 });
+
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS _migrations (
+        name varchar(255) NOT NULL PRIMARY KEY,
+        applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    const [rows] = await conn.execute("SELECT name FROM _migrations") as [Array<{ name: string }>, any];
+    const applied = new Set(rows.map(r => r.name));
+
+    const migrationsDir = join(__dirname, "../../drizzle");
+    const files = readdirSync(migrationsDir)
+      .filter(f => f.endsWith(".sql"))
+      .sort();
+
+    for (const file of files) {
+      if (applied.has(file)) continue;
+      const sqlText = readFileSync(join(migrationsDir, file), "utf-8");
+      const statements = sqlText
+        .split("--> statement-breakpoint")
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      for (const stmt of statements) {
+        try {
+          await conn.execute(stmt);
+        } catch (err: any) {
+          if (IDEMPOTENT_ERRORS.has(err.errno)) continue;
+          throw err;
+        }
+      }
+
+      await conn.execute("INSERT IGNORE INTO _migrations (name) VALUES (?)", [file]);
+      console.log(`[Migration] Applied: ${file}`);
+    }
+  } catch (err) {
+    console.error("[Migration] Failed:", err);
+  } finally {
+    await conn?.end();
+  }
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
