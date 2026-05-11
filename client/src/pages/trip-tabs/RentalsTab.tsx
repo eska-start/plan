@@ -80,8 +80,10 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
   };
 
   const handleSubmit = () => {
-    if (editId) updateMutation.mutate({ id: editId, ...form });
-    else createMutation.mutate({ tripId, ...form });
+    const price = form.price.replace(/[^0-9.]/g, "") || undefined;
+    const payload = { ...form, price };
+    if (editId) updateMutation.mutate({ id: editId, ...payload });
+    else createMutation.mutate({ tripId, ...payload });
   };
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;

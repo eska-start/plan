@@ -232,6 +232,7 @@ export function parseFlightFromText(text: string): FlightData {
 // ─── 렌트카 파서 ─────────────────────────────────────────────────────────────
 
 export function parseRentalFromText(text: string) {
+  const rawPrice = firstMatch(text, [/(?:총|합계|요금|결제)\s*금액?\s*[:#-]?\s*([\d,]+)/i, /(?:TOTAL|AMOUNT|PRICE)\s*[:#-]?\s*([\d.,]+)/i]);
   return {
     company: firstMatch(text, [/렌트\s*(?:카)?회사\s*[:#-]?\s*([^\n]+)/i, /COMPANY\s*[:#-]?\s*([^\n]+)/i, /RENTAL\s*COMPANY\s*[:#-]?\s*([^\n]+)/i]),
     carModel: firstMatch(text, [/차종\s*[:#-]?\s*([^\n]+)/i, /차량\s*[:#-]?\s*([^\n]+)/i, /CAR\s*(?:MODEL)?\s*[:#-]?\s*([^\n]+)/i, /VEHICLE\s*[:#-]?\s*([^\n]+)/i]),
@@ -240,7 +241,7 @@ export function parseRentalFromText(text: string) {
     pickupTime: firstMatch(text, [/픽업\s*(?:일시|시간|날짜)\s*[:#-]?\s*([^\n]+)/i, /인수\s*(?:일시|시간|날짜)\s*[:#-]?\s*([^\n]+)/i, /PICK[ -]?UP\s*(?:DATE|TIME)?\s*[:#-]?\s*([^\n]+)/i]),
     dropoffTime: firstMatch(text, [/반납\s*(?:일시|시간|날짜)\s*[:#-]?\s*([^\n]+)/i, /DROP[ -]?OFF\s*(?:DATE|TIME)?\s*[:#-]?\s*([^\n]+)/i]),
     bookingRef: firstMatch(text, [/예약\s*(?:번호|확인번호)\s*[:#-]?\s*([A-Z0-9-]{4,12})/i, /(?:BOOKING|RESERVATION)\s*(?:NO\.?|REF)?\s*[:#-]?\s*([A-Z0-9-]{5,12})/i]),
-    price: firstMatch(text, [/(?:총|합계|요금|결제)\s*금액?\s*[:#-]?\s*([\d,]+)/i, /(?:TOTAL|AMOUNT|PRICE)\s*[:#-]?\s*([\d.,]+)/i]),
+    price: rawPrice ? rawPrice.replace(/,/g, "") : null,
     currency: firstMatch(text, [/\b(USD|EUR|KRW|JPY|GBP|CNY|AUD|CAD|원)\b/i]),
   };
 }
@@ -248,13 +249,14 @@ export function parseRentalFromText(text: string) {
 // ─── 숙박 파서 ───────────────────────────────────────────────────────────────
 
 export function parseAccommodationFromText(text: string) {
+  const rawPrice = firstMatch(text, [/(?:총|합계|요금|결제)\s*금액?\s*[:#-]?\s*([\d,]+)/i, /(?:TOTAL|AMOUNT|PRICE)\s*[:#-]?\s*([\d.,]+)/i]);
   return {
     name: firstMatch(text, [/숙소\s*(?:명|이름)?\s*[:#-]?\s*([^\n]+)/i, /호텔\s*(?:명|이름)?\s*[:#-]?\s*([^\n]+)/i, /HOTEL\s*[:#-]?\s*([^\n]+)/i, /PROPERTY\s*[:#-]?\s*([^\n]+)/i]),
     address: firstMatch(text, [/주소\s*[:#-]?\s*([^\n]+)/i, /ADDRESS\s*[:#-]?\s*([^\n]+)/i]),
     checkIn: firstMatch(text, [/체크인\s*(?:일자|날짜|일시)?\s*[:#-]?\s*([^\n]+)/i, /입실\s*[:#-]?\s*([^\n]+)/i, /CHECK[ -]?IN\s*(?:DATE)?\s*[:#-]?\s*([^\n]+)/i]),
     checkOut: firstMatch(text, [/체크아웃\s*(?:일자|날짜|일시)?\s*[:#-]?\s*([^\n]+)/i, /퇴실\s*[:#-]?\s*([^\n]+)/i, /CHECK[ -]?OUT\s*(?:DATE)?\s*[:#-]?\s*([^\n]+)/i]),
     bookingRef: firstMatch(text, [/예약\s*(?:번호|확인번호)\s*[:#-]?\s*([A-Z0-9-]{4,12})/i, /확인\s*번호\s*[:#-]?\s*([A-Z0-9-]{4,12})/i, /(?:BOOKING|CONFIRMATION)\s*(?:NO\.?|REF)?\s*[:#-]?\s*([A-Z0-9-]{5,12})/i]),
-    price: firstMatch(text, [/(?:총|합계|요금|결제)\s*금액?\s*[:#-]?\s*([\d,]+)/i, /(?:TOTAL|AMOUNT|PRICE)\s*[:#-]?\s*([\d.,]+)/i]),
+    price: rawPrice ? rawPrice.replace(/,/g, "") : null,
     currency: firstMatch(text, [/\b(USD|EUR|KRW|JPY|GBP|CNY|AUD|CAD|원)\b/i]),
   };
 }
