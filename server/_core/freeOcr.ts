@@ -78,6 +78,7 @@ export function parseFlightFromText(text: string) {
 }
 
 export function parseRentalFromText(text: string) {
+  const rawPrice = firstMatch(text, [/(?:TOTAL|AMOUNT|PRICE)\s*[:#-]?\s*([\d.,]+)/i]);
   return {
     company: firstMatch(text, [/COMPANY\s*[:#-]?\s*([^\n]+)/i, /RENTAL\s*COMPANY\s*[:#-]?\s*([^\n]+)/i]),
     carModel: firstMatch(text, [/CAR\s*(?:MODEL)?\s*[:#-]?\s*([^\n]+)/i, /VEHICLE\s*[:#-]?\s*([^\n]+)/i]),
@@ -86,19 +87,20 @@ export function parseRentalFromText(text: string) {
     pickupTime: firstMatch(text, [/PICK[ -]?UP\s*(?:DATE|TIME)?\s*[:#-]?\s*([^\n]+)/i]),
     dropoffTime: firstMatch(text, [/DROP[ -]?OFF\s*(?:DATE|TIME)?\s*[:#-]?\s*([^\n]+)/i]),
     bookingRef: firstMatch(text, [/(?:BOOKING|RESERVATION)\s*(?:NO\.?|REF)?\s*[:#-]?\s*([A-Z0-9-]{5,12})/i]),
-    price: firstMatch(text, [/(?:TOTAL|AMOUNT|PRICE)\s*[:#-]?\s*([\d.,]+)/i]),
+    price: rawPrice ? rawPrice.replace(/,/g, "") : null,
     currency: firstMatch(text, [/\b(USD|EUR|KRW|JPY|GBP|CNY|AUD|CAD)\b/i]),
   };
 }
 
 export function parseAccommodationFromText(text: string) {
+  const rawPrice = firstMatch(text, [/(?:TOTAL|AMOUNT|PRICE)\s*[:#-]?\s*([\d.,]+)/i]);
   return {
     name: firstMatch(text, [/HOTEL\s*[:#-]?\s*([^\n]+)/i, /PROPERTY\s*[:#-]?\s*([^\n]+)/i]),
     address: firstMatch(text, [/ADDRESS\s*[:#-]?\s*([^\n]+)/i]),
     checkIn: firstMatch(text, [/CHECK[ -]?IN\s*(?:DATE)?\s*[:#-]?\s*([^\n]+)/i]),
     checkOut: firstMatch(text, [/CHECK[ -]?OUT\s*(?:DATE)?\s*[:#-]?\s*([^\n]+)/i]),
     bookingRef: firstMatch(text, [/(?:BOOKING|CONFIRMATION)\s*(?:NO\.?|REF)?\s*[:#-]?\s*([A-Z0-9-]{5,12})/i]),
-    price: firstMatch(text, [/(?:TOTAL|AMOUNT|PRICE)\s*[:#-]?\s*([\d.,]+)/i]),
+    price: rawPrice ? rawPrice.replace(/,/g, "") : null,
     currency: firstMatch(text, [/\b(USD|EUR|KRW|JPY|GBP|CNY|AUD|CAD)\b/i]),
   };
 }
