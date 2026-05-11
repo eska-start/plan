@@ -586,6 +586,14 @@ export async function deleteChecklistItem(id: number, userId: number) {
   await db.delete(checklistItems).where(eq(checklistItems.id, id));
 }
 
+export async function deleteAllChecklistItems(tripId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const trip = await getTripById(tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.delete(checklistItems).where(eq(checklistItems.tripId, tripId));
+}
+
 export async function bulkCreateChecklistItems(items: InsertChecklistItem[]) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");

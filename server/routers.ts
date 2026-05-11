@@ -31,7 +31,7 @@ import {
   createTripShare, getTripShareByToken, getTripSharesByTrip, deleteTripShare,
   getTripMembers, addTripMember, removeTripMember,
   getExpensesByTrip, createExpense, updateExpense, deleteExpense,
-  getChecklistByTrip, createChecklistItem, updateChecklistItem, deleteChecklistItem, bulkCreateChecklistItems,
+  getChecklistByTrip, createChecklistItem, updateChecklistItem, deleteChecklistItem, deleteAllChecklistItems, bulkCreateChecklistItems,
   updateUserName,
 } from "./db";
 
@@ -1066,6 +1066,10 @@ const checklistRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(({ ctx, input }) => deleteChecklistItem(input.id, ctx.user.id)),
+
+  deleteAll: protectedProcedure
+    .input(z.object({ tripId: z.number() }))
+    .mutation(({ ctx, input }) => deleteAllChecklistItems(input.tripId, ctx.user.id)),
 
   aiExtract: protectedProcedure
     .input(z.object({ tripId: z.number(), text: z.string() }))

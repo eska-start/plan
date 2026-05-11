@@ -619,15 +619,13 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
               <Label className="text-sm font-medium">주소</Label>
               <Input className="h-10" placeholder="자동 입력되거나 직접 입력" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">방문 시간</Label>
-                <Input className="h-10 w-full min-w-0" type="time" value={form.visitTime} onChange={e => setForm(f => ({ ...f, visitTime: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">소요 (분)</Label>
-                <Input className="h-10 w-full min-w-0" type="number" placeholder="60" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} />
-              </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">방문 시간</Label>
+              <Input className="h-10 w-full" type="time" value={form.visitTime} onChange={e => setForm(f => ({ ...f, visitTime: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">소요 (분)</Label>
+              <Input className="h-10 w-full" type="number" placeholder="60" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">메모</Label>

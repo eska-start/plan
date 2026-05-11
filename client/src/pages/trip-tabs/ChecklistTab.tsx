@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X, ImagePlus } from "lucide-react";
+import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X, ImagePlus, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -35,11 +35,19 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
     },
     onError: () => toast.error("항목 삭제에 실패했습니다."),
   });
+  const deleteAll = trpc.checklist.deleteAll.useMutation({
+    onSuccess: () => {
+      utils.checklist.list.invalidate({ tripId });
+      toast.success("전체 항목이 삭제되었습니다.");
+    },
+    onError: () => toast.error("전체 삭제에 실패했습니다."),
+  });
 
   const [newLabel, setNewLabel] = useState("");
   const [newGroup, setNewGroup] = useState("기타");
   const [newImageUrl, setNewImageUrl] = useState<string | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [aiMode, setAiMode] = useState<"text" | "image" | null>(null);
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -48,6 +56,9 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
   const aiPhotoRef = useRef<HTMLInputElement>(null);
   const itemImageRef = useRef<HTMLInputElement>(null);
   const [imageTargetId, setImageTargetId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingLabel, setEditingLabel] = useState("");
+  const seededRef = useRef(false);
 
   const aiExtractMutation = trpc.checklist.aiExtract.useMutation();
   const aiExtractImageMutation = trpc.checklist.aiExtractFromImage.useMutation();
@@ -111,9 +122,14 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
     setAiItems([]); setAiMode(null); setAiText("");
   }
 
+  // Only seed once on initial empty load — not after user deletes all items
   useEffect(() => {
-    if (!isLoading && items && items.length === 0) {
+    if (!isLoading && items && items.length === 0 && !seededRef.current) {
+      seededRef.current = true;
       seed.mutate({ tripId });
+    }
+    if (!isLoading && items && items.length > 0) {
+      seededRef.current = true;
     }
   }, [isLoading, items]);
 
@@ -143,6 +159,18 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
     setNewImageUrl(null);
   }
 
+  function startEdit(id: number, label: string) {
+    setEditingId(id);
+    setEditingLabel(label);
+  }
+
+  async function commitEdit() {
+    if (editingId == null || !editingLabel.trim()) { setEditingId(null); return; }
+    await update.mutateAsync({ id: editingId, label: editingLabel.trim() });
+    setEditingId(null);
+    setEditingLabel("");
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
@@ -164,6 +192,11 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-[#7CC8B0]">{done} / {total}</span>
+            {total > 0 && (
+              <Button size="sm" variant="outline" onClick={() => setDeleteAllOpen(true)} className="gap-1.5 h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30">
+                전체 지우기
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={() => { if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; } setAiMode(aiMode ? null : "text"); setAiItems([]); }} className="gap-1.5 h-7 text-xs px-2">
               <Sparkles className="w-3 h-3" />AI
             </Button>
@@ -267,7 +300,7 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
               {(groupItems ?? []).map(item => (
                 <div key={item.id} className="flex items-center gap-3 px-4 py-3">
                   <button
-                    onClick={() => toggle.mutate({ id: item.id, done: !item.done })}
+                    onClick={() => { if (editingId === item.id) return; toggle.mutate({ id: item.id, done: !item.done }); }}
                     className="shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors"
                     style={{
                       borderColor: item.done ? "#7CC8B0" : undefined,
@@ -280,29 +313,52 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
                       </svg>
                     )}
                   </button>
-                  <span className={`flex-1 text-sm ${item.done ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                    {item.label}
-                    {item.imageUrl && (
-                      <a href={item.imageUrl} target="_blank" rel="noreferrer" className="block mt-1">
-                        <img src={item.imageUrl} alt={item.label} className="w-20 h-20 rounded-md object-cover border" />
-                      </a>
-                    )}
-                  </span>
-                  <button onClick={() => { setImageTargetId(item.id); itemImageRef.current?.click(); }} className="text-muted-foreground hover:text-primary shrink-0">
-                    <ImagePlus className="w-4 h-4" />
-                  </button>
-                  {item.imageUrl && (
-                    <button onClick={() => update.mutate({ id: item.id, imageUrl: null })} className="text-muted-foreground hover:text-destructive shrink-0" title="이미지 제거">
-                      <X className="w-4 h-4" />
-                    </button>
+
+                  {editingId === item.id ? (
+                    <div className="flex flex-1 items-center gap-2">
+                      <Input
+                        autoFocus
+                        className="h-7 text-sm py-0"
+                        value={editingLabel}
+                        onChange={e => setEditingLabel(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingId(null); }}
+                      />
+                      <button onClick={commitEdit} className="text-primary shrink-0"><Check className="w-4 h-4" /></button>
+                      <button onClick={() => setEditingId(null)} className="text-muted-foreground shrink-0"><X className="w-4 h-4" /></button>
+                    </div>
+                  ) : (
+                    <span className={`flex-1 text-sm ${item.done ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                      {item.label}
+                      {item.imageUrl && (
+                        <a href={item.imageUrl} target="_blank" rel="noreferrer" className="block mt-1">
+                          <img src={item.imageUrl} alt={item.label} className="w-20 h-20 rounded-md object-cover border" />
+                        </a>
+                      )}
+                    </span>
                   )}
-                  <button
-                    onClick={() => setDeleteItemId(item.id)}
-                    className="text-muted-foreground hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ opacity: 0.4 }}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+
+                  {editingId !== item.id && (
+                    <>
+                      <button onClick={() => startEdit(item.id, item.label)} className="text-muted-foreground hover:text-primary shrink-0">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => { setImageTargetId(item.id); itemImageRef.current?.click(); }} className="text-muted-foreground hover:text-primary shrink-0">
+                        <ImagePlus className="w-4 h-4" />
+                      </button>
+                      {item.imageUrl && (
+                        <button onClick={() => update.mutate({ id: item.id, imageUrl: null })} className="text-muted-foreground hover:text-destructive shrink-0" title="이미지 제거">
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setDeleteItemId(item.id)}
+                        className="text-muted-foreground hover:text-destructive shrink-0"
+                        style={{ opacity: 0.4 }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -373,6 +429,27 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
               }}
             >
               삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>전체 지우기</AlertDialogTitle>
+            <AlertDialogDescription>체크리스트 항목 전체({total}개)를 삭제할까요? 이 작업은 되돌릴 수 없습니다.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                deleteAll.mutate({ tripId });
+                setDeleteAllOpen(false);
+              }}
+            >
+              전체 삭제
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
