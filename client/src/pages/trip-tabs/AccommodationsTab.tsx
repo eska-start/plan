@@ -111,7 +111,7 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
       checkIn: form.checkIn || undefined,
       checkOut: form.checkOut || undefined,
       bookingRef: form.bookingRef.trim() || undefined,
-      price: form.price.trim() || undefined,
+      price: form.price.replace(/[^0-9.]/g, "") || undefined,
       currency: form.currency || undefined,
       memo: form.memo.trim() || undefined,
     };
