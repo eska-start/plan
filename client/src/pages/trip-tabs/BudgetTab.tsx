@@ -2,10 +2,11 @@ import { trpc } from "@/lib/trpc";
 import { useState, useRef, useEffect } from "react";
 import { format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
-import { Plus, Wallet, TrendingUp, PiggyBank, Trash2, X, Loader2, Camera, FileText, Sparkles, RefreshCw, Image as ImageIcon } from "lucide-react";
+import { Plus, Wallet, TrendingUp, PiggyBank, Trash2, X, Loader2, Camera, FileText, Sparkles, RefreshCw, Image as ImageIcon, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -62,6 +63,10 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
 
   const { data: expenses, isLoading } = trpc.expenses.list.useQuery({ tripId });
   const createExpense = trpc.expenses.create.useMutation({ onSuccess: () => utils.expenses.list.invalidate({ tripId }) });
+  const updateExpense = trpc.expenses.update.useMutation({
+    onSuccess: () => { utils.expenses.list.invalidate({ tripId }); setEditExpenseId(null); toast.success("지출이 수정되었습니다."); },
+    onError: () => toast.error("지출 수정에 실패했습니다."),
+  });
   const deleteExpense = trpc.expenses.delete.useMutation({
     onSuccess: () => {
       utils.expenses.list.invalidate({ tripId });
@@ -83,6 +88,8 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
   const imageFileRef = useRef<HTMLInputElement>(null);
   const [krwRates, setKrwRates] = useState<Record<string, number> | null>(null);
   const [deleteExpenseId, setDeleteExpenseId] = useState<number | null>(null);
+  const [editExpenseId, setEditExpenseId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ date: "", amount: "", currency: "KRW", category: "기타" as Category, description: "" });
 
   const [form, setForm] = useState({
     date: format(new Date(), "yyyy-MM-dd"), amount: "", currency, category: "기타" as Category, description: "",
@@ -540,9 +547,22 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
                           </div>
                           <button
                             onClick={() => {
-                              setDeleteExpenseId(exp.id);
+                              setEditExpenseId(exp.id);
+                              setEditForm({
+                                date: exp.date ?? format(new Date(), "yyyy-MM-dd"),
+                                amount: exp.amount ?? "",
+                                currency: exp.currency ?? currency,
+                                category: (exp.category ?? "기타") as Category,
+                                description: exp.description ?? "",
+                              });
                             }}
-                            className="text-muted-foreground hover:text-destructive ml-1 shrink-0"
+                            className="text-muted-foreground hover:text-foreground ml-1 shrink-0"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteExpenseId(exp.id)}
+                            className="text-muted-foreground hover:text-destructive shrink-0"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -556,6 +576,51 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
           })}
         </div>
       )}
+      {/* Edit Dialog */}
+      <Dialog open={editExpenseId !== null} onOpenChange={(open) => { if (!open) setEditExpenseId(null); }}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
+          <DialogHeader className="mb-1">
+            <DialogTitle className="text-lg font-semibold">지출 수정</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3.5">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label className="text-xs">날짜</Label><Input className="w-full" type="date" value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} /></div>
+              <div className="space-y-1">
+                <Label className="text-xs">카테고리</Label>
+                <select className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value as Category }))}>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">금액</Label>
+                <Input className="w-full" type="number" placeholder="0" value={editForm.amount} onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">통화</Label>
+                <select className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={editForm.currency} onChange={e => setEditForm(f => ({ ...f, currency: e.target.value }))}>
+                  {CURRENCIES.map(c => <option key={c} value={c}>{CURRENCY_FLAGS[c] ?? ""} {c}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="space-y-1"><Label className="text-xs">설명 (선택)</Label><Input placeholder="예: 라멘, 교통카드 충전" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <Button variant="outline" className="flex-1" onClick={() => setEditExpenseId(null)}>취소</Button>
+            <Button
+              className="flex-1"
+              disabled={updateExpense.isPending}
+              onClick={() => {
+                if (editExpenseId == null || !editForm.amount) return;
+                updateExpense.mutate({ id: editExpenseId, date: editForm.date, amount: editForm.amount, currency: editForm.currency, category: editForm.category, description: editForm.description || undefined });
+              }}
+            >
+              {updateExpense.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              수정
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={deleteExpenseId !== null} onOpenChange={(open) => { if (!open) setDeleteExpenseId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
