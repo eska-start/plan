@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   Loader2, MapPin, CheckCircle2, Circle, Plus,
   Utensils, Camera, ShoppingBag, Pencil, Trash2, CalendarDays,
+  Sparkles, FileText, X, FolderOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -49,8 +50,8 @@ type FormData = {
 
 export default function ScheduleTab({ tripId, tripDays }: { tripId: number; tripDays: Date[] }) {
   const utils = trpc.useUtils();
+  const tripStartDate = tripDays[0] ? format(tripDays[0], "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
 
-  // Default to today if it's within the trip, otherwise first day
   const defaultIdx = (() => {
     const todayStr = format(new Date(), "yyyy-MM-dd");
     const idx = tripDays.findIndex(d => format(d, "yyyy-MM-dd") === todayStr);
@@ -66,6 +67,13 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
   const [form, setForm] = useState<FormData>({
     placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "",
   });
+
+  // Dialog AI state
+  const [dialogAiMode, setDialogAiMode] = useState<"text" | "image" | null>(null);
+  const [dialogAiText, setDialogAiText] = useState("");
+  const [dialogAiLoading, setDialogAiLoading] = useState(false);
+  const dialogAiCameraRef = useRef<HTMLInputElement>(null);
+  const dialogAiPhotoRef = useRef<HTMLInputElement>(null);
 
   const placeInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -86,6 +94,8 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
     onSuccess: () => { utils.itinerary.listByDate.invalidate(); utils.itinerary.listByTrip.invalidate(); toast.success("일정이 삭제되었습니다."); },
     onError: () => toast.error("삭제에 실패했습니다."),
   });
+  const aiExtractMutation = trpc.itinerary.aiExtract.useMutation();
+  const aiExtractImageMutation = trpc.itinerary.aiExtractFromImage.useMutation();
 
   useEffect(() => {
     if (!dialogOpen) return;
@@ -115,11 +125,15 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
   function openCreate() {
     setEditId(null);
     setForm({ placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "" });
+    setDialogAiMode(null);
+    setDialogAiText("");
     setDialogOpen(true);
   }
   function openEdit(item: ItineraryItem) {
     setEditId(item.id);
     setForm({ placeName: item.placeName, address: item.address ?? "", visitTime: item.visitTime ?? "", duration: item.duration?.toString() ?? "", memo: item.memo ?? "", category: item.category ?? "place", lat: item.lat ?? "", lng: item.lng ?? "" });
+    setDialogAiMode(null);
+    setDialogAiText("");
     setDialogOpen(true);
   }
   function handleSubmit() {
@@ -127,6 +141,68 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
     const data = { placeName: form.placeName, address: form.address || undefined, visitTime: form.visitTime || undefined, duration: form.duration ? parseInt(form.duration) : undefined, memo: form.memo || undefined, category: form.category, lat: form.lat || undefined, lng: form.lng || undefined };
     if (editId) updateMutation.mutate({ id: editId, ...data });
     else createMutation.mutate({ tripId, date: selectedDate, order: sortedItems.length, ...data });
+  }
+
+  async function resizeImageToBase64(file: File): Promise<string> {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    return new Promise<string>((resolve, reject) => {
+      img.onload = () => {
+        const MAX = 1400; let { width, height } = img;
+        if (width > MAX || height > MAX) { if (width > height) { height = Math.round(height * MAX / width); width = MAX; } else { width = Math.round(width * MAX / height); height = MAX; } }
+        const c = document.createElement("canvas"); c.width = width; c.height = height;
+        c.getContext("2d")!.drawImage(img, 0, 0, width, height); URL.revokeObjectURL(url);
+        resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
+      };
+      img.onerror = reject; img.src = url;
+    });
+  }
+
+  async function handleDialogAiText() {
+    if (!dialogAiText.trim()) return;
+    setDialogAiLoading(true);
+    try {
+      const res = await aiExtractMutation.mutateAsync({ tripId, text: dialogAiText, tripStartDate });
+      const first = (res.items as Array<Record<string, unknown>>)[0];
+      if (!first) { toast.error("정보를 찾지 못했습니다."); return; }
+      setForm(f => ({
+        ...f,
+        placeName: (first.placeName as string) || f.placeName,
+        address: (first.address as string) || f.address,
+        visitTime: (first.visitTime as string) || f.visitTime,
+        category: (first.category as string) || f.category,
+        memo: (first.memo as string) || f.memo,
+      }));
+      setDialogAiMode(null);
+      setDialogAiText("");
+      toast.success("정보가 자동으로 입력됐습니다. 확인 후 수정해주세요.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      toast.error(msg.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "AI 분석 실패");
+    } finally { setDialogAiLoading(false); }
+  }
+
+  async function handleDialogAiImage(file: File) {
+    setDialogAiLoading(true);
+    try {
+      const b64 = await resizeImageToBase64(file);
+      const res = await aiExtractImageMutation.mutateAsync({ tripId, imageBase64: b64, tripStartDate });
+      const first = (res.items as Array<Record<string, unknown>>)[0];
+      if (!first) { toast.error("정보를 찾지 못했습니다."); return; }
+      setForm(f => ({
+        ...f,
+        placeName: (first.placeName as string) || f.placeName,
+        address: (first.address as string) || f.address,
+        visitTime: (first.visitTime as string) || f.visitTime,
+        category: (first.category as string) || f.category,
+        memo: (first.memo as string) || f.memo,
+      }));
+      setDialogAiMode(null);
+      toast.success("정보가 자동으로 입력됐습니다. 확인 후 수정해주세요.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      toast.error(msg.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "이미지 분석 실패");
+    } finally { setDialogAiLoading(false); }
   }
 
   const selectedDay = tripDays[selectedIdx];
@@ -230,9 +306,7 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
                     <>
                       <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
                       <button
-                        onClick={() => {
-                          setDeleteId(item.id);
-                        }}
+                        onClick={() => setDeleteId(item.id)}
                         className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -248,7 +322,6 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
         </div>
       )}
 
-      {/* Dialog */}
       <AlertDialog open={deleteId !== null} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -270,7 +343,7 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dialog */}
+      {/* Add / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
           <DialogHeader className="mb-1">
@@ -279,6 +352,73 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
+            {/* AI 자동 입력 */}
+            <div>
+              {dialogAiMode === null ? (
+                <button
+                  type="button"
+                  onClick={() => setDialogAiMode("text")}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> AI 자동 입력
+                </button>
+              ) : (
+                <div className="rounded-xl border bg-muted/30 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-0.5 p-0.5 bg-muted rounded-lg">
+                      <button onClick={() => setDialogAiMode("text")} className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${dialogAiMode === "text" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+                        <FileText className="w-3 h-3" />텍스트
+                      </button>
+                      <button onClick={() => setDialogAiMode("image")} className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${dialogAiMode === "image" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+                        <Camera className="w-3 h-3" />이미지
+                      </button>
+                    </div>
+                    <button type="button" onClick={() => { setDialogAiMode(null); setDialogAiText(""); }}>
+                      <X className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                  {dialogAiLoading ? (
+                    <div className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> AI 분석 중…
+                    </div>
+                  ) : dialogAiMode === "text" ? (
+                    <div className="space-y-2">
+                      <textarea
+                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-primary"
+                        placeholder="예: 오후 2시 아사쿠사 센소지 방문, 식사는 스시 레스토랑"
+                        value={dialogAiText}
+                        onChange={e => setDialogAiText(e.target.value)}
+                      />
+                      <Button size="sm" onClick={handleDialogAiText} disabled={!dialogAiText.trim()} className="gap-1.5 w-full">
+                        <Sparkles className="w-3.5 h-3.5" />분석하기
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => dialogAiCameraRef.current?.click()}
+                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <Camera className="w-3.5 h-3.5" />카메라
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => dialogAiPhotoRef.current?.click()}
+                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border-2 border-dashed border-indigo-300 bg-indigo-50 text-xs font-medium text-indigo-600 hover:bg-indigo-100 transition-colors"
+                      >
+                        <FolderOpen className="w-3.5 h-3.5" />사진 선택
+                      </button>
+                      <input ref={dialogAiCameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleDialogAiImage(f); e.target.value = ""; }} />
+                      <input ref={dialogAiPhotoRef} type="file" accept="image/*,image/heic,image/heif" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleDialogAiImage(f); e.target.value = ""; }} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">카테고리</Label>
               <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
@@ -296,15 +436,13 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
               <Label className="text-sm font-medium">주소</Label>
               <Input className="h-10" placeholder="자동 입력되거나 직접 입력" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">방문 시간</Label>
-                <Input className="h-10" type="time" value={form.visitTime} onChange={e => setForm(f => ({ ...f, visitTime: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">소요 (분)</Label>
-                <Input className="h-10" type="number" placeholder="60" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} />
-              </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">방문 시간</Label>
+              <Input className="h-10 w-full" type="time" value={form.visitTime} onChange={e => setForm(f => ({ ...f, visitTime: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">소요 (분)</Label>
+              <Input className="h-10 w-full" type="number" placeholder="60" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">메모</Label>
