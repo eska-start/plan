@@ -583,14 +583,15 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
             <DialogTitle className="text-lg font-semibold">지출 수정</DialogTitle>
           </DialogHeader>
           <div className="space-y-3.5">
+            <div className="space-y-1"><Label className="text-xs">설명 (선택)</Label><Input placeholder="예: 라멘, 교통카드 충전" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label className="text-xs">날짜</Label><Input className="w-full" type="date" value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} /></div>
               <div className="space-y-1">
                 <Label className="text-xs">카테고리</Label>
                 <select className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value as Category }))}>
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
+              <div className="space-y-1"><Label className="text-xs">날짜</Label><Input className="w-full" type="date" value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} /></div>
               <div className="space-y-1">
                 <Label className="text-xs">금액</Label>
                 <Input className="w-full" type="number" placeholder="0" value={editForm.amount} onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))} />
@@ -602,7 +603,6 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
                 </select>
               </div>
             </div>
-            <div className="space-y-1"><Label className="text-xs">설명 (선택)</Label><Input placeholder="예: 라멘, 교통카드 충전" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
           </div>
           <div className="flex gap-2 mt-4">
             <Button variant="outline" className="flex-1" onClick={() => setEditExpenseId(null)}>취소</Button>
