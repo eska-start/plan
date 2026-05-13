@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X, ImagePlus, Pencil, Check } from "lucide-react";
+import { useState, useRef } from "react";
+import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X, ImagePlus, Pencil, Check, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -58,7 +58,6 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
   const [imageTargetId, setImageTargetId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
-  const seededRef = useRef(false);
 
   const aiExtractMutation = trpc.checklist.aiExtract.useMutation();
   const aiExtractImageMutation = trpc.checklist.aiExtractFromImage.useMutation();
@@ -121,17 +120,6 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
     toast.success(`${toSave.length}개 항목이 추가됐습니다.`);
     setAiItems([]); setAiMode(null); setAiText("");
   }
-
-  // Only seed once on initial empty load — not after user deletes all items
-  useEffect(() => {
-    if (!isLoading && items && items.length === 0 && !seededRef.current) {
-      seededRef.current = true;
-      seed.mutate({ tripId });
-    }
-    if (!isLoading && items && items.length > 0) {
-      seededRef.current = true;
-    }
-  }, [isLoading, items]);
 
   const groups: Record<string, typeof items> = {};
   (items ?? []).forEach(item => {
@@ -282,6 +270,26 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
             </>
           )}
         </div>
+      )}
+
+      {/* Empty state */}
+      {!isLoading && total === 0 && !aiMode && (
+        <FadeIn>
+          <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground rounded-2xl border border-dashed">
+            <ListChecks className="w-8 h-8 opacity-30" />
+            <p className="text-sm">준비물 목록이 비어 있어요</p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 mt-1"
+              disabled={seed.isPending}
+              onClick={() => seed.mutate({ tripId })}
+            >
+              {seed.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ListChecks className="w-3.5 h-3.5" />}
+              기본 항목으로 시작
+            </Button>
+          </div>
+        </FadeIn>
       )}
 
       {/* Group sections */}
