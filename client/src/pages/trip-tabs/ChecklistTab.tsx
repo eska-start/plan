@@ -25,7 +25,13 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
   const utils = trpc.useUtils();
   const { data: items, isLoading } = trpc.checklist.list.useQuery({ tripId });
   const seed = trpc.checklist.seed.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
-  const create = trpc.checklist.create.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
+  const create = trpc.checklist.create.useMutation({
+    onSuccess: () => {
+      utils.checklist.list.invalidate({ tripId });
+      toast.success("항목이 추가되었습니다.");
+    },
+    onError: () => toast.error("항목 추가에 실패했습니다."),
+  });
   const toggle = trpc.checklist.toggle.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
   const update = trpc.checklist.update.useMutation({ onSuccess: () => utils.checklist.list.invalidate({ tripId }) });
   const del = trpc.checklist.delete.useMutation({
@@ -131,12 +137,25 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
   const total = (items ?? []).length;
   const done = (items ?? []).filter(i => i.done).length;
 
-  async function toDataUrl(file: File) {
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+  async function toDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const MAX = 600;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+          else { width = Math.round(width * MAX / height); height = MAX; }
+        }
+        const c = document.createElement("canvas");
+        c.width = width; c.height = height;
+        c.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL("image/jpeg", 0.75));
+      };
+      img.onerror = reject;
+      img.src = url;
     });
   }
 
