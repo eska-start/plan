@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useRef } from "react";
-import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X, ImagePlus, Pencil, Check, ListChecks } from "lucide-react";
+import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X, Pencil, Check, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -51,7 +51,6 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
 
   const [newLabel, setNewLabel] = useState("");
   const [newGroup, setNewGroup] = useState("기타");
-  const [newImageUrl, setNewImageUrl] = useState<string | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [aiMode, setAiMode] = useState<"text" | "image" | null>(null);
@@ -60,8 +59,6 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
   const [aiItems, setAiItems] = useState<Array<{ group: string; label: string; selected: boolean }>>([]);
   const aiCameraRef = useRef<HTMLInputElement>(null);
   const aiPhotoRef = useRef<HTMLInputElement>(null);
-  const itemImageRef = useRef<HTMLInputElement>(null);
-  const [imageTargetId, setImageTargetId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
 
@@ -137,33 +134,10 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
   const total = (items ?? []).length;
   const done = (items ?? []).filter(i => i.done).length;
 
-  async function toDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        const MAX = 600;
-        let { width, height } = img;
-        if (width > MAX || height > MAX) {
-          if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
-          else { width = Math.round(width * MAX / height); height = MAX; }
-        }
-        const c = document.createElement("canvas");
-        c.width = width; c.height = height;
-        c.getContext("2d")!.drawImage(img, 0, 0, width, height);
-        URL.revokeObjectURL(url);
-        resolve(c.toDataURL("image/jpeg", 0.75));
-      };
-      img.onerror = reject;
-      img.src = url;
-    });
-  }
-
   async function handleAdd() {
     if (!newLabel.trim()) return;
-    await create.mutateAsync({ tripId, group: newGroup, label: newLabel.trim(), imageUrl: newImageUrl });
+    await create.mutateAsync({ tripId, group: newGroup, label: newLabel.trim() });
     setNewLabel("");
-    setNewImageUrl(null);
   }
 
   function startEdit(id: number, label: string) {
@@ -356,11 +330,6 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
                   ) : (
                     <span className={`flex-1 text-sm ${item.done ? "line-through text-muted-foreground" : "text-foreground"}`}>
                       {item.label}
-                      {item.imageUrl && (
-                        <a href={item.imageUrl} target="_blank" rel="noreferrer" className="block mt-1">
-                          <img src={item.imageUrl} alt={item.label} className="w-20 h-20 rounded-md object-cover border" />
-                        </a>
-                      )}
                     </span>
                   )}
 
@@ -369,14 +338,6 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
                       <button onClick={() => startEdit(item.id, item.label)} className="text-muted-foreground hover:text-primary shrink-0">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => { setImageTargetId(item.id); itemImageRef.current?.click(); }} className="text-muted-foreground hover:text-primary shrink-0">
-                        <ImagePlus className="w-4 h-4" />
-                      </button>
-                      {item.imageUrl && (
-                        <button onClick={() => update.mutate({ id: item.id, imageUrl: null })} className="text-muted-foreground hover:text-destructive shrink-0" title="이미지 제거">
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
                       <button
                         onClick={() => setDeleteItemId(item.id)}
                         className="text-muted-foreground hover:text-destructive shrink-0"
@@ -414,35 +375,12 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
             onChange={e => setNewLabel(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleAdd()}
           />
-        </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => { setImageTargetId(null); itemImageRef.current?.click(); }} className="gap-1.5 shrink-0">
-            <ImagePlus className="w-3.5 h-3.5" />이미지
-          </Button>
-          <Button size="sm" onClick={handleAdd} disabled={create.isPending || !newLabel.trim()} className="flex-1">
-            {create.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
-            등록
+          <Button size="sm" onClick={handleAdd} disabled={create.isPending || !newLabel.trim()} className="shrink-0 px-4">
+            {create.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "등록"}
           </Button>
         </div>
-        {newImageUrl && (
-          <div className="pt-1">
-            <img src={newImageUrl} alt="새 항목 이미지" className="w-20 h-20 rounded-md object-cover border" />
-          </div>
-        )}
       </div>
 
-      <input ref={itemImageRef} type="file" accept="image/*" className="hidden" onChange={async e => {
-        const f = e.target.files?.[0];
-        if (!f) return;
-        const dataUrl = await toDataUrl(f);
-        if (imageTargetId != null) {
-          await update.mutateAsync({ id: imageTargetId, imageUrl: dataUrl });
-          setImageTargetId(null);
-        } else {
-          setNewImageUrl(dataUrl);
-        }
-        e.target.value = "";
-      }} />
 
       <AlertDialog open={deleteItemId !== null} onOpenChange={(open) => { if (!open) setDeleteItemId(null); }}>
         <AlertDialogContent>
