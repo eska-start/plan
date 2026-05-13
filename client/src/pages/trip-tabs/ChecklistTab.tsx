@@ -380,7 +380,7 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
         <p className="text-sm font-semibold">항목 추가</p>
         <div className="flex gap-2">
           <select
-            className="rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-32 shrink-0"
+            className="rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-24 shrink-0"
             value={newGroup}
             onChange={e => setNewGroup(e.target.value)}
           >
@@ -389,16 +389,20 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
             ))}
           </select>
           <Input
+            className="flex-1 min-w-0"
             placeholder="항목 이름"
             value={newLabel}
             onChange={e => setNewLabel(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleAdd()}
           />
+        </div>
+        <div className="flex gap-2">
           <Button type="button" variant="outline" size="sm" onClick={() => { setImageTargetId(null); itemImageRef.current?.click(); }} className="gap-1.5 shrink-0">
             <ImagePlus className="w-3.5 h-3.5" />이미지
           </Button>
-          <Button size="sm" onClick={handleAdd} disabled={create.isPending || !newLabel.trim()} className="gap-1 shrink-0">
-            <Plus className="w-3.5 h-3.5" />
+          <Button size="sm" onClick={handleAdd} disabled={create.isPending || !newLabel.trim()} className="flex-1">
+            {create.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+            등록
           </Button>
         </div>
         {newImageUrl && (
