@@ -103,9 +103,20 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
     },
     onError: () => toast.error("장소 추가에 실패했습니다."),
   });
+  const [optimisticVisited, setOptimisticVisited] = useState<Set<number>>(new Set());
+  const [optimisticUnvisited, setOptimisticUnvisited] = useState<Set<number>>(new Set());
+
   const updateMutation = trpc.itinerary.update.useMutation({
-    onSuccess: () => { utils.itinerary.listByTrip.invalidate(); utils.itinerary.listByDate.invalidate(); setDialogOpen(false); setEditId(null); toast.success("수정됐습니다."); },
-    onError: () => toast.error("수정에 실패했습니다."),
+    onSuccess: (_, vars) => {
+      setOptimisticVisited(prev => { const next = new Set(prev); next.delete(vars.id); return next; });
+      setOptimisticUnvisited(prev => { const next = new Set(prev); next.delete(vars.id); return next; });
+      utils.itinerary.listByTrip.invalidate(); utils.itinerary.listByDate.invalidate(); setDialogOpen(false); setEditId(null); toast.success("수정됐습니다.");
+    },
+    onError: (_, vars) => {
+      setOptimisticVisited(prev => { const next = new Set(prev); next.delete(vars.id); return next; });
+      setOptimisticUnvisited(prev => { const next = new Set(prev); next.delete(vars.id); return next; });
+      toast.error("수정에 실패했습니다.");
+    },
   });
   const deleteMutation = trpc.itinerary.delete.useMutation({
     onSuccess: () => { utils.itinerary.listByTrip.invalidate(); utils.itinerary.listByDate.invalidate(); toast.success("일정이 삭제되었습니다."); },
@@ -517,21 +528,31 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
                       <div className="mb-4" />
                     ) : (
                       <div className="rounded-2xl border bg-card overflow-hidden mb-4">
-                        {dayItems.map((item, k) => (
+                        {dayItems.map((item, k) => {
+                          const effectivelyVisited = optimisticUnvisited.has(item.id) ? false : (!!item.visited || optimisticVisited.has(item.id));
+                          return (
                           <div
                             key={item.id}
-                            className={`flex items-start gap-2.5 sm:gap-3 px-3 sm:px-4 py-3.5 border-t first:border-t-0 border-border group hover:bg-muted/30 ${item.visited ? "opacity-60" : ""}`}
+                            className={`flex items-start gap-2.5 sm:gap-3 px-3 sm:px-4 py-3.5 border-t first:border-t-0 border-border group hover:bg-muted/30 ${effectivelyVisited ? "opacity-60" : ""}`}
                             style={{
-                              opacity: visible ? (item.visited ? 0.6 : 1) : 0,
+                              opacity: visible ? (effectivelyVisited ? 0.6 : 1) : 0,
                               transform: visible ? "translateY(0)" : "translateY(8px)",
                               transition: `opacity 0.4s ease ${0.2 + k * 0.07}s, transform 0.4s ease ${0.2 + k * 0.07}s`,
                             }}
                           >
                             <button
-                              onClick={() => updateMutation.mutate({ id: item.id, visited: !item.visited })}
+                              onClick={() => {
+                                const newVisited = !effectivelyVisited;
+                                if (newVisited) {
+                                  setOptimisticVisited(prev => { const next = new Set(prev); next.add(item.id); return next; });
+                                } else {
+                                  setOptimisticUnvisited(prev => { const next = new Set(prev); next.add(item.id); return next; });
+                                }
+                                updateMutation.mutate({ id: item.id, visited: newVisited });
+                              }}
                               className="mt-0.5 shrink-0 transition-colors"
                             >
-                              {item.visited
+                              {effectivelyVisited
                                 ? <CheckCircle2 className="w-4 h-4 text-accent" />
                                 : <Circle className="w-4 h-4 text-muted-foreground hover:text-accent" />}
                             </button>
@@ -545,7 +566,7 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap mb-0.5">
                                 <CategoryPill category={item.sourceType === "accommodation" ? "accommodation" : (item.category ?? "place")} />
-                                <span className={`text-sm font-semibold ${item.visited ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                                <span className={`text-sm font-semibold ${effectivelyVisited ? "line-through text-muted-foreground" : "text-foreground"}`}>
                                   {item.placeName}
                                 </span>
                               </div>
@@ -592,7 +613,8 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
                               )}
                             </div>
                           </div>
-                        ))}
+                        );
+                        })}
                       </div>
                     )}
                   </div>
