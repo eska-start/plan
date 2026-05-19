@@ -1097,11 +1097,14 @@ const checklistRouter = router({
           },
           { role: "user" as const, content: input.text },
         ],
-        response_format: { type: "json_object" },
+        maxTokens: 4000,
       });
       try {
         const raw = res.choices?.[0]?.message?.content;
-        const p = JSON.parse(typeof raw === "string" ? raw : "{}") as Record<string, unknown>;
+        const text = typeof raw === "string" ? raw : "";
+        const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
+        const jsonStr = jsonMatch ? jsonMatch[1].trim() : text.trim();
+        const p = JSON.parse(jsonStr || "{}") as Record<string, unknown>;
         return { items: Array.isArray(p.items) ? p.items : [], reply: typeof p.reply === "string" ? p.reply : "" };
       } catch { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI 응답 파싱 실패" }); }
     }),
@@ -1132,7 +1135,7 @@ const checklistRouter = router({
 4. 콜론(:) 뒤에 나열된 경우(예: "세면도구 : 헤어캡, 샤워볼")도 통째로 하나의 label로 유지하세요.
 5. 이미지에 있는 그룹명을 그대로 사용하세요. ${groupHint}
 
-반드시 JSON만 반환:
+반드시 아래 JSON 형식으로만 반환하세요 (다른 텍스트 없이):
 { "items": [{ "group": "그룹명", "label": "항목명" }], "reply": "한국어 요약" }`,
           },
           {
@@ -1143,13 +1146,24 @@ const checklistRouter = router({
             ],
           },
         ],
-        response_format: { type: "json_object" },
+        maxTokens: 4000,
+        timeoutMs: 60_000,
       });
       try {
         const raw = res.choices?.[0]?.message?.content;
-        const p = JSON.parse(typeof raw === "string" ? raw : "{}") as Record<string, unknown>;
-        return { items: Array.isArray(p.items) ? p.items : [], reply: typeof p.reply === "string" ? p.reply : "" };
-      } catch { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI 응답 파싱 실패" }); }
+        if (!raw) throw new Error("모델이 빈 응답을 반환했습니다.");
+        const text = typeof raw === "string" ? raw : "";
+        // JSON 블록 추출 (```json ... ``` 또는 순수 JSON 모두 처리)
+        const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
+        const jsonStr = jsonMatch ? jsonMatch[1].trim() : text.trim();
+        const p = JSON.parse(jsonStr || "{}") as Record<string, unknown>;
+        if (!Array.isArray(p.items)) throw new Error("items 필드가 없습니다.");
+        return { items: p.items, reply: typeof p.reply === "string" ? p.reply : "" };
+      } catch (parseErr) {
+        const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+        console.error("[checklist.aiExtractFromImage] parse error:", msg);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `이미지 분석 실패: ${msg}` });
+      }
     }),
 });
 

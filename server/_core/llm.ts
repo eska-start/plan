@@ -62,6 +62,7 @@ export type InvokeParams = {
   tool_choice?: ToolChoice;
   maxTokens?: number;
   max_tokens?: number;
+  timeoutMs?: number;
   outputSchema?: OutputSchema;
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
@@ -283,6 +284,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     tool_choice,
     maxTokens,
     max_tokens,
+    timeoutMs,
     outputSchema,
     output_schema,
     responseFormat,
@@ -330,10 +332,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const apiUrl = resolveApiUrl();
   const bodyStr = JSON.stringify(payload);
 
-  // Render 30초 idle timeout보다 먼저 abort (25초), 실패 시 1회 재시도
+  // 기본 25초 timeout (Render 30초 제한), 이미지 분석 등 무거운 작업은 timeoutMs로 오버라이드
+  const effectiveTimeout = timeoutMs ?? 25_000;
   async function attempt(): Promise<Response> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25_000);
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
     try {
       const res = await fetch(apiUrl, {
         method: "POST",
