@@ -333,9 +333,12 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       if (item.lat && item.lng) {
         latlng = new window.google.maps.LatLng(Number(item.lat), Number(item.lng));
       } else if (item.address) {
-        latlng = await geocodeAddress(`addr:${item.id}`, item.address);
+        // 같은 주소는 캐시 공유 (item.id 대신 address 기준)
+        latlng = await geocodeAddress(`addr:${item.address}`, item.address);
       } else if (item.placeName) {
-        latlng = await geocodeAddress(`name:${item.id}:${item.placeName}`, item.placeName);
+        // 숙박 자동 생성 항목은 "🏨 체크인 — 호텔명" 형식이므로 호텔명만 추출해 지오코딩
+        const geocodeName = item.placeName.replace(/^🏨\s*(체크인|체크아웃|숙박)\s*[—\-]\s*/, "").trim() || item.placeName;
+        latlng = await geocodeAddress(`name:${geocodeName}`, geocodeName);
       }
       if (latlng) positions.push({ item, latlng });
     }
