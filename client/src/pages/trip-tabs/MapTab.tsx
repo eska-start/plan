@@ -315,10 +315,11 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [localOrder, setLocalOrder] = useState<number[] | null>(null);
 
   // 경로에서 임시 제외된 아이템 ID 세트 — localStorage로 탭 이동 시에도 유지
-  const excludedStorageKey = `map-excluded-${tripId}-${selectedDate}`;
+  const excludedStorageKeyRef = useRef(`map-excluded-${tripId}-${selectedDate}`);
+  excludedStorageKeyRef.current = `map-excluded-${tripId}-${selectedDate}`;
   const [excludedIds, setExcludedIds] = useState<Set<number>>(() => {
     try {
-      const saved = localStorage.getItem(excludedStorageKey);
+      const saved = localStorage.getItem(excludedStorageKeyRef.current);
       return saved ? new Set(JSON.parse(saved) as number[]) : new Set();
     } catch { return new Set(); }
   });
@@ -326,7 +327,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const setExcludedIdsPersist = (updater: (prev: Set<number>) => Set<number>) => {
     setExcludedIds(prev => {
       const next = updater(prev);
-      try { localStorage.setItem(excludedStorageKey, JSON.stringify([...next])); } catch {}
+      try { localStorage.setItem(excludedStorageKeyRef.current, JSON.stringify([...next])); } catch {}
       return next;
     });
   };
@@ -739,10 +740,12 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     hasInitialFitRef.current = false;
     renderVersionRef.current = 0;
     itemsHashRef.current = '';
-    try { localStorage.removeItem(excludedStorageKey); } catch {}
-    setExcludedIds(new Set());
+    try {
+      const saved = localStorage.getItem(`map-excluded-${tripId}-${selectedDate}`);
+      setExcludedIds(saved ? new Set(JSON.parse(saved) as number[]) : new Set());
+    } catch { setExcludedIds(new Set()); }
     setOptimisticVisitedIds(new Set());
-  }, [selectedDate]);
+  }, [selectedDate, tripId]);
 
   useEffect(() => {
     if (!mapReady) return;
