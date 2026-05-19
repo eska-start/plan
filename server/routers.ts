@@ -1085,7 +1085,15 @@ const checklistRouter = router({
         messages: [
           {
             role: "system" as const,
-            content: `여행 준비물 파서입니다. 텍스트에서 체크리스트 항목을 추출해 JSON만 반환합니다.\n반환 스키마: { "items": [{ "group": "string", "label": "string" }], "reply": "한국어 요약" }\n${groupHint}\nlabel은 간결하게`,
+            content: `여행 준비물 파서입니다. 텍스트에서 체크리스트 항목을 추출해 JSON만 반환합니다.
+반환 스키마: { "items": [{ "group": "그룹명", "label": "항목명" }], "reply": "한국어 요약" }
+
+파싱 규칙:
+- 텍스트에 그룹명이 명시된 경우(예: "공통:", "태온:", "헤진:" 또는 표 형식) 해당 그룹명을 그대로 사용하세요.
+- 그룹명이 없는 경우: ${groupHint}
+- ○, •, -, * 등 불릿 뒤 텍스트가 항목입니다.
+- 쉼표로 나열된 항목 묶음은 하나의 label로 유지하세요.
+- 모든 항목을 빠짐없이 추출하세요.`,
           },
           { role: "user" as const, content: input.text },
         ],
@@ -1113,12 +1121,24 @@ const checklistRouter = router({
         messages: [
           {
             role: "system" as const,
-            content: `여행 준비물 이미지 파서. JSON만 반환: { "items": [{ "group": "string", "label": "string" }], "reply": "한국어요약" }\n${groupHint}`,
+            content: `당신은 여행 준비물 체크리스트 이미지를 파싱하는 전문가입니다.
+
+이미지에는 표(table) 또는 목록 형태로 준비물이 정리되어 있을 수 있습니다.
+
+파싱 규칙:
+1. 표 구조인 경우 — 맨 왼쪽 열(또는 행 머리)에 있는 텍스트가 그룹명입니다 (예: 공통, 태온, 헤진, 승희, 아빠, 엄마 등 사람 이름이나 카테고리).
+2. ○, •, -, * 등 불릿 기호 뒤의 텍스트가 각 항목(label)입니다.
+3. 쉼표로 구분된 항목 묶음(예: "헤어캡, 샤워볼, 치약")은 개별 항목으로 분리하지 말고 하나의 label로 유지하세요.
+4. 콜론(:) 뒤에 나열된 경우(예: "세면도구 : 헤어캡, 샤워볼")도 통째로 하나의 label로 유지하세요.
+5. 이미지에 있는 그룹명을 그대로 사용하세요. ${groupHint}
+
+반드시 JSON만 반환:
+{ "items": [{ "group": "그룹명", "label": "항목명" }], "reply": "한국어 요약" }`,
           },
           {
             role: "user" as const,
             content: [
-              { type: "text" as const, text: "이 이미지에서 여행 준비물 목록을 추출해주세요." },
+              { type: "text" as const, text: "이 이미지에서 그룹별 여행 준비물 목록을 모두 추출해주세요. 그룹명과 각 항목을 정확히 파악하고, 이미지에 보이는 모든 항목을 빠짐없이 추출해주세요." },
               { type: "image_url" as const, image_url: { url: dataUri, detail: "high" as const } },
             ],
           },
