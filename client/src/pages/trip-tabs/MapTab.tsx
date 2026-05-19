@@ -102,12 +102,13 @@ async function resizeImageToBase64(file: File): Promise<string> {
 
 // 드래그 가능한 방문 순서 아이템
 function SortableVisitItem({
-  item, index, total, onEdit, onDelete, onToggleVisited,
+  item, index, total, onEdit, onDelete, onToggleVisited, onFocusMap,
 }: {
   item: ItemType; index: number; total: number;
   onEdit: (item: ItemType) => void;
   onDelete: (item: ItemType) => void;
   onToggleVisited: (item: ItemType) => void;
+  onFocusMap: (item: ItemType) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 50 : undefined };
@@ -138,8 +139,12 @@ function SortableVisitItem({
         {index + 1}
       </div>
 
-      {/* 장소 정보 */}
-      <div className="flex-1 min-w-0">
+      {/* 장소 정보 — 클릭하면 지도에서 해당 핀으로 이동 */}
+      <button
+        type="button"
+        className="flex-1 min-w-0 text-left hover:text-primary transition-colors"
+        onClick={() => onFocusMap(item)}
+      >
         <p className={`text-sm font-medium truncate ${item.visited ? "line-through text-muted-foreground" : "text-foreground"}`}>{item.placeName}</p>
         {item.address && (
           <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
@@ -148,7 +153,7 @@ function SortableVisitItem({
         )}
         {item.visitTime && <p className="text-xs text-muted-foreground mt-0.5">⏰ {item.visitTime}</p>}
         {item.memo && <p className="text-xs text-muted-foreground mt-0.5 truncate">📝 {item.memo}</p>}
-      </div>
+      </button>
 
       {/* 우측 액션 */}
       <div className="flex items-center gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
@@ -196,6 +201,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const markersByIdRef = useRef<Map<number, google.maps.marker.AdvancedMarkerElement>>(new Map());
+  const infoWindowsByIdRef = useRef<Map<number, google.maps.InfoWindow>>(new Map());
+  const positionsByIdRef = useRef<Map<number, google.maps.LatLng>>(new Map());
   const routeRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const polylineRef = useRef<google.maps.Polyline | null>(null);
   const geocacheRef = useRef<Map<string, google.maps.LatLng>>(new Map());
@@ -297,7 +305,10 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   }, [serverItems, localOrder]);
 
   const reorderMutation = trpc.itinerary.reorder.useMutation({
-    onSuccess: () => { utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate }); },
+    onSuccess: () => {
+      utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
+      utils.itinerary.listByTrip.invalidate({ tripId });
+    },
     onError: () => { toast.error("순서 저장에 실패했습니다."); setLocalOrder(null); },
   });
 
@@ -384,6 +395,10 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const clearMap = useCallback(() => {
     markersRef.current.forEach(m => { m.map = null; });
     markersRef.current = [];
+    markersByIdRef.current.clear();
+    infoWindowsByIdRef.current.forEach(w => w.close());
+    infoWindowsByIdRef.current.clear();
+    positionsByIdRef.current.clear();
     if (routeRendererRef.current) { routeRendererRef.current.setMap(null); routeRendererRef.current = null; }
     if (polylineRef.current) { polylineRef.current.setMap(null); polylineRef.current = null; }
   }, []);
@@ -493,6 +508,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       });
       marker.addListener("click", () => infoWindow.open({ anchor: marker, map: mapRef.current! }));
       markersRef.current.push(marker);
+      markersByIdRef.current.set(item.id, marker);
+      infoWindowsByIdRef.current.set(item.id, infoWindow);
+      positionsByIdRef.current.set(item.id, latlng);
     });
 
     if (!hasInitialFitRef.current) {
@@ -547,6 +565,22 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       else if (items && items.length === 0) clearMap();
     }
   }, [mapReady, items, renderOnMap, clearMap]);
+
+  // ── 지도에서 특정 핀으로 이동 ──
+  const focusOnItem = useCallback((item: ItemType) => {
+    const latlng = positionsByIdRef.current.get(item.id);
+    if (!latlng || !mapRef.current) return;
+    // 열려있는 인포윈도우 모두 닫기
+    infoWindowsByIdRef.current.forEach(w => w.close());
+    mapRef.current.panTo(latlng);
+    mapRef.current.setZoom(16);
+    // 해당 마커의 인포윈도우 열기
+    const marker = markersByIdRef.current.get(item.id);
+    const infoWindow = infoWindowsByIdRef.current.get(item.id);
+    if (marker && infoWindow) {
+      infoWindow.open({ anchor: marker, map: mapRef.current });
+    }
+  }, []);
 
   // ── 다이얼로그 열기 ──
   function openDialog() {
@@ -847,6 +881,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                         onEdit={openEdit}
                         onDelete={setDeleteTarget}
                         onToggleVisited={i => toggleVisitedMutation.mutate({ id: i.id, visited: !i.visited })}
+                        onFocusMap={focusOnItem}
                       />
                       {times && (
                         <div className="flex items-center gap-2 px-2 py-1">
