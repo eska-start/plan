@@ -1076,11 +1076,16 @@ const checklistRouter = router({
     .mutation(async ({ ctx, input }) => {
       await getTripById(input.tripId, ctx.user.id);
       if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
+      const existing = await getChecklistByTrip(input.tripId, ctx.user.id);
+      const existingGroups = [...new Set(existing.map(i => i.group ?? "기타"))];
+      const groupHint = existingGroups.length > 0
+        ? `현재 그룹: ${existingGroups.join(", ")} (기존 그룹을 우선 사용하되, 맞는 그룹이 없으면 새 그룹명을 만들어도 됨)`
+        : `기본 그룹 예시: 필수서류, 돈·통신, 옷·가방, 기타 (새 그룹명을 자유롭게 써도 됨 — 예: "나", "아이", "와이프")`;
       const res = await invokeLLM({
         messages: [
           {
             role: "system" as const,
-            content: `여행 준비물 파서입니다. 텍스트에서 체크리스트 항목을 추출해 JSON만 반환합니다.\n반환 스키마: { "items": [{ "group": "필수서류|돈·통신|옷·가방|기타", "label": "string" }], "reply": "한국어 요약" }\n규칙: group은 반드시 위 4가지 중 하나, label은 간결하게`,
+            content: `여행 준비물 파서입니다. 텍스트에서 체크리스트 항목을 추출해 JSON만 반환합니다.\n반환 스키마: { "items": [{ "group": "string", "label": "string" }], "reply": "한국어 요약" }\n${groupHint}\nlabel은 간결하게`,
           },
           { role: "user" as const, content: input.text },
         ],
@@ -1098,12 +1103,17 @@ const checklistRouter = router({
     .mutation(async ({ ctx, input }) => {
       await getTripById(input.tripId, ctx.user.id);
       if (!ENV.llmApiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "LLM_API_KEY가 필요합니다." });
+      const existing = await getChecklistByTrip(input.tripId, ctx.user.id);
+      const existingGroups = [...new Set(existing.map(i => i.group ?? "기타"))];
+      const groupHint = existingGroups.length > 0
+        ? `현재 그룹: ${existingGroups.join(", ")} (기존 그룹을 우선 사용하되, 맞는 그룹이 없으면 새 그룹명을 만들어도 됨)`
+        : `기본 그룹 예시: 필수서류, 돈·통신, 옷·가방, 기타 (새 그룹명 자유롭게 가능)`;
       const dataUri = input.imageBase64.startsWith("data:") ? input.imageBase64 : `data:image/jpeg;base64,${input.imageBase64}`;
       const res = await invokeLLM({
         messages: [
           {
             role: "system" as const,
-            content: `여행 준비물 이미지 파서. JSON만 반환: { "items": [{ "group": "필수서류|돈·통신|옷·가방|기타", "label": "string" }], "reply": "한국어요약" }`,
+            content: `여행 준비물 이미지 파서. JSON만 반환: { "items": [{ "group": "string", "label": "string" }], "reply": "한국어요약" }\n${groupHint}`,
           },
           {
             role: "user" as const,

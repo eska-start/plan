@@ -217,16 +217,24 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
           ) : aiItems.length > 0 ? (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">추가할 항목을 선택하세요.</p>
-              {aiItems.map((item, i) => (
-                <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${item.selected ? "border-primary/40 bg-primary/5" : "border-border bg-muted/30"}`}
-                  onClick={() => setAiItems(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}>
-                  <input type="checkbox" checked={item.selected} readOnly className="accent-primary" />
-                  <div>
-                    <p className="text-sm font-medium">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">{item.group}</p>
+              {aiItems.map((item, i) => {
+                const isNewGroup = !Object.keys(groups).includes(item.group);
+                return (
+                  <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${item.selected ? "border-primary/40 bg-primary/5" : "border-border bg-muted/30"}`}
+                    onClick={() => setAiItems(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}>
+                    <input type="checkbox" checked={item.selected} readOnly className="accent-primary" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{item.label}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <p className="text-xs text-muted-foreground">{item.group}</p>
+                        {isNewGroup && (
+                          <span className="text-[10px] bg-indigo-100 text-indigo-600 rounded px-1 py-0.5 font-medium leading-none">새 그룹</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               <div className="flex gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={() => setAiItems([])} className="flex-1">다시 입력</Button>
                 <Button size="sm" onClick={handleAiSave} disabled={!aiItems.some(i => i.selected)} className="flex-1">저장</Button>
@@ -359,15 +367,18 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
       <div className="rounded-2xl border bg-card p-4 space-y-3">
         <p className="text-sm font-semibold">항목 추가</p>
         <div className="flex gap-2">
-          <select
-            className="rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-24 shrink-0"
+          <datalist id="group-datalist">
+            {[...new Set([...Object.keys(groups), "필수서류", "돈·통신", "옷·가방", "기타"])].map(g => (
+              <option key={g} value={g} />
+            ))}
+          </datalist>
+          <Input
+            list="group-datalist"
+            className="rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-24 shrink-0 h-auto"
+            placeholder="그룹"
             value={newGroup}
             onChange={e => setNewGroup(e.target.value)}
-          >
-            {["필수서류", "돈·통신", "옷·가방", "기타"].map(g => (
-              <option key={g} value={g}>{g}</option>
-            ))}
-          </select>
+          />
           <Input
             className="flex-1 min-w-0"
             placeholder="항목 이름"
@@ -379,6 +390,7 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
             {create.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "등록"}
           </Button>
         </div>
+        <p className="text-[11px] text-muted-foreground">그룹 칸에 직접 입력해서 새 그룹(나, 와이프, 아들 등)을 만들 수 있어요.</p>
       </div>
 
 
