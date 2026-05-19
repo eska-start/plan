@@ -300,6 +300,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const markersByIdRef = useRef<Map<number, google.maps.marker.AdvancedMarkerElement>>(new Map());
   const infoWindowsByIdRef = useRef<Map<number, google.maps.InfoWindow>>(new Map());
   const positionsByIdRef = useRef<Map<number, google.maps.LatLng>>(new Map());
+  const pinInnerRef = useRef<Map<number, HTMLDivElement>>(new Map());
+  const badgeMarkersRef = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
   const routeRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const polylineRef = useRef<google.maps.Polyline | null>(null);
   const geocacheRef = useRef<Map<string, google.maps.LatLng>>(new Map());
@@ -323,6 +325,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   // 핀 간 이동 시간 { "id1:id2" → { walk, drive } }
   const [travelTimesMap, setTravelTimesMap] = useState<Record<string, { walk: string | null; drive: string | null }>>({});
+  const travelTimesMapRef = useRef<Record<string, { walk: string | null; drive: string | null }>>({});
+  travelTimesMapRef.current = travelTimesMap;
 
   // ── 일정 추가/수정 다이얼로그 ──
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -506,6 +510,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     infoWindowsByIdRef.current.forEach(w => w.close());
     infoWindowsByIdRef.current.clear();
     positionsByIdRef.current.clear();
+    pinInnerRef.current.clear();
+    badgeMarkersRef.current.forEach(m => { m.map = null; });
+    badgeMarkersRef.current.clear();
     if (routeRendererRef.current) { routeRendererRef.current.setMap(null); routeRendererRef.current = null; }
     if (polylineRef.current) { polylineRef.current.setMap(null); polylineRef.current = null; }
   }, []);
@@ -574,6 +581,56 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     });
   }, []);
 
+  // 제외 상태에 따라 핀 표시/번호·경로·이동시간 뱃지를 동기적으로 재적용
+  const applyExclusionSync = useCallback((timesMap: Record<string, { walk: string | null; drive: string | null }>) => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    const allItems = itemsRef.current;
+    const excluded = excludedIdsRef.current;
+    const visibleItems = allItems.filter(i => !excluded.has(i.id));
+
+    // 핀 표시/숨김 + 보이는 순서로 번호 재부여
+    allItems.forEach(item => {
+      const marker = markersByIdRef.current.get(item.id);
+      if (!marker) return;
+      if (excluded.has(item.id)) {
+        marker.map = null;
+      } else {
+        marker.map = map;
+        const inner = pinInnerRef.current.get(item.id);
+        if (inner) inner.textContent = String(visibleItems.findIndex(v => v.id === item.id) + 1);
+      }
+    });
+
+    // 경로 재설정
+    if (routeRendererRef.current) { routeRendererRef.current.setMap(null); routeRendererRef.current = null; }
+    if (polylineRef.current) { polylineRef.current.setMap(null); polylineRef.current = null; }
+    const visiblePositions = visibleItems
+      .map(i => positionsByIdRef.current.get(i.id))
+      .filter((p): p is google.maps.LatLng => !!p);
+    if (visiblePositions.length >= 2) drawRoute(visiblePositions);
+
+    // 이동시간 뱃지: 기존 제거 후 보이는 인접 쌍만 재생성
+    badgeMarkersRef.current.forEach(m => { m.map = null; });
+    badgeMarkersRef.current.clear();
+    for (let i = 0; i < visibleItems.length - 1; i++) {
+      const a = visibleItems[i];
+      const b = visibleItems[i + 1];
+      const key = `${a.id}:${b.id}`;
+      const times = timesMap[key];
+      const posA = positionsByIdRef.current.get(a.id);
+      const posB = positionsByIdRef.current.get(b.id);
+      if (!posA || !posB || !times || !mapRef.current) continue;
+      const badge = document.createElement("div");
+      badge.style.cssText = "background:rgba(255,255,255,0.96);border:1px solid #e2e8f0;border-radius:10px;padding:3px 8px;font-size:10px;font-family:Inter,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.12);white-space:nowrap;display:flex;gap:6px;align-items:center;pointer-events:none;";
+      badge.innerHTML = `<span>🚶 ${times.walk ?? "—"}</span><span style="color:#cbd5e1">|</span><span>🚗 ${times.drive ?? "—"}</span>`;
+      badgeMarkersRef.current.set(key, new window.google.maps.marker.AdvancedMarkerElement({
+        map, content: badge, zIndex: 0,
+        position: new window.google.maps.LatLng((posA.lat() + posB.lat()) / 2, (posA.lng() + posB.lng()) / 2),
+      }));
+    }
+  }, [drawRoute]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const renderOnMap = useCallback(async () => {
     if (!mapRef.current || !items || items.length === 0) return;
     clearMap();
@@ -608,6 +665,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       inner.style.cssText = "transform:rotate(45deg);color:white;font-size:12px;font-weight:700;user-select:none;";
       inner.textContent = String(idx + 1);
       el.appendChild(inner);
+      pinInnerRef.current.set(item.id, inner);
 
       const marker = new window.google.maps.marker.AdvancedMarkerElement({ map: mapRef.current!, position: latlng, title: item.placeName, content: el });
       const infoWindow = new window.google.maps.InfoWindow({
@@ -625,53 +683,24 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       mapRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 60, left: 40 });
     }
 
-    // 마커 생성 완료 후 현재 제외 상태 즉시 반영 (refetch로 재렌더 시에도 유지)
-    const currentExcluded = excludedIdsRef.current;
-    markersByIdRef.current.forEach((marker, id) => {
-      marker.map = currentExcluded.has(id) ? null : mapRef.current!;
-    });
-
-    // 경로는 제외되지 않은 핀만 연결
-    const visiblePositions = positions.filter(p => !currentExcluded.has(p.item.id)).map(p => p.latlng);
-    if (visiblePositions.length >= 2) drawRoute(visiblePositions);
-
-    // 핀 사이 이동 시간 계산 (도보 + 차량)
+    // 인접 핀 이동 시간 계산 (뱃지 생성은 applyExclusionSync에서)
+    const newTimesMap: Record<string, { walk: string | null; drive: string | null }> = {};
     if (positions.length >= 2) {
-      const newTimesMap: Record<string, { walk: string | null; drive: string | null }> = {};
-
       for (let i = 0; i < positions.length - 1; i++) {
         const { item: a, latlng: la } = positions[i];
         const { item: b, latlng: lb } = positions[i + 1];
-
         const [walk, drive] = await Promise.all([
           getRouteDuration(la, lb, window.google.maps.TravelMode.WALKING),
           getRouteDuration(la, lb, window.google.maps.TravelMode.DRIVING),
         ]);
-
-        const key = `${a.id}:${b.id}`;
-        newTimesMap[key] = { walk, drive };
-
-        // 지도 중간 지점에 이동시간 뱃지 마커 추가
-        const midLat = (la.lat() + lb.lat()) / 2;
-        const midLng = (la.lng() + lb.lng()) / 2;
-        const mid = new window.google.maps.LatLng(midLat, midLng);
-
-        const badge = document.createElement("div");
-        badge.style.cssText = "background:rgba(255,255,255,0.96);border:1px solid #e2e8f0;border-radius:10px;padding:3px 8px;font-size:10px;font-family:Inter,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.12);white-space:nowrap;display:flex;gap:6px;align-items:center;pointer-events:none;";
-        badge.innerHTML = `<span>🚶 ${walk ?? "—"}</span><span style="color:#cbd5e1">|</span><span>🚗 ${drive ?? "—"}</span>`;
-
-        const badgeMarker = new window.google.maps.marker.AdvancedMarkerElement({
-          map: mapRef.current!,
-          position: mid,
-          content: badge,
-          zIndex: 0,
-        });
-        markersRef.current.push(badgeMarker);
+        newTimesMap[`${a.id}:${b.id}`] = { walk, drive };
       }
-
       setTravelTimesMap(newTimesMap);
     }
-  }, [items, clearMap, geocodeAddress, drawRoute, getRouteDuration]);
+
+    // 제외 상태 + 번호 + 뱃지 + 경로 일괄 적용
+    applyExclusionSync(newTimesMap);
+  }, [items, clearMap, geocodeAddress, drawRoute, getRouteDuration, applyExclusionSync]);
 
   useEffect(() => { geocacheRef.current.clear(); setLocalOrder(null); hasInitialFitRef.current = false; setExcludedIds(new Set()); }, [selectedDate]);
 
@@ -682,32 +711,42 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     }
   }, [mapReady, items, renderOnMap, clearMap]);
 
-  // 제외 토글 전용 effect — renderOnMap 재실행 없이 마커/경로만 즉시 반영
+  // 렌더 시마다 ref 동기화
   const itemsRef = useRef<ItemType[]>([]);
   itemsRef.current = items;
   const excludedIdsRef = useRef<Set<number>>(new Set());
   excludedIdsRef.current = excludedIds;
+
+  // 제외 상태 변경 시: 핀 번호·뱃지·경로 즉시 재적용 + 새 쌍 이동 시간 비동기 계산
   useEffect(() => {
-    if (!mapReady || !mapRef.current) return;
-    const map = mapRef.current;
+    if (!mapReady) return;
+    applyExclusionSync(travelTimesMapRef.current);
 
-    // 마커 표시/숨김
-    markersByIdRef.current.forEach((marker, id) => {
-      marker.map = excludedIds.has(id) ? null : map;
-    });
-
-    // 경로 재설정 (제외 아이템 건너뜀)
-    if (routeRendererRef.current) { routeRendererRef.current.setMap(null); routeRendererRef.current = null; }
-    if (polylineRef.current) { polylineRef.current.setMap(null); polylineRef.current = null; }
-    const visiblePositions = itemsRef.current
-      .filter(item => !excludedIds.has(item.id))
-      .map(item => positionsByIdRef.current.get(item.id))
-      .filter((p): p is google.maps.LatLng => Boolean(p));
-    if (visiblePositions.length >= 2) drawRoute(visiblePositions);
-    else if (visiblePositions.length < 2 && routeRendererRef.current == null && polylineRef.current == null) {
-      // already cleared above
-    }
-  }, [excludedIds, mapReady, drawRoute]); // eslint-disable-line react-hooks/exhaustive-deps
+    // 새로 생긴 인접 쌍(건너뛴 쌍)의 이동 시간이 없으면 비동기로 계산 후 재적용
+    const visibleItems = itemsRef.current.filter(i => !excludedIds.has(i.id));
+    const capturedSet = excludedIds;
+    (async () => {
+      for (let i = 0; i < visibleItems.length - 1; i++) {
+        if (excludedIdsRef.current !== capturedSet) return;
+        const a = visibleItems[i];
+        const b = visibleItems[i + 1];
+        const key = `${a.id}:${b.id}`;
+        if (travelTimesMapRef.current[key]) continue;
+        const posA = positionsByIdRef.current.get(a.id);
+        const posB = positionsByIdRef.current.get(b.id);
+        if (!posA || !posB) continue;
+        const [walk, drive] = await Promise.all([
+          getRouteDuration(posA, posB, window.google.maps.TravelMode.WALKING),
+          getRouteDuration(posA, posB, window.google.maps.TravelMode.DRIVING),
+        ]);
+        if (excludedIdsRef.current !== capturedSet || !mapRef.current) return;
+        const times = { walk, drive };
+        travelTimesMapRef.current[key] = times;
+        setTravelTimesMap(prev => ({ ...prev, [key]: times }));
+        applyExclusionSync({ ...travelTimesMapRef.current });
+      }
+    })();
+  }, [excludedIds, mapReady, applyExclusionSync, getRouteDuration]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 지도에서 특정 핀으로 이동 ──
   const focusOnItem = useCallback((item: ItemType) => {
