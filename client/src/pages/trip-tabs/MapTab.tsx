@@ -184,7 +184,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const routeRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const polylineRef = useRef<google.maps.Polyline | null>(null);
   const geocacheRef = useRef<Map<string, google.maps.LatLng>>(new Map());
-  const userMovedMapRef = useRef(false); // 사용자가 직접 줌·패닝하면 fitBounds 건너뜀
+  const hasInitialFitRef = useRef(false); // 날짜별 최초 1회만 fitBounds 실행
   const [mapReady, setMapReady] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
 
@@ -449,7 +449,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       markersRef.current.push(marker);
     });
 
-    if (!userMovedMapRef.current) {
+    if (!hasInitialFitRef.current) {
+      hasInitialFitRef.current = true;
       mapRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 60, left: 40 });
     }
     drawRoute(positions.map(p => p.latlng));
@@ -492,7 +493,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     }
   }, [items, clearMap, geocodeAddress, drawRoute, getRouteDuration]);
 
-  useEffect(() => { geocacheRef.current.clear(); setLocalOrder(null); userMovedMapRef.current = false; }, [selectedDate]);
+  useEffect(() => { geocacheRef.current.clear(); setLocalOrder(null); hasInitialFitRef.current = false; }, [selectedDate]);
 
   useEffect(() => {
     if (mapReady) {
@@ -771,13 +772,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           </div>
         )}
         <MapView className="w-full h-[400px] sm:h-[480px]" initialCenter={{ lat: 35.6762, lng: 139.6503 }} initialZoom={13}
-          onMapReady={(map) => {
-            mapRef.current = map;
-            // 사용자가 직접 줌·패닝하면 이후 자동 fitBounds를 막음
-            map.addListener("zoom_changed", () => { userMovedMapRef.current = true; });
-            map.addListener("dragend", () => { userMovedMapRef.current = true; });
-            setMapReady(true);
-          }} />
+          onMapReady={(map) => { mapRef.current = map; setMapReady(true); }} />
       </div>
 
       {/* 방문 순서 목록 */}
