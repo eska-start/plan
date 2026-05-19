@@ -5,11 +5,15 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
   MapPin, Navigation, Loader2, CheckCircle2, GripVertical,
-  Plus, Sparkles, FileText, Camera, FolderOpen, X,
+  Plus, Sparkles, FileText, Camera, FolderOpen, X, Pencil, Trash2, Circle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -96,24 +100,44 @@ async function resizeImageToBase64(file: File): Promise<string> {
 }
 
 // 드래그 가능한 방문 순서 아이템
-function SortableVisitItem({ item, index, total }: { item: ItemType; index: number; total: number }) {
+function SortableVisitItem({
+  item, index, total, onEdit, onDelete, onToggleVisited,
+}: {
+  item: ItemType; index: number; total: number;
+  onEdit: (item: ItemType) => void;
+  onDelete: (item: ItemType) => void;
+  onToggleVisited: (item: ItemType) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 50 : undefined };
   const color = CATEGORY_COLORS[item.category ?? "place"] ?? "#6366f1";
+  const isAccommodation = item.sourceType === "accommodation";
 
   return (
     <div ref={setNodeRef} style={style}
-      className={`flex items-center gap-3 bg-card border rounded-xl px-3 py-3 transition-shadow ${isDragging ? "shadow-lg ring-2 ring-primary/30" : ""} ${item.visited ? "opacity-60" : ""}`}
+      className={`flex items-center gap-2 bg-card border rounded-xl px-3 py-3 transition-shadow group ${isDragging ? "shadow-lg ring-2 ring-primary/30" : ""} ${item.visited ? "opacity-60" : ""}`}
     >
+      {/* 드래그 핸들 */}
       <button {...attributes} {...listeners}
         className="text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none p-0.5 shrink-0"
         aria-label="순서 변경"
       >
         <GripVertical className="w-4 h-4" />
       </button>
+
+      {/* 방문 완료 토글 */}
+      <button onClick={() => onToggleVisited(item)} className="shrink-0 transition-colors">
+        {item.visited
+          ? <CheckCircle2 className="w-4 h-4 text-green-500" />
+          : <Circle className="w-4 h-4 text-muted-foreground hover:text-green-500" />}
+      </button>
+
+      {/* 번호 뱃지 */}
       <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm" style={{ backgroundColor: color }}>
         {index + 1}
       </div>
+
+      {/* 장소 정보 */}
       <div className="flex-1 min-w-0">
         <p className={`text-sm font-medium truncate ${item.visited ? "line-through text-muted-foreground" : "text-foreground"}`}>{item.placeName}</p>
         {item.address && (
@@ -121,11 +145,27 @@ function SortableVisitItem({ item, index, total }: { item: ItemType; index: numb
             <MapPin className="w-3 h-3 shrink-0" /><span className="truncate">{item.address}</span>
           </p>
         )}
+        {item.visitTime && <p className="text-xs text-muted-foreground mt-0.5">⏰ {item.visitTime}</p>}
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {item.visitTime && <span className="text-xs text-muted-foreground">{item.visitTime}</span>}
-        {item.visited && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-        {index < total - 1 && <Navigation className="w-3.5 h-3.5 text-muted-foreground/30" />}
+
+      {/* 우측 액션 */}
+      <div className="flex items-center gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
+        {index < total - 1 && <Navigation className="w-3.5 h-3.5 text-muted-foreground/30 mr-1" />}
+        {!isAccommodation && (
+          <>
+            <button onClick={() => onEdit(item)}
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={() => onDelete(item)}
+              className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </>
+        )}
+        {isAccommodation && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>
+        )}
       </div>
     </div>
   );
@@ -154,8 +194,10 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   // 핀 간 이동 시간 { "id1:id2" → { walk, drive } }
   const [travelTimesMap, setTravelTimesMap] = useState<Record<string, { walk: string | null; drive: string | null }>>({});
 
-  // ── 일정 추가 다이얼로그 ──
+  // ── 일정 추가/수정 다이얼로그 ──
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ItemType | null>(null);
   const [form, setForm] = useState<FormData>({
     date: tripStartDate, placeName: "", address: "", visitTime: "",
     duration: "", memo: "", category: "place", lat: "", lng: "",
@@ -194,6 +236,34 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       toast.success("장소가 추가됐습니다.");
     },
     onError: () => toast.error("장소 추가에 실패했습니다."),
+  });
+
+  const updateMutation = trpc.itinerary.update.useMutation({
+    onSuccess: () => {
+      utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
+      utils.itinerary.listByTrip.invalidate({ tripId });
+      setDialogOpen(false);
+      setEditId(null);
+      toast.success("수정됐습니다.");
+    },
+    onError: () => toast.error("수정에 실패했습니다."),
+  });
+
+  const deleteMutation = trpc.itinerary.delete.useMutation({
+    onSuccess: () => {
+      utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
+      utils.itinerary.listByTrip.invalidate({ tripId });
+      setDeleteTarget(null);
+      toast.success("일정이 삭제됐습니다.");
+    },
+    onError: () => toast.error("삭제에 실패했습니다."),
+  });
+
+  const toggleVisitedMutation = trpc.itinerary.update.useMutation({
+    onSuccess: () => {
+      utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
+      utils.itinerary.listByTrip.invalidate({ tripId });
+    },
   });
 
   const aiExtractMutation = trpc.itinerary.aiExtract.useMutation();
@@ -433,7 +503,26 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   // ── 다이얼로그 열기 ──
   function openDialog() {
+    setEditId(null);
     setForm({ date: selectedDate, placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "" });
+    setDialogAiMode(null);
+    setDialogAiText("");
+    setDialogOpen(true);
+  }
+
+  function openEdit(item: ItemType) {
+    setEditId(item.id);
+    setForm({
+      date: selectedDate,
+      placeName: item.placeName,
+      address: item.address ?? "",
+      visitTime: item.visitTime ?? "",
+      duration: "",
+      memo: "",
+      category: item.category ?? "place",
+      lat: item.lat ?? "",
+      lng: item.lng ?? "",
+    });
     setDialogAiMode(null);
     setDialogAiText("");
     setDialogOpen(true);
@@ -441,8 +530,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   function handleSubmit() {
     if (!form.placeName.trim()) { toast.error("장소명을 입력하세요."); return; }
-    createMutation.mutate({
-      tripId, date: form.date,
+    const data = {
       placeName: form.placeName,
       address: form.address || undefined,
       visitTime: form.visitTime || undefined,
@@ -451,8 +539,12 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       category: form.category,
       lat: form.lat || undefined,
       lng: form.lng || undefined,
-      order: (serverItems?.length ?? 0),
-    });
+    };
+    if (editId) {
+      updateMutation.mutate({ id: editId, ...data });
+    } else {
+      createMutation.mutate({ tripId, date: form.date, order: (serverItems?.length ?? 0), ...data });
+    }
   }
 
   // ── 다이얼로그 내부 AI ──
@@ -709,7 +801,12 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                     : undefined;
                   return (
                     <div key={item.id}>
-                      <SortableVisitItem item={item} index={idx} total={items.length} />
+                      <SortableVisitItem
+                        item={item} index={idx} total={items.length}
+                        onEdit={openEdit}
+                        onDelete={setDeleteTarget}
+                        onToggleVisited={i => toggleVisitedMutation.mutate({ id: i.id, visited: !i.visited })}
+                      />
                       {times && (
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="h-px flex-1 bg-border" />
@@ -750,11 +847,29 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         </div>
       )}
 
-      {/* 일정 추가 다이얼로그 */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {/* 삭제 확인 AlertDialog */}
+      <AlertDialog open={deleteTarget !== null} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>일정 삭제</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-medium">{deleteTarget?.placeName}</span>을(를) 삭제할까요?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (deleteTarget) deleteMutation.mutate({ id: deleteTarget.id }); }}>
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 일정 추가/수정 다이얼로그 */}
+      <Dialog open={dialogOpen} onOpenChange={open => { setDialogOpen(open); if (!open) setEditId(null); }}>
         <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
           <DialogHeader className="mb-1">
-            <DialogTitle className="text-lg font-semibold">장소 추가</DialogTitle>
+            <DialogTitle className="text-lg font-semibold">{editId ? "장소 수정" : "장소 추가"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
             {/* 다이얼로그 내 AI 자동 입력 */}
@@ -814,23 +929,25 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
               )}
             </div>
 
-            {/* 날짜 */}
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">날짜</Label>
-              <Select value={form.date} onValueChange={v => setForm(f => ({ ...f, date: v }))}>
-                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {tripDays.map((day, idx) => {
-                    const dateStr = format(day, "yyyy-MM-dd");
-                    return (
-                      <SelectItem key={dateStr} value={dateStr}>
-                        {format(day, "M월 d일 (EEE)", { locale: ko })} · Day {idx + 1}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* 날짜 — 추가 시에만 */}
+            {!editId && (
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">날짜</Label>
+                <Select value={form.date} onValueChange={v => setForm(f => ({ ...f, date: v }))}>
+                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {tripDays.map((day, idx) => {
+                      const dateStr = format(day, "yyyy-MM-dd");
+                      return (
+                        <SelectItem key={dateStr} value={dateStr}>
+                          {format(day, "M월 d일 (EEE)", { locale: ko })} · Day {idx + 1}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* 카테고리 */}
             <div className="space-y-1.5">
@@ -881,10 +998,11 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           </div>
 
           <div className="flex gap-2 mt-4">
-            <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>취소</Button>
-            <Button className="flex-1" onClick={handleSubmit} disabled={createMutation.isPending}>
-              {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              추가
+            <Button variant="outline" className="flex-1" onClick={() => { setDialogOpen(false); setEditId(null); }}>취소</Button>
+            <Button className="flex-1" onClick={handleSubmit}
+              disabled={createMutation.isPending || updateMutation.isPending}>
+              {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {editId ? "수정" : "추가"}
             </Button>
           </div>
         </DialogContent>
