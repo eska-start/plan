@@ -624,7 +624,16 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       hasInitialFitRef.current = true;
       mapRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 60, left: 40 });
     }
-    drawRoute(positions.map(p => p.latlng));
+
+    // 마커 생성 완료 후 현재 제외 상태 즉시 반영 (refetch로 재렌더 시에도 유지)
+    const currentExcluded = excludedIdsRef.current;
+    markersByIdRef.current.forEach((marker, id) => {
+      marker.map = currentExcluded.has(id) ? null : mapRef.current!;
+    });
+
+    // 경로는 제외되지 않은 핀만 연결
+    const visiblePositions = positions.filter(p => !currentExcluded.has(p.item.id)).map(p => p.latlng);
+    if (visiblePositions.length >= 2) drawRoute(visiblePositions);
 
     // 핀 사이 이동 시간 계산 (도보 + 차량)
     if (positions.length >= 2) {
@@ -676,6 +685,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   // 제외 토글 전용 effect — renderOnMap 재실행 없이 마커/경로만 즉시 반영
   const itemsRef = useRef<ItemType[]>([]);
   itemsRef.current = items;
+  const excludedIdsRef = useRef<Set<number>>(new Set());
+  excludedIdsRef.current = excludedIds;
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const map = mapRef.current;
