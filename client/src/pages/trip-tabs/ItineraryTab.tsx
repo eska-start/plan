@@ -1,448 +1,814 @@
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useState, useRef, useEffect, memo } from "react";
+import { loadMapScript } from "@/components/Map";
 import { toast } from "sonner";
 import {
   CalendarDays, Loader2, MapPin, Clock, CheckCircle2, Circle,
-  Plus, Utensils, Camera, ShoppingBag, Hotel, GripVertical,
+  Plus, Utensils, Camera, ShoppingBag, Hotel,
+  Sparkles, FileText, X, Pencil, Trash2, FolderOpen, Map as MapIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
 
-// dnd-kit
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-  arrayMove,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-
 type ItineraryItem = {
-  id: number;
-  placeName: string;
-  address?: string | null;
-  visitTime?: string | null;
-  duration?: number | null;
-  visited?: boolean | null;
-  memo?: string | null;
-  category?: string | null;
-  sourceType?: string | null;
-  order?: number | null;
+  id: number; date: string; placeName: string;
+  address?: string | null; visitTime?: string | null; duration?: number | null;
+  visited?: boolean | null; memo?: string | null; category?: string | null;
+  sourceType?: string | null; order?: number | null; lat?: string | null; lng?: string | null;
 };
 
 type FormData = {
-  placeName: string;
-  address: string;
-  visitTime: string;
-  duration: string;
-  memo: string;
-  category: string;
-};
-
-const defaultForm: FormData = {
-  placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place",
+  date: string; placeName: string; address: string; visitTime: string;
+  duration: string; memo: string; category: string; lat: string; lng: string;
 };
 
 const CATEGORIES = [
   { value: "place", label: "장소", icon: MapPin },
-  { value: "food", label: "식당/카페", icon: Utensils },
+  { value: "food", label: "식사", icon: Utensils },
   { value: "activity", label: "액티비티", icon: Camera },
   { value: "shopping", label: "쇼핑", icon: ShoppingBag },
 ];
 
-const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  place: MapPin, food: Utensils, activity: Camera, shopping: ShoppingBag, accommodation: Hotel,
+const CAT_STYLE: Record<string, { label: string; bg: string; color: string }> = {
+  place:         { label: "장소",     bg: "#DEF1EA", color: "#2E6B58" },
+  food:          { label: "식사",     bg: "#FDE2D7", color: "#A04A30" },
+  activity:      { label: "액티비티", bg: "#DEF1EA", color: "#2E6B58" },
+  shopping:      { label: "쇼핑",    bg: "#EDE9FE", color: "#7C3AED" },
+  accommodation: { label: "숙박",    bg: "#FBEFCC", color: "#7A5A1E" },
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
-  place: "bg-blue-50 text-blue-600 border-blue-200",
-  food: "bg-orange-50 text-orange-600 border-orange-200",
-  activity: "bg-green-50 text-green-600 border-green-200",
-  shopping: "bg-purple-50 text-purple-600 border-purple-200",
-  accommodation: "bg-indigo-50 text-indigo-600 border-indigo-200",
-};
-
-// ─── 드래그 가능한 개별 아이템 컴포넌트 ──────────────────────────────────────
-function SortableItem({
-  item,
-  idx,
-  total,
-  onToggle,
-  onEdit,
-  onDelete,
-}: {
-  item: ItineraryItem;
-  idx: number;
-  total: number;
-  onToggle: (item: ItineraryItem) => void;
-  onEdit: (item: ItineraryItem) => void;
-  onDelete: (id: number) => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 50 : undefined,
-  };
-
-  const CategoryIcon = CATEGORY_ICONS[item.category ?? "place"] ?? MapPin;
-  const isAccommodation = item.sourceType === "accommodation";
-
+function CategoryPill({ category }: { category: string }) {
+  const s = CAT_STYLE[category] ?? CAT_STYLE.place;
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`flex items-start gap-3 bg-card border rounded-xl p-4 transition-all ${
-        item.visited ? "opacity-60 border-border" : "border-border hover:shadow-sm"
-      } ${isDragging ? "shadow-lg ring-2 ring-primary/20" : ""}`}
-    >
-      {/* 드래그 핸들 */}
-      {!isAccommodation && (
-        <button
-          {...attributes}
-          {...listeners}
-          className="mt-0.5 shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors touch-none"
-          aria-label="순서 변경"
-        >
-          <GripVertical className="w-4 h-4" />
-        </button>
-      )}
-      {isAccommodation && <div className="w-4 shrink-0" />}
-
-      {/* 체크 + 연결선 */}
-      <div className="flex flex-col items-center gap-1 shrink-0">
-        <button onClick={() => onToggle(item)} className="transition-colors">
-          {item.visited
-            ? <CheckCircle2 className="w-5 h-5 text-accent" />
-            : <Circle className="w-5 h-5 text-muted-foreground hover:text-accent" />
-          }
-        </button>
-        {idx < total - 1 && <div className="w-px h-4 bg-border" />}
-      </div>
-
-      {/* 내용 */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className={`text-xs px-2 py-0.5 rounded-full border ${CATEGORY_COLORS[item.category ?? "place"] ?? CATEGORY_COLORS.place}`}>
-                <CategoryIcon className="w-3 h-3 inline mr-1" />
-                {CATEGORIES.find(c => c.value === item.category)?.label ?? "장소"}
-              </span>
-              {item.visitTime && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="w-3 h-3" />{item.visitTime}
-                </span>
-              )}
-            </div>
-            <p className={`font-semibold text-sm ${item.visited ? "line-through text-muted-foreground" : "text-foreground"}`}>
-              {item.placeName}
-            </p>
-            {item.address && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
-                <MapPin className="w-3 h-3 shrink-0" />{item.address}
-              </p>
-            )}
-            {item.memo && (
-              <p className="text-xs text-muted-foreground mt-1 italic">{item.memo}</p>
-            )}
-          </div>
-          <div className="flex gap-1 shrink-0">
-            {isAccommodation ? (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-500 border border-indigo-200 font-medium">숙박 연동</span>
-            ) : (
-              <>
-                <button onClick={() => onEdit(item)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors">수정</button>
-                <button onClick={() => onDelete(item.id)} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded hover:bg-destructive/10 transition-colors">삭제</button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+    <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
+      style={{ background: s.bg, color: s.color }}>{s.label}</span>
   );
 }
 
-// ─── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
-export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tripDays: Date[] }) {
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    if (tripDays.length > 0) return format(tripDays[0], "yyyy-MM-dd");
-    return format(new Date(), "yyyy-MM-dd");
-  });
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState<FormData>(defaultForm);
-  // 낙관적 순서 상태 (드래그 중 즉시 반영)
-  const [localOrder, setLocalOrder] = useState<number[] | null>(null);
-  const utils = trpc.useUtils();
+const ItineraryItemRow = memo(function ItineraryItemRow({
+  item, k, visible, onVisitToggle, onEdit, onDelete,
+}: {
+  item: ItineraryItem; k: number; visible: boolean;
+  onVisitToggle: (id: number, visited: boolean) => void;
+  onEdit: (item: ItineraryItem) => void;
+  onDelete: (id: number) => void;
+}) {
+  const [localVisited, setLocalVisited] = useState<boolean | null>(null);
+  const effectivelyVisited = localVisited !== null ? localVisited : !!item.visited;
 
-  const { data: items, isLoading } = trpc.itinerary.listByDate.useQuery(
-    { tripId, date: selectedDate },
-    { refetchInterval: 3000 } // 3초마다 갱신 - 지도 탭에서 순서 변경 시 일정 탭에도 즉시 반영
+  useEffect(() => { setLocalVisited(null); }, [item.visited]);
+
+  return (
+    <div
+      className="flex items-start gap-2.5 sm:gap-3 px-3 sm:px-4 py-3.5 border-t first:border-t-0 border-border group hover:bg-muted/30"
+      style={{
+        opacity: visible ? (effectivelyVisited ? 0.6 : 1) : 0,
+        transform: visible ? "translateY(0)" : "translateY(8px)",
+        transition: `opacity 0s, transform 0.4s ease ${0.2 + k * 0.07}s`,
+      }}
+    >
+      <button
+        onPointerDown={(e) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          const newVisited = !effectivelyVisited;
+          setLocalVisited(newVisited);
+          onVisitToggle(item.id, newVisited);
+        }}
+        className="mt-0.5 shrink-0"
+      >
+        {effectivelyVisited
+          ? <CheckCircle2 className="w-4 h-4 text-accent" />
+          : <Circle className="w-4 h-4 text-muted-foreground hover:text-accent" />}
+      </button>
+
+      <div className="w-9 sm:w-10 shrink-0 mt-0.5">
+        {item.visitTime && (
+          <span className="text-xs font-medium text-muted-foreground tabular-nums">{item.visitTime}</span>
+        )}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+          <CategoryPill category={item.sourceType === "accommodation" ? "accommodation" : (item.category ?? "place")} />
+          <span className={`text-sm font-semibold ${effectivelyVisited ? "line-through text-muted-foreground" : "text-foreground"}`}>
+            {item.placeName}
+          </span>
+        </div>
+        {item.address && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+            <MapPin className="w-3 h-3 shrink-0" />{item.address}
+          </p>
+        )}
+        {item.memo && (
+          <p className="text-xs text-muted-foreground italic mt-0.5">{item.memo}</p>
+        )}
+      </div>
+
+      <div className="flex gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
+        <a
+          href={item.lat && item.lng
+            ? `https://maps.google.com/?q=${item.lat},${item.lng}`
+            : `https://maps.google.com/?q=${encodeURIComponent([item.placeName, item.address].filter(Boolean).join(" "))}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-blue-500 transition-colors"
+          title="구글 지도에서 보기"
+        >
+          <MapIcon className="w-3.5 h-3.5" />
+        </a>
+        {item.sourceType !== "accommodation" ? (
+          <>
+            <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => onDelete(item.id)}
+              className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </>
+        ) : (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>
+        )}
+      </div>
+    </div>
   );
+});
 
-  // 현재 표시할 순서 (로컬 드래그 반영 우선)
-  const displayItems: ItineraryItem[] = (() => {
-    if (!items || !Array.isArray(items)) return [];
-    if (!localOrder) return items as ItineraryItem[];
-    const map = new Map((items as ItineraryItem[]).map(i => [i.id, i]));
-    return localOrder.map(id => map.get(id)).filter((x): x is ItineraryItem => x !== undefined);
-  })();
+export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: { tripId: number; tripDays: Date[]; isGuestUser?: boolean }) {
+  const utils = trpc.useUtils();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [allItemsOpen, setAllItemsOpen] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
+  const tripStartDate = tripDays[0] ? format(tripDays[0], "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+  const [form, setForm] = useState<FormData>({
+    date: tripStartDate, placeName: "", address: "", visitTime: "",
+    duration: "", memo: "", category: "place", lat: "", lng: "",
+  });
+
+  const [aiMode, setAiMode] = useState<"text" | "image" | null>(null);
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiItems, setAiItems] = useState<Array<{
+    date: string | null; placeName: string; visitTime: string | null;
+    category: string; memo: string | null; address: string | null; selected: boolean;
+  }>>([]);
+  const aiCameraRef = useRef<HTMLInputElement>(null);
+  const aiPhotoRef = useRef<HTMLInputElement>(null);
+
+  // Dialog-scoped AI state
+  const [dialogAiMode, setDialogAiMode] = useState<"text" | "image" | null>(null);
+  const [dialogAiText, setDialogAiText] = useState("");
+  const [dialogAiLoading, setDialogAiLoading] = useState(false);
+  const dialogAiCameraRef = useRef<HTMLInputElement>(null);
+  const dialogAiPhotoRef = useRef<HTMLInputElement>(null);
+  const placeInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+
+  // Animation state
+  const dayRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [visibleDays, setVisibleDays] = useState<Set<string>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  const { data: allItems, isLoading } = trpc.itinerary.listByTrip.useQuery({ tripId });
 
   const createMutation = trpc.itinerary.create.useMutation({
     onSuccess: () => {
+      utils.itinerary.listByTrip.invalidate();
       utils.itinerary.listByDate.invalidate();
       setDialogOpen(false);
-      setForm(defaultForm);
-      toast.success("장소가 추가되었습니다.");
+      setForm(f => ({ ...f, placeName: "", address: "", visitTime: "", duration: "", memo: "", lat: "", lng: "" }));
+      toast.success("장소가 추가됐습니다.");
     },
     onError: () => toast.error("장소 추가에 실패했습니다."),
   });
-
   const updateMutation = trpc.itinerary.update.useMutation({
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
+      utils.itinerary.listByTrip.invalidate();
       utils.itinerary.listByDate.invalidate();
       setDialogOpen(false);
       setEditId(null);
-      setForm(defaultForm);
-      toast.success("장소가 수정되었습니다.");
+      if (vars.visited === undefined) toast.success("수정됐습니다.");
     },
-    onError: () => toast.error("장소 수정에 실패했습니다."),
+    onError: () => toast.error("수정에 실패했습니다."),
   });
-
   const deleteMutation = trpc.itinerary.delete.useMutation({
-    onSuccess: () => {
-      utils.itinerary.listByDate.invalidate();
-      toast.success("장소가 삭제되었습니다.");
-    },
-    onError: () => toast.error("장소 삭제에 실패했습니다."),
+    onSuccess: () => { utils.itinerary.listByTrip.invalidate(); utils.itinerary.listByDate.invalidate(); toast.success("일정이 삭제되었습니다."); },
+    onError: () => toast.error("삭제에 실패했습니다."),
+  });
+  const aiExtractMutation = trpc.itinerary.aiExtract.useMutation();
+  const aiExtractImageMutation = trpc.itinerary.aiExtractFromImage.useMutation();
+
+  // IntersectionObserver for timeline animations
+  useEffect(() => {
+    if (isLoading) return;
+    observerRef.current?.disconnect();
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        setVisibleDays(prev => {
+          const next = new Set(prev);
+          let changed = false;
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const d = (entry.target as HTMLElement).dataset.date;
+              if (d && !next.has(d)) { next.add(d); changed = true; observerRef.current?.unobserve(entry.target); }
+            }
+          });
+          return changed ? next : prev;
+        });
+      },
+      { threshold: 0.04, rootMargin: "0px 0px -20px 0px" }
+    );
+    Object.values(dayRefs.current).forEach(el => { if (el) observerRef.current!.observe(el); });
+    return () => observerRef.current?.disconnect();
+  }, [isLoading, tripDays.length]);
+
+  // Google Places Autocomplete
+  useEffect(() => {
+    if (!dialogOpen) return;
+    let destroyed = false;
+    async function init() {
+      if (!window.google?.maps?.places) await loadMapScript();
+      if (destroyed || !placeInputRef.current || !window.google?.maps?.places) return;
+      if (autocompleteRef.current) window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      const ac = new window.google.maps.places.Autocomplete(placeInputRef.current, { fields: ["name", "formatted_address", "geometry"] });
+      ac.addListener("place_changed", () => {
+        const place = ac.getPlace();
+        if (!place) return;
+        setForm(f => ({ ...f, placeName: place.name ?? f.placeName, address: place.formatted_address ?? f.address, lat: place.geometry?.location?.lat().toString() ?? f.lat, lng: place.geometry?.location?.lng().toString() ?? f.lng }));
+      });
+      autocompleteRef.current = ac;
+    }
+    init();
+    return () => { destroyed = true; if (autocompleteRef.current && window.google?.maps) window.google.maps.event.clearInstanceListeners(autocompleteRef.current); };
+  }, [dialogOpen]);
+
+  // Group items by date
+  const byDate: Record<string, ItineraryItem[]> = {};
+  (allItems as ItineraryItem[] ?? []).forEach(item => {
+    if (!byDate[item.date]) byDate[item.date] = [];
+    byDate[item.date].push(item);
+  });
+  Object.values(byDate).forEach(arr => arr.sort((a, b) => {
+    if (a.visitTime && b.visitTime) return a.visitTime.localeCompare(b.visitTime);
+    if (a.visitTime) return -1; if (b.visitTime) return 1;
+    return (a.order ?? 0) - (b.order ?? 0);
+  }));
+
+  const totalItems = (allItems as ItineraryItem[] ?? []).length;
+  const visitedItems = (allItems as ItineraryItem[] ?? []).filter(i => i.visited).length;
+  const flatSortedItems = [...(allItems as ItineraryItem[] ?? [])].sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    if (a.visitTime && b.visitTime) return a.visitTime.localeCompare(b.visitTime);
+    if (a.visitTime) return -1;
+    if (b.visitTime) return 1;
+    return (a.order ?? 0) - (b.order ?? 0);
   });
 
-  const reorderMutation = trpc.itinerary.reorder.useMutation({
-    onSuccess: () => utils.itinerary.listByDate.invalidate(),
-    onError: () => {
-      toast.error("순서 저장에 실패했습니다.");
-      setLocalOrder(null);
-    },
-  });
-
-  // dnd-kit 센서 설정 (마우스 + 터치 모두 지원)
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id || !items) return;
-
-    const oldIds = displayItems.map(i => i.id);
-    const oldIndex = oldIds.indexOf(active.id as number);
-    const newIndex = oldIds.indexOf(over.id as number);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const newOrder = arrayMove(oldIds, oldIndex, newIndex);
-    setLocalOrder(newOrder); // 즉시 UI 반영
-    reorderMutation.mutate({ tripId, orderedIds: newOrder }); // 서버 저장
-  };
-
-  const toggleVisited = (item: ItineraryItem) => {
-    updateMutation.mutate({ id: item.id, visited: !item.visited });
-  };
-
-  const openCreate = () => { setEditId(null); setForm(defaultForm); setDialogOpen(true); };
-  const openEdit = (item: ItineraryItem) => {
-    setEditId(item.id);
-    setForm({
-      placeName: item.placeName,
-      address: item.address ?? "",
-      visitTime: item.visitTime ?? "",
-      duration: item.duration?.toString() ?? "",
-      memo: item.memo ?? "",
-      category: item.category ?? "place",
-    });
+  function openCreate(date?: string) {
+    setEditId(null);
+    setForm(f => ({ ...f, date: date ?? tripStartDate, placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "" }));
+    setDialogAiMode(null);
+    setDialogAiText("");
     setDialogOpen(true);
-  };
+  }
+  function openEdit(item: ItineraryItem) {
+    setEditId(item.id);
+    setForm({ date: item.date, placeName: item.placeName, address: item.address ?? "", visitTime: item.visitTime ?? "", duration: item.duration?.toString() ?? "", memo: item.memo ?? "", category: item.category ?? "place", lat: item.lat ?? "", lng: item.lng ?? "" });
+    setDialogAiMode(null);
+    setDialogAiText("");
+    setDialogOpen(true);
+  }
 
-  const handleSubmit = () => {
-    if (!form.placeName) { toast.error("장소명을 입력해주세요."); return; }
-    const data = { ...form, duration: form.duration ? parseInt(form.duration) : undefined };
+  async function resizeImageToBase64(file: File): Promise<string> {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    return new Promise<string>((resolve, reject) => {
+      img.onload = () => {
+        const MAX = 1400; let { width, height } = img;
+        if (width > MAX || height > MAX) { if (width > height) { height = Math.round(height * MAX / width); width = MAX; } else { width = Math.round(width * MAX / height); height = MAX; } }
+        const c = document.createElement("canvas"); c.width = width; c.height = height;
+        c.getContext("2d")!.drawImage(img, 0, 0, width, height); URL.revokeObjectURL(url);
+        resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
+      };
+      img.onerror = reject; img.src = url;
+    });
+  }
+
+  async function handleDialogAiText() {
+    if (!dialogAiText.trim()) return;
+    setDialogAiLoading(true);
+    try {
+      const res = await aiExtractMutation.mutateAsync({ tripId, text: dialogAiText, tripStartDate });
+      const first = (res.items as Array<Record<string, unknown>>)[0];
+      if (!first) { toast.error("정보를 찾지 못했습니다."); return; }
+      setForm(f => ({
+        ...f,
+        placeName: (first.placeName as string) || f.placeName,
+        address: (first.address as string) || f.address,
+        visitTime: (first.visitTime as string) || f.visitTime,
+        category: (first.category as string) || f.category,
+        memo: (first.memo as string) || f.memo,
+      }));
+      setDialogAiMode(null);
+      setDialogAiText("");
+      toast.success("정보가 자동으로 입력됐습니다. 확인 후 수정해주세요.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      toast.error(msg.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "AI 분석 실패");
+    } finally { setDialogAiLoading(false); }
+  }
+
+  async function handleDialogAiImage(file: File) {
+    setDialogAiLoading(true);
+    try {
+      const b64 = await resizeImageToBase64(file);
+      const res = await aiExtractImageMutation.mutateAsync({ tripId, imageBase64: b64, tripStartDate });
+      const first = (res.items as Array<Record<string, unknown>>)[0];
+      if (!first) { toast.error("정보를 찾지 못했습니다."); return; }
+      setForm(f => ({
+        ...f,
+        placeName: (first.placeName as string) || f.placeName,
+        address: (first.address as string) || f.address,
+        visitTime: (first.visitTime as string) || f.visitTime,
+        category: (first.category as string) || f.category,
+        memo: (first.memo as string) || f.memo,
+      }));
+      setDialogAiMode(null);
+      toast.success("정보가 자동으로 입력됐습니다. 확인 후 수정해주세요.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      toast.error(msg.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "이미지 분석 실패");
+    } finally { setDialogAiLoading(false); }
+  }
+  function handleSubmit() {
+    if (!form.placeName) { toast.error("장소명을 입력하세요."); return; }
+    const data = { placeName: form.placeName, address: form.address || undefined, visitTime: form.visitTime || undefined, duration: form.duration ? parseInt(form.duration) : undefined, memo: form.memo || undefined, category: form.category, lat: form.lat || undefined, lng: form.lng || undefined };
     if (editId) updateMutation.mutate({ id: editId, ...data });
-    else createMutation.mutate({ tripId, date: selectedDate, order: (items?.length ?? 0), ...data });
-  };
+    else createMutation.mutate({ tripId, date: form.date, order: (byDate[form.date]?.length ?? 0), ...data });
+  }
 
-  const visitedCount = displayItems.filter(i => i.visited).length;
-  const totalCount = displayItems.length;
+  async function handleAiText() {
+    if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; }
+    if (!aiText.trim()) return;
+    setAiLoading(true);
+    try {
+      const res = await aiExtractMutation.mutateAsync({ tripId, text: aiText, tripStartDate });
+      const items = (res.items as Array<Record<string, unknown>>).map(i => ({
+        date: (i.date as string | null) ?? null, placeName: (i.placeName as string) ?? "",
+        visitTime: (i.visitTime as string | null) ?? null, category: (i.category as string) ?? "place",
+        memo: (i.memo as string | null) ?? null, address: (i.address as string | null) ?? null, selected: true,
+      }));
+      if (!items.length) { toast.error("일정 정보를 찾지 못했습니다."); return; }
+      setAiItems(items);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      toast.error(msg.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "AI 분석 실패");
+    } finally { setAiLoading(false); }
+  }
+
+  async function handleAiImage(file: File) {
+    if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; }
+    setAiLoading(true);
+    try {
+      const img = new Image(); const url = URL.createObjectURL(file);
+      const b64 = await new Promise<string>((resolve, reject) => {
+        img.onload = () => {
+          const MAX = 1400; let { width, height } = img;
+          if (width > MAX || height > MAX) { if (width > height) { height = Math.round(height * MAX / width); width = MAX; } else { width = Math.round(width * MAX / height); height = MAX; } }
+          const c = document.createElement("canvas"); c.width = width; c.height = height;
+          c.getContext("2d")!.drawImage(img, 0, 0, width, height); URL.revokeObjectURL(url);
+          resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
+        };
+        img.onerror = reject; img.src = url;
+      });
+      const res = await aiExtractImageMutation.mutateAsync({ tripId, imageBase64: b64, tripStartDate });
+      const items = (res.items as Array<Record<string, unknown>>).map(i => ({
+        date: (i.date as string | null) ?? null, placeName: (i.placeName as string) ?? "",
+        visitTime: (i.visitTime as string | null) ?? null, category: (i.category as string) ?? "place",
+        memo: (i.memo as string | null) ?? null, address: (i.address as string | null) ?? null, selected: true,
+      }));
+      if (!items.length) { toast.error("일정 정보를 찾지 못했습니다."); return; }
+      setAiItems(items);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      toast.error(msg.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "이미지 분석 실패");
+    } finally { setAiLoading(false); }
+  }
+
+  async function handleAiSave() {
+    const toSave = aiItems.filter(i => i.selected && i.placeName);
+    for (const item of toSave) {
+      await createMutation.mutateAsync({ tripId, date: item.date ?? tripStartDate, placeName: item.placeName, visitTime: item.visitTime ?? undefined, category: item.category, memo: item.memo ?? undefined, address: item.address ?? undefined, order: (byDate[item.date ?? tripStartDate]?.length ?? 0) });
+    }
+    toast.success(`${toSave.length}개 일정이 추가됐습니다.`);
+    setAiItems([]); setAiMode(null); setAiText("");
+  }
 
   return (
-    <div className="space-y-5">
-      {/* 헤더 */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-lg sm:text-xl font-semibold text-foreground tracking-tight">하루별 일정</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">날짜를 선택하고 방문 장소를 관리하세요. 드래그로 순서를 변경할 수 있습니다.</p>
+    <div className="space-y-0">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground tracking-tight">여정 타임라인</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            날짜별로 펼쳐보는 {tripDays.length}일
+            {totalItems > 0 && (
+              <button
+                type="button"
+                onClick={() => setAllItemsOpen(true)}
+                className="ml-2 text-primary font-medium hover:underline underline-offset-2"
+              >
+                {visitedItems}/{totalItems} 완료
+              </button>
+            )}
+          </p>
         </div>
-        <Button onClick={openCreate} size="sm" className="gap-1.5 self-start sm:self-auto shrink-0">
-          <Plus className="w-3.5 h-3.5" />장소 추가
-        </Button>
-      </div>
-
-      {/* 날짜 선택 */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
-        {tripDays.map((day, idx) => {
-          const dateStr = format(day, "yyyy-MM-dd");
-          const isSelected = selectedDate === dateStr;
-          return (
-            <button
-              key={dateStr}
-              onClick={() => { setSelectedDate(dateStr); setLocalOrder(null); }}
-              className={`flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-xl border transition-all shrink-0 ${
-                isSelected
-                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                  : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"
-              }`}
-            >
-              <span className="text-xs font-medium">{format(day, "EEE", { locale: ko })}</span>
-              <span className="text-lg font-bold leading-none">{format(day, "d")}</span>
-              <span className="text-xs opacity-70">{format(day, "M.d")}</span>
-              <span className={`text-xs mt-0.5 ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                Day {idx + 1}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 진행률 */}
-      {totalCount > 0 && (
-        <div className="flex items-center gap-3 bg-muted/40 rounded-xl px-4 py-3">
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-sm font-medium text-foreground">
-                {format(new Date(selectedDate + "T00:00:00"), "M월 d일 (EEE)", { locale: ko })} 일정
-              </span>
-              <span className="text-sm text-muted-foreground">{visitedCount}/{totalCount} 완료</span>
-            </div>
-            <div className="h-1.5 bg-border rounded-full overflow-hidden">
-              <div
-                className="h-full bg-accent rounded-full transition-all duration-500"
-                style={{ width: `${totalCount > 0 ? (visitedCount / totalCount) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 드래그 안내 */}
-      {totalCount > 1 && (
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <GripVertical className="w-3.5 h-3.5" />
-          왼쪽 핸들을 드래그해서 순서를 변경하면 지도에도 반영됩니다
-        </p>
-      )}
-
-      {/* 아이템 목록 */}
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : displayItems.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-4 rounded-2xl border border-dashed border-border bg-muted/30">
-          <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
-            <CalendarDays className="w-6 h-6 text-muted-foreground" />
-          </div>
-          <div className="text-center">
-            <p className="text-sm font-medium text-foreground">이 날의 일정이 없습니다</p>
-            <p className="text-xs text-muted-foreground mt-1">방문할 장소를 추가해보세요.</p>
-          </div>
-          <Button onClick={openCreate} size="sm" variant="outline" className="gap-1.5">
-            <Plus className="w-4 h-4" />장소 추가
+        <div className="flex gap-2">
+          <Button onClick={() => { if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; } setAiMode(aiMode ? null : "text"); setAiItems([]); }} size="sm" variant="outline" className="gap-1.5">
+            <Sparkles className="w-3.5 h-3.5" />AI 입력
+          </Button>
+          <Button onClick={() => openCreate()} size="sm" className="gap-1.5">
+            <Plus className="w-3.5 h-3.5" />일정 추가
           </Button>
         </div>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={displayItems.map(i => i.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-2">
-              {displayItems.map((item, idx) => (
-                <SortableItem
-                  key={item.id}
-                  item={item}
-                  idx={idx}
-                  total={displayItems.length}
-                  onToggle={toggleVisited}
-                  onEdit={openEdit}
-                  onDelete={(id) => deleteMutation.mutate({ id })}
-                />
-              ))}
+      </div>
+
+      {/* AI Panel */}
+      {aiMode && (
+        <div className="rounded-2xl border bg-card p-4 space-y-3 mb-5">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1 p-1 bg-muted rounded-lg">
+              <button onClick={() => setAiMode("text")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${aiMode === "text" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+                <FileText className="w-3.5 h-3.5" />텍스트
+              </button>
+              <button onClick={() => setAiMode("image")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${aiMode === "image" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+                <Camera className="w-3.5 h-3.5" />이미지
+              </button>
             </div>
-          </SortableContext>
-        </DndContext>
+            <button onClick={() => { setAiMode(null); setAiItems([]); setAiText(""); }}><X className="w-4 h-4 text-muted-foreground" /></button>
+          </div>
+          {aiLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center"><Loader2 className="w-4 h-4 animate-spin" /> AI 분석 중…</div>
+          ) : aiItems.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">저장할 항목을 선택하세요.</p>
+              {aiItems.map((item, i) => (
+                <div key={i} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${item.selected ? "border-primary/40 bg-primary/5" : "border-border bg-muted/30"}`}
+                  onClick={() => setAiItems(prev => prev.map((x, j) => j === i ? { ...x, selected: !x.selected } : x))}>
+                  <input type="checkbox" checked={item.selected} readOnly className="mt-0.5 accent-primary" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <CategoryPill category={item.category} />
+                      <p className="text-sm font-medium">{item.placeName}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{[item.date, item.visitTime].filter(Boolean).join(" · ")}</p>
+                  </div>
+                </div>
+              ))}
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={() => setAiItems([])} className="flex-1">다시 입력</Button>
+                <Button size="sm" onClick={handleAiSave} disabled={!aiItems.some(i => i.selected) || createMutation.isPending} className="flex-1">저장</Button>
+              </div>
+            </div>
+          ) : aiMode === "text" ? (
+            <>
+              <textarea className="w-full rounded-xl border bg-background px-3 py-2 text-sm resize-none h-28 focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="일정을 입력하세요. 예: '5월 24일 오후 2시 닛폰다이라 로프웨이, 5월 25일 오전 마키노하라 차밭'"
+                value={aiText} onChange={e => setAiText(e.target.value)} />
+              <Button size="sm" onClick={handleAiText} disabled={!aiText.trim()} className="gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />분석하기
+              </Button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => aiPhotoRef.current?.click()}
+                className="w-full border-2 border-dashed border-border rounded-xl py-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                <Camera className="w-6 h-6" />
+                <span className="text-sm">사진 선택 또는 카메라 촬영</span>
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => aiCameraRef.current?.click()} className="gap-1.5">
+                  <Camera className="w-3.5 h-3.5" /> 카메라
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => aiPhotoRef.current?.click()} className="gap-1.5">
+                  사진 보관함
+                </Button>
+              </div>
+              <input
+                ref={aiCameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }}
+              />
+              <input
+                ref={aiPhotoRef}
+                type="file"
+                accept="image/*,image/heic,image/heif"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }}
+              />
+            </>
+          )}
+        </div>
       )}
 
-      {/* 추가/수정 다이얼로그 */}
+      {isLoading && (
+        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+      )}
+
+      {/* Timeline */}
+      {!isLoading && (
+        <div>
+          {tripDays.map((day, idx) => {
+            const dateStr = format(day, "yyyy-MM-dd");
+            const dayItems = byDate[dateStr] ?? [];
+            const dayDone = dayItems.filter(i => i.visited).length;
+            const visible = visibleDays.has(dateStr);
+
+            return (
+              <div
+                key={dateStr}
+                ref={el => { dayRefs.current[dateStr] = el; }}
+                data-date={dateStr}
+                className="flex gap-0 mb-1"
+                style={{
+                  opacity: visible ? 1 : 0,
+                  transform: visible ? "translateY(0)" : "translateY(20px)",
+                  transition: "opacity 0.5s ease, transform 0.5s ease",
+                }}
+              >
+                {/* Date column */}
+                <div className="w-[70px] sm:w-[78px] md:w-[86px] shrink-0 pt-5 pr-2 sm:pr-3 md:pr-4 text-right">
+                  <div
+                    className="font-display text-[2.2rem] font-semibold leading-none text-foreground"
+                    style={{
+                      opacity: visible ? 1 : 0,
+                      transform: visible ? "translateX(0)" : "translateX(-8px)",
+                      transition: "opacity 0.4s ease 0.1s, transform 0.4s ease 0.1s",
+                    }}
+                  >
+                    {format(day, "d")}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1 leading-tight">
+                    {format(day, "M월", { locale: ko })}·{format(day, "EEE", { locale: ko })}
+                  </div>
+                  <div className="text-xs text-primary font-semibold mt-1">Day {idx + 1}</div>
+                  {dayItems.length > 0 && (
+                    <div className="text-[10px] text-muted-foreground mt-1">{dayDone}/{dayItems.length}</div>
+                  )}
+                </div>
+
+                {/* Timeline right column */}
+                <div className="relative flex-1 min-w-0 pl-4 sm:pl-5 pt-4 pb-2">
+                  {/* Animated vertical line */}
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-px bg-border"
+                    style={{
+                      transformOrigin: "top",
+                      transform: visible ? "scaleY(1)" : "scaleY(0)",
+                      transition: "transform 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.05s",
+                    }}
+                  />
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        {/* Animated dot */}
+                        <div
+                          className="w-2 h-2 rounded-full bg-primary -ml-[22px] ring-2 ring-background"
+                          style={{
+                            transform: visible ? "scale(1)" : "scale(0)",
+                            transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s",
+                          }}
+                        />
+                        {dayItems.length === 0 ? (
+                          <span className="text-sm text-muted-foreground">일정 없음</span>
+                        ) : (
+                          <span className="text-sm font-semibold text-foreground">{dayItems.length}건</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => openCreate(dateStr)}
+                        className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />추가
+                      </button>
+                    </div>
+
+                    {dayItems.length === 0 ? (
+                      <div className="mb-4" />
+                    ) : (
+                      <div className="rounded-2xl border bg-card overflow-hidden mb-4">
+                        {dayItems.map((item, k) => (
+                          <ItineraryItemRow
+                            key={item.id}
+                            item={item}
+                            k={k}
+                            visible={visible}
+                            onVisitToggle={(id, visited) => updateMutation.mutate({ id, visited })}
+                            onEdit={openEdit}
+                            onDelete={setDeleteItemId}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={allItemsOpen} onOpenChange={setAllItemsOpen}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-2xl rounded-xl p-5 sm:p-6">
+          <DialogHeader className="mb-1">
+            <DialogTitle className="text-lg font-semibold">등록된 전체 일정</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto rounded-xl border">
+            {flatSortedItems.length === 0 ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">등록된 일정이 없습니다.</div>
+            ) : (
+              <div className="divide-y">
+                {flatSortedItems.map(item => (
+                  <div key={item.id} className="flex items-start gap-3 px-4 py-3">
+                    <div className="w-24 shrink-0 text-xs text-muted-foreground tabular-nums">
+                      <p>{item.date}</p>
+                      <p>{item.visitTime || "--:--"}</p>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{item.placeName}</p>
+                      {item.address && <p className="text-xs text-muted-foreground truncate">{item.address}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteItemId(item.id);
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <AlertDialog open={deleteItemId !== null} onOpenChange={(open) => { if (!open) setDeleteItemId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>일정 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 일정을 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteItemId == null) return;
+                deleteMutation.mutate({ id: deleteItemId });
+                setDeleteItemId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl p-5 sm:p-6">
           <DialogHeader className="mb-1">
             <DialogTitle className="text-lg font-semibold">{editId ? "장소 수정" : "장소 추가"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
+            {/* AI 자동 입력 */}
+            <div>
+              {dialogAiMode === null ? (
+                <button
+                  type="button"
+                  onClick={() => setDialogAiMode("text")}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> AI 자동 입력
+                </button>
+              ) : (
+                <div className="rounded-xl border bg-muted/30 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-0.5 p-0.5 bg-muted rounded-lg">
+                      <button onClick={() => setDialogAiMode("text")} className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${dialogAiMode === "text" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+                        <FileText className="w-3 h-3" />텍스트
+                      </button>
+                      <button onClick={() => setDialogAiMode("image")} className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${dialogAiMode === "image" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+                        <Camera className="w-3 h-3" />이미지
+                      </button>
+                    </div>
+                    <button type="button" onClick={() => { setDialogAiMode(null); setDialogAiText(""); }}>
+                      <X className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                  {dialogAiLoading ? (
+                    <div className="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> AI 분석 중…
+                    </div>
+                  ) : dialogAiMode === "text" ? (
+                    <div className="space-y-2">
+                      <textarea
+                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-primary"
+                        placeholder="예: 5월 24일 오후 2시 아사쿠사 센소지 방문, 식사는 스시 레스토랑"
+                        value={dialogAiText}
+                        onChange={e => setDialogAiText(e.target.value)}
+                      />
+                      <Button size="sm" onClick={handleDialogAiText} disabled={!dialogAiText.trim()} className="gap-1.5 w-full">
+                        <Sparkles className="w-3.5 h-3.5" />분석하기
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => dialogAiCameraRef.current?.click()}
+                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <Camera className="w-3.5 h-3.5" />카메라
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => dialogAiPhotoRef.current?.click()}
+                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border-2 border-dashed border-indigo-300 bg-indigo-50 text-xs font-medium text-indigo-600 hover:bg-indigo-100 transition-colors"
+                      >
+                        <FolderOpen className="w-3.5 h-3.5" />사진 선택
+                      </button>
+                      <input ref={dialogAiCameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleDialogAiImage(f); e.target.value = ""; }} />
+                      <input ref={dialogAiPhotoRef} type="file" accept="image/*,image/heic,image/heif" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleDialogAiImage(f); e.target.value = ""; }} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {!editId && (
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">날짜</Label>
+                <Select value={form.date} onValueChange={v => setForm(f => ({ ...f, date: v }))}>
+                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {tripDays.map((day, idx) => {
+                      const dateStr = format(day, "yyyy-MM-dd");
+                      return (
+                        <SelectItem key={dateStr} value={dateStr}>
+                          {format(day, "M월 d일 (EEE)", { locale: ko })} · Day {idx + 1}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">카테고리</Label>
               <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
                 <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map(c => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                  ))}
+                  {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">장소명 <span className="text-destructive">*</span></Label>
-              <Input className="h-10" placeholder="아사쿠사 센소지" value={form.placeName} onChange={e => setForm(f => ({ ...f, placeName: e.target.value }))} />
+              <Input ref={placeInputRef} className="h-10" placeholder="장소를 검색하세요" value={form.placeName}
+                onChange={e => setForm(f => ({ ...f, placeName: e.target.value, lat: "", lng: "" }))} />
+              {form.lat && form.lng && <p className="text-xs text-green-600 flex items-center gap-1"><MapPin className="w-3 h-3" />위치 좌표 저장됨</p>}
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">주소</Label>
-              <Input className="h-10" placeholder="도쿄 다이토구 아사쿠사 2-3-1" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
+              <Input className="h-10" placeholder="자동 입력되거나 직접 입력" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">방문 시간</Label>
-              <Input className="h-10" type="time" value={form.visitTime} onChange={e => setForm(f => ({ ...f, visitTime: e.target.value }))} />
+              <Input className="h-10 w-full" type="time" value={form.visitTime} onChange={e => setForm(f => ({ ...f, visitTime: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">소요 시간 (분)</Label>
-              <Input className="h-10" type="number" placeholder="60" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} />
+              <Label className="text-sm font-medium">소요 (분)</Label>
+              <Input className="h-10 w-full" type="number" placeholder="60" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">메모</Label>

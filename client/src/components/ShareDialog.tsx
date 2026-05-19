@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -15,6 +19,8 @@ interface ShareDialogProps {
 
 export function ShareDialog({ tripId, open, onOpenChange }: ShareDialogProps) {
   const [copied, setCopied] = useState(false);
+  const [regenConfirmOpen, setRegenConfirmOpen] = useState(false);
+  const [removeMemberId, setRemoveMemberId] = useState<number | null>(null);
   const utils = trpc.useUtils();
 
   // 초대 링크 목록
@@ -122,7 +128,8 @@ export function ShareDialog({ tripId, open, onOpenChange }: ShareDialogProps) {
                       variant="outline"
                       className="h-8 text-xs gap-1.5 text-muted-foreground hover:text-destructive"
                       onClick={() => {
-                        if (latestInvite) deleteInviteMutation.mutate({ id: latestInvite.id });
+                        if (!latestInvite) return;
+                        setRegenConfirmOpen(true);
                       }}
                       disabled={deleteInviteMutation.isPending}
                     >
@@ -180,7 +187,9 @@ export function ShareDialog({ tripId, open, onOpenChange }: ShareDialogProps) {
                         <Crown className="w-3.5 h-3.5 text-amber-500" />
                       ) : (
                         <button
-                          onClick={() => removeMemberMutation.mutate({ tripId, userId: member.userId })}
+                          onClick={() => {
+                            setRemoveMemberId(member.userId);
+                          }}
                           disabled={removeMemberMutation.isPending}
                           className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                         >
@@ -207,6 +216,45 @@ export function ShareDialog({ tripId, open, onOpenChange }: ShareDialogProps) {
             </div>
           </div>
         )}
+        <AlertDialog open={regenConfirmOpen} onOpenChange={setRegenConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>초대 링크 재발급</AlertDialogTitle>
+              <AlertDialogDescription>현재 초대 링크를 비활성화하고 새로 발급할까요?</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (!latestInvite) return;
+                  deleteInviteMutation.mutate({ id: latestInvite.id });
+                }}
+              >
+                재발급
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog open={removeMemberId !== null} onOpenChange={(open) => { if (!open) setRemoveMemberId(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>멤버 제거</AlertDialogTitle>
+              <AlertDialogDescription>이 멤버를 공유 목록에서 제거할까요?</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (removeMemberId == null) return;
+                  removeMemberMutation.mutate({ tripId, userId: removeMemberId });
+                  setRemoveMemberId(null);
+                }}
+              >
+                제거
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );

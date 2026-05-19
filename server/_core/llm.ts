@@ -62,6 +62,7 @@ export type InvokeParams = {
   tool_choice?: ToolChoice;
   maxTokens?: number;
   max_tokens?: number;
+  timeoutMs?: number;
   outputSchema?: OutputSchema;
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
@@ -209,14 +210,22 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
+const resolveApiUrl = () => {
+  const fallback = "https://api.openai.com/v1/chat/completions";
+  const raw = ENV.llmApiUrl && ENV.llmApiUrl.trim().length > 0
+    ? ENV.llmApiUrl
+    : fallback;
+  const normalized = raw.replace(/^LLM_API_URL\s*=\s*/i, "").trim();
+  try {
+    return new URL(normalized).toString();
+  } catch {
+    throw new Error(`LLM_API_URL 형식이 올바르지 않습니다: ${raw}`);
+  }
+};
 
 const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
+  if (!ENV.llmApiKey) {
+    throw new Error("LLM_API_KEY (or OPENAI_API_KEY) is not configured");
   }
 };
 
@@ -273,16 +282,26 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     tools,
     toolChoice,
     tool_choice,
+    maxTokens,
+    max_tokens,
+    timeoutMs,
     outputSchema,
     output_schema,
     responseFormat,
     response_format,
   } = params;
 
+  // LLM_MODEL 환경변수로 오버라이드 가능, 기본값은 저비용 OpenAI 모델
+  const modelName = process.env.LLM_MODEL ?? "gpt-4.1-mini";
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: modelName,
     messages: messages.map(normalizeMessage),
   };
+
+  // gemini-2.5-* 계열: thinking 비활성화로 응답 지연 방지
+  if (modelName.startsWith("gemini-2.5")) {
+    payload.thinking = { type: "disabled" };
+  }
 
   if (tools && tools.length > 0) {
     payload.tools = tools;
@@ -296,10 +315,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
+  // 파라미터로 넘긴 값 우선, 기본값은 1024로 낮춰 응답 속도 개선
+  payload.max_tokens = maxTokens ?? max_tokens ?? 1024;
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
@@ -312,20 +329,47 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  const apiUrl = resolveApiUrl();
+  const bodyStr = JSON.stringify(payload);
+
+  // 기본 25초 timeout (Render 30초 제한), 이미지 분석 등 무거운 작업은 timeoutMs로 오버라이드
+  const effectiveTimeout = timeoutMs ?? 25_000;
+  async function attempt(): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
+    try {
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${ENV.llmApiKey}`,
+        },
+        body: bodyStr,
+        signal: controller.signal,
+      });
+      return res;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  let response: Response;
+  try {
+    response = await attempt();
+  } catch (err: unknown) {
+    // 첫 번째 시도 실패 → 1회 재시도
+    console.warn("[LLM] First attempt failed, retrying:", err instanceof Error ? err.message : err);
+    try {
+      response = await attempt();
+    } catch (err2: unknown) {
+      const msg = err2 instanceof Error ? err2.message : String(err2);
+      throw new Error(`AI 응답 시간 초과. 다시 시도해주세요. (${msg})`);
+    }
+  }
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`AI 호출 실패: ${response.status} ${response.statusText}${errorText ? ` – ${errorText.slice(0, 200)}` : ""}`);
   }
 
   return (await response.json()) as InvokeResult;

@@ -2,9 +2,13 @@ import { trpc } from "@/lib/trpc";
 import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Hotel, Loader2, MapPin, Hash, Calendar } from "lucide-react";
+import { Hotel, Loader2, MapPin, Hash, Calendar, Map } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,6 +49,7 @@ function getNights(checkIn?: string | null, checkOut?: string | null) {
 export default function AccommodationsTab({ tripId }: { tripId: number }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>(defaultForm);
   const utils = trpc.useUtils();
 
@@ -111,7 +116,7 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
       checkIn: form.checkIn || undefined,
       checkOut: form.checkOut || undefined,
       bookingRef: form.bookingRef.trim() || undefined,
-      price: form.price.trim() || undefined,
+      price: form.price.replace(/[^0-9.]/g, "") || undefined,
       currency: form.currency || undefined,
       memo: form.memo.trim() || undefined,
     };
@@ -153,8 +158,24 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
                   )}
                 </div>
                 <div className="flex gap-1 shrink-0">
+                  <a
+                    href={`https://maps.google.com/?q=${encodeURIComponent([a.name, a.address].filter(Boolean).join(" "))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors flex items-center gap-1"
+                    title="구글 지도에서 보기"
+                  >
+                    <Map className="w-3 h-3" />
+                  </a>
                   <button onClick={() => openEdit(a)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
-                  <button onClick={() => deleteMutation.mutate({ id: a.id, tripId })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors">삭제</button>
+                  <button
+                    onClick={() => {
+                      setDeleteId(a.id);
+                    }}
+                    className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
+                  >
+                    삭제
+                  </button>
                 </div>
               </div>
 
@@ -197,8 +218,7 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
             {/* OCR 자동 입력 */}
             <OcrUploadButton
-              uploadEndpoint="/api/upload-ocr"
-              extractEndpoint={async (url) => extractMutation.mutateAsync({ imageUrl: url })}
+              extractEndpoint={async (base64) => extractMutation.mutateAsync({ imageBase64: base64 })}
               onExtracted={(data) => {
                 setForm(f => ({
                   ...f,
@@ -282,6 +302,26 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>숙박 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 숙박을 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteId == null) return;
+                deleteMutation.mutate({ id: deleteId, tripId });
+                setDeleteId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

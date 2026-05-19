@@ -1,5 +1,8 @@
+import { readdirSync, readFileSync } from "fs";
+import { join } from "path";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import {
   InsertUser, users,
   trips, InsertTrip,
@@ -11,6 +14,8 @@ import {
   diaryEntries, InsertDiaryEntry,
   tripShares, InsertTripShare,
   tripMembers, InsertTripMember,
+  expenses, InsertExpense,
+  checklistItems, InsertChecklistItem,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -18,10 +23,78 @@ let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
-    try { _db = drizzle(process.env.DATABASE_URL); }
+    try {
+      // Strip ssl-mode query param (not supported by mysql2) and enable SSL explicitly
+      const uri = process.env.DATABASE_URL.replace(/[?&]ssl-mode=[^&]*/i, "").replace(/\?$/, "");
+      const pool = mysql.createPool({
+        uri,
+        ssl: { rejectUnauthorized: false },
+        waitForConnections: true,
+        connectionLimit: 5,
+        connectTimeout: 5000,   // 5초 안에 연결 못 하면 즉시 실패
+      });
+      _db = drizzle(pool) as unknown as typeof _db;
+    }
     catch (e) { console.warn("[Database] Failed to connect:", e); _db = null; }
   }
   return _db;
+}
+
+// MySQL error codes that mean "already applied / already exists"
+const IDEMPOTENT_ERRORS = new Set([
+  1050, // ER_TABLE_EXISTS_ERROR
+  1060, // ER_DUP_FIELDNAME
+  1061, // ER_DUP_KEYNAME
+  1091, // ER_CANT_DROP_FIELD_OR_KEY
+]);
+
+export async function runPendingMigrations() {
+  if (!process.env.DATABASE_URL) return;
+  const uri = process.env.DATABASE_URL.replace(/[?&]ssl-mode=[^&]*/i, "").replace(/\?$/, "");
+  let conn: mysql.Connection | null = null;
+  try {
+    conn = await mysql.createConnection({ uri, ssl: { rejectUnauthorized: false }, connectTimeout: 10000 });
+
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS _migrations (
+        name varchar(255) NOT NULL PRIMARY KEY,
+        applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    const [rows] = await conn.execute("SELECT name FROM _migrations") as [Array<{ name: string }>, any];
+    const applied = new Set(rows.map(r => r.name));
+
+    const migrationsDir = join(__dirname, "../../drizzle");
+    const files = readdirSync(migrationsDir)
+      .filter(f => f.endsWith(".sql"))
+      .sort();
+
+    for (const file of files) {
+      if (applied.has(file)) continue;
+      const sqlText = readFileSync(join(migrationsDir, file), "utf-8");
+      const statements = sqlText
+        .split("--> statement-breakpoint")
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      for (const stmt of statements) {
+        try {
+          await conn.execute(stmt);
+        } catch (err: any) {
+          if (IDEMPOTENT_ERRORS.has(err.errno)) continue;
+          throw err;
+        }
+      }
+
+      await conn.execute("INSERT IGNORE INTO _migrations (name) VALUES (?)", [file]);
+      console.log(`[Migration] Applied: ${file}`);
+    }
+  } catch (err) {
+    console.error("[Migration] Failed:", err);
+  } finally {
+    await conn?.end();
+  }
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -55,6 +128,26 @@ export async function getUserById(id: number) {
   if (!db) return undefined;
   const r = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return r[0];
+}
+
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const r = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return r[0];
+}
+
+
+export async function updateUserName(userId: number, name: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(users).set({ name }).where(eq(users.id, userId));
+}
+
+export async function setUserPasswordHash(openId: string, passwordHash: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ passwordHash }).where(eq(users.openId, openId));
 }
 
 // ─── Trips ────────────────────────────────────────────────────────────────────
@@ -415,4 +508,95 @@ export async function deleteDiaryEntry(id: number, userId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.delete(diaryEntries).where(and(eq(diaryEntries.id, id), eq(diaryEntries.userId, userId)));
+}
+
+// ─── Expenses ─────────────────────────────────────────────────────────────────
+export async function getExpensesByTrip(tripId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const trip = await getTripById(tripId, userId);
+  if (!trip) return [];
+  return db.select().from(expenses)
+    .where(eq(expenses.tripId, tripId))
+    .orderBy(desc(expenses.date), desc(expenses.createdAt));
+}
+
+export async function createExpense(data: InsertExpense) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const r = await db.insert(expenses).values(data);
+  return (r[0] as any).insertId as number;
+}
+
+export async function updateExpense(id: number, userId: number, data: Partial<InsertExpense>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const row = await db.select().from(expenses).where(eq(expenses.id, id)).limit(1);
+  if (!row[0]) throw new Error("Not found");
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.update(expenses).set(data).where(eq(expenses.id, id));
+}
+
+export async function deleteExpense(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const row = await db.select().from(expenses).where(eq(expenses.id, id)).limit(1);
+  if (!row[0]) return;
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.delete(expenses).where(eq(expenses.id, id));
+}
+
+// ─── Checklist Items ──────────────────────────────────────────────────────────
+export async function getChecklistByTrip(tripId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const trip = await getTripById(tripId, userId);
+  if (!trip) return [];
+  return db.select().from(checklistItems)
+    .where(eq(checklistItems.tripId, tripId))
+    .orderBy(asc(checklistItems.group), asc(checklistItems.order), asc(checklistItems.id));
+}
+
+export async function createChecklistItem(data: InsertChecklistItem) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const r = await db.insert(checklistItems).values(data);
+  return (r[0] as any).insertId as number;
+}
+
+export async function updateChecklistItem(id: number, userId: number, data: Partial<InsertChecklistItem>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const row = await db.select().from(checklistItems).where(eq(checklistItems.id, id)).limit(1);
+  if (!row[0]) throw new Error("Not found");
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.update(checklistItems).set(data).where(eq(checklistItems.id, id));
+}
+
+export async function deleteChecklistItem(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const row = await db.select().from(checklistItems).where(eq(checklistItems.id, id)).limit(1);
+  if (!row[0]) return;
+  const trip = await getTripById(row[0].tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.delete(checklistItems).where(eq(checklistItems.id, id));
+}
+
+export async function deleteAllChecklistItems(tripId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const trip = await getTripById(tripId, userId);
+  if (!trip) throw new Error("No access");
+  await db.delete(checklistItems).where(eq(checklistItems.tripId, tripId));
+}
+
+export async function bulkCreateChecklistItems(items: InsertChecklistItem[]) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  if (items.length === 0) return;
+  await db.insert(checklistItems).values(items);
 }

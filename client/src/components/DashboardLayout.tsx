@@ -19,19 +19,15 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
-  Plane,
   LogOut,
   PanelLeft,
-  MapPin,
   Compass,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
-import { Button } from "./ui/button";
 
 const menuItems = [
   { icon: Compass, label: "내 여행", path: "/" },
@@ -41,6 +37,38 @@ const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 260;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 400;
+const PLANLOG_ICON_SRC = "/apple-touch-icon.svg?v=planlog-2";
+
+function PlanLogIcon({ className = "h-7 w-7" }: { className?: string }) {
+  return (
+    <img
+      src={PLANLOG_ICON_SRC}
+      className={className}
+      alt=""
+      aria-hidden="true"
+      data-planlog-logo="true"
+      draggable={false}
+    />
+  );
+}
+
+function PlanLogBrand({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className="group flex items-center gap-2 min-w-0 rounded-xl px-1 py-1 transition-all duration-300 hover:bg-sidebar-accent/70">
+      <PlanLogIcon className={`${compact ? "h-6 w-6" : "h-8 w-8"} shrink-0 rounded-lg drop-shadow-sm transition-all duration-300 group-hover:-translate-y-0.5 group-hover:scale-110 group-hover:rotate-[-3deg]`} />
+      <div className="min-w-0 leading-none transition-transform duration-300 group-hover:translate-x-0.5">
+        <p className="font-logo font-logo-tight font-semibold text-sidebar-foreground truncate">
+          플랜로그
+        </p>
+        {!compact && (
+          <p className="mt-1 text-[11px] font-medium tracking-wide text-sidebar-foreground/50">
+            PlanLog
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -48,13 +76,21 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
+    try {
+      const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+      return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
+    } catch {
+      return DEFAULT_WIDTH;
+    }
   });
   const { loading, user } = useAuth();
 
   useEffect(() => {
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
+    try {
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
+    } catch {
+      // Safari private mode or strict privacy settings can block storage access.
+    }
   }, [sidebarWidth]);
 
   if (loading) {
@@ -62,30 +98,7 @@ export default function DashboardLayout({
   }
 
   if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-accent/20 flex items-center justify-center">
-              <Plane className="w-8 h-8 text-accent" />
-            </div>
-            <h1 className="text-3xl font-serif font-semibold tracking-tight text-center text-foreground">
-              Travel Journal
-            </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-xs leading-relaxed">
-              나만의 여행을 기록하고 추억을 간직하세요. 로그인하여 시작하세요.
-            </p>
-          </div>
-          <Button
-            onClick={() => { window.location.href = getLoginUrl(); }}
-            size="lg"
-            className="w-full shadow-md hover:shadow-lg transition-all bg-primary text-primary-foreground"
-          >
-            로그인하여 시작하기
-          </Button>
-        </div>
-      </div>
-    );
+    return <>{children}</>;
   }
 
   return (
@@ -145,7 +158,6 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
     <>
       <div className="relative" ref={sidebarRef}>
         <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
-          {/* Header */}
           <SidebarHeader className="h-16 justify-center border-b border-sidebar-border">
             <div className="flex items-center gap-3 px-3">
               <button
@@ -155,18 +167,10 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
               >
                 <PanelLeft className="h-4 w-4 text-sidebar-foreground/60" />
               </button>
-              {!isCollapsed && (
-                <div className="flex items-center gap-2 min-w-0">
-                  <MapPin className="w-4 h-4 text-sidebar-primary shrink-0" />
-                  <span className="font-serif font-semibold text-sidebar-foreground tracking-tight truncate">
-                    Travel Journal
-                  </span>
-                </div>
-              )}
+              {!isCollapsed && <PlanLogBrand />}
             </div>
           </SidebarHeader>
 
-          {/* Navigation */}
           <SidebarContent className="gap-0 pt-2">
             <SidebarMenu className="px-2 py-1">
               {menuItems.map(item => {
@@ -188,7 +192,6 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
             </SidebarMenu>
           </SidebarContent>
 
-          {/* Footer */}
           <SidebarFooter className="p-3 border-t border-sidebar-border">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -223,7 +226,6 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
           </SidebarFooter>
         </Sidebar>
 
-        {/* Resize handle */}
         <div
           className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
           onMouseDown={() => { if (!isCollapsed) setIsResizing(true); }}
@@ -236,10 +238,7 @@ function DashboardLayoutContent({ children, setSidebarWidth }: DashboardLayoutCo
           <div className="flex border-b h-14 items-center justify-between bg-background/95 px-4 backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-3">
               <SidebarTrigger className="h-9 w-9 rounded-lg" />
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-accent" />
-                <span className="font-serif font-semibold text-foreground">Travel Journal</span>
-              </div>
+              <PlanLogBrand compact />
             </div>
           </div>
         )}

@@ -1,49 +1,73 @@
 import { trpc } from "@/lib/trpc";
-import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink, TRPCClientError } from "@trpc/client";
+import { httpBatchLink } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { getLoginUrl } from "./const";
 import "./index.css";
+
+const TRPC_REQUEST_TIMEOUT_MS = 10000;
+const PLANLOG_ICON_SRC = "/apple-touch-icon.svg?v=planlog-2";
+
+function replaceLegacyLogoNear(element: Element) {
+  const groups = [
+    element.closest(".text-center"),
+    element.closest(".flex"),
+    element.parentElement,
+    element.parentElement?.parentElement,
+  ].filter(Boolean) as Element[];
+
+  for (const group of groups) {
+    const legacyLogo = group.querySelector("svg:not([data-planlog-logo]), img:not([data-planlog-logo])");
+    if (!legacyLogo) continue;
+
+    const img = document.createElement("img");
+    img.src = PLANLOG_ICON_SRC;
+    img.alt = "플랜로그";
+    img.dataset.planlogLogo = "true";
+    img.draggable = false;
+    img.className = legacyLogo.getAttribute("class") || "rounded-lg shrink-0";
+    img.style.width = legacyLogo.getAttribute("width") ? `${legacyLogo.getAttribute("width")}px` : "32px";
+    img.style.height = legacyLogo.getAttribute("height") ? `${legacyLogo.getAttribute("height")}px` : "32px";
+    img.style.objectFit = "contain";
+    img.style.borderRadius = "10px";
+    legacyLogo.replaceWith(img);
+    break;
+  }
+}
+
+function applyPlanLogBranding() {
+  const elements = Array.from(document.querySelectorAll("h1, h2, span, p, a"));
+
+  for (const element of elements) {
+    const text = element.textContent?.trim();
+    if (!text) continue;
+
+    if (text.includes("Voya") || text.includes("Travel Journal") || text.includes("Voya·journal")) {
+      element.textContent = "플랜로그";
+      element.classList.add("planlog-brand-text");
+      replaceLegacyLogoNear(element);
+    }
+  }
+}
+
+const brandObserver = new MutationObserver(() => applyPlanLogBranding());
+brandObserver.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  characterData: true,
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // 공유 여행의 실시간 동기화를 위해 30초마다 자동 리페치
-      refetchInterval: 30_000,
-      refetchOnWindowFocus: true,
-      staleTime: 10_000,
+      refetchInterval: false,
+      refetchOnWindowFocus: false,
+      staleTime: 30000,
+      retry: 1,
+      retryDelay: 1000,
     },
   },
-});
-
-const redirectToLoginIfUnauthorized = (error: unknown) => {
-  if (!(error instanceof TRPCClientError)) return;
-  if (typeof window === "undefined") return;
-
-  const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
-
-  if (!isUnauthorized) return;
-
-  window.location.href = getLoginUrl();
-};
-
-queryClient.getQueryCache().subscribe(event => {
-  if (event.type === "updated" && event.action.type === "error") {
-    const error = event.query.state.error;
-    redirectToLoginIfUnauthorized(error);
-    console.error("[API Query Error]", error);
-  }
-});
-
-queryClient.getMutationCache().subscribe(event => {
-  if (event.type === "updated" && event.action.type === "error") {
-    const error = event.mutation.state.error;
-    redirectToLoginIfUnauthorized(error);
-    console.error("[API Mutation Error]", error);
-  }
 });
 
 const trpcClient = trpc.createClient({
@@ -52,19 +76,44 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
+        const ctrl = new AbortController();
+        const timeoutId = setTimeout(() => ctrl.abort(), TRPC_REQUEST_TIMEOUT_MS);
+        const onAbort = () => ctrl.abort();
+        init?.signal?.addEventListener("abort", onAbort, { once: true });
+
         return globalThis.fetch(input, {
           ...(init ?? {}),
           credentials: "include",
+          signal: ctrl.signal,
+        }).finally(() => {
+          clearTimeout(timeoutId);
+          init?.signal?.removeEventListener("abort", onAbort);
         });
       },
     }),
   ],
 });
 
-createRoot(document.getElementById("root")!).render(
+const root = createRoot(document.getElementById("root")!);
+
+root.render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
       <App />
     </QueryClientProvider>
   </trpc.Provider>
 );
+
+queueMicrotask(applyPlanLogBranding);
+requestAnimationFrame(applyPlanLogBranding);
+
+const splash = document.getElementById("planlog-splash");
+if (splash) {
+  setTimeout(() => {
+    splash.classList.add("is-hiding");
+    setTimeout(() => {
+      splash.remove();
+      requestAnimationFrame(applyPlanLogBranding);
+    }, 320);
+  }, 2200);
+}

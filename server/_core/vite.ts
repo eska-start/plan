@@ -58,10 +58,30 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  const noCacheHtml = (res: express.Response) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+  };
 
-  // fall through to index.html if the file doesn't exist
+  app.get("/index.html", (_req, res) => {
+    noCacheHtml(res);
+    res.sendFile(path.resolve(distPath, "index.html"));
+  });
+
+  // index: false → express.static이 index.html을 직접 서빙하지 않도록 함
+  // Safari에서 index.html 캐시로 오래된 JS 청크를 참조하는 문제 방지
+  app.use(express.static(distPath, {
+    index: false,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".html")) noCacheHtml(res);
+    },
+  }));
+
+  // 모든 요청을 index.html로 fallback — no-cache 헤더 필수
+  // 배포 시 JS 청크 파일명이 바뀌므로 index.html이 캐시되면 흰 화면 발생
   app.use("*", (_req, res) => {
+    noCacheHtml(res);
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

@@ -1,0 +1,16 @@
+{
+  "name": "여행 플랜 기록",
+  "short_name": "여행플랜",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1787EE",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.svg",
+      "sizes": "1024x1024",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

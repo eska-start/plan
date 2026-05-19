@@ -14,6 +14,7 @@ export const users = mysqlTable("users", {
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
+  passwordHash: varchar("passwordHash", { length: 255 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -34,6 +35,8 @@ export const trips = mysqlTable("trips", {
   endDate: varchar("endDate", { length: 10 }).notNull(),
   coverColor: varchar("coverColor", { length: 32 }).default("#6366f1"),
   description: text("description"),
+  budget: decimal("budget", { precision: 12, scale: 2 }),
+  budgetCurrency: varchar("budgetCurrency", { length: 10 }).default("KRW"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -100,6 +103,7 @@ export const rentals = mysqlTable("rentals", {
   pickupTime: varchar("pickupTime", { length: 20 }),
   dropoffTime: varchar("dropoffTime", { length: 20 }),
   bookingRef: varchar("bookingRef", { length: 50 }),
+  preregUrl: varchar("preregUrl", { length: 1000 }),
   price: decimal("price", { precision: 10, scale: 2 }),
   currency: varchar("currency", { length: 10 }).default("KRW"),
   memo: text("memo"),
@@ -118,8 +122,11 @@ export const accommodations = mysqlTable("accommodations", {
   name: varchar("name", { length: 255 }).notNull(),
   address: varchar("address", { length: 500 }),
   checkIn: varchar("checkIn", { length: 10 }),
+  checkInTime: varchar("checkInTime", { length: 5 }),
   checkOut: varchar("checkOut", { length: 10 }),
+  checkOutTime: varchar("checkOutTime", { length: 5 }),
   bookingRef: varchar("bookingRef", { length: 50 }),
+  preregUrl: varchar("preregUrl", { length: 1000 }),
   price: decimal("price", { precision: 10, scale: 2 }),
   currency: varchar("currency", { length: 10 }).default("KRW"),
   memo: text("memo"),
@@ -187,3 +194,40 @@ export const diaryEntries = mysqlTable("diary_entries", {
 
 export type DiaryEntry = typeof diaryEntries.$inferSelect;
 export type InsertDiaryEntry = typeof diaryEntries.$inferInsert;
+
+// ─── 지출 내역 (예산) ─────────────────────────────────────────────────────────
+export const EXPENSE_CATEGORIES = ["항공", "숙박", "식비", "교통", "쇼핑", "액티비티", "기타"] as const;
+export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
+
+export const expenses = mysqlTable("expenses", {
+  id: int("id").autoincrement().primaryKey(),
+  tripId: int("tripId").notNull(),
+  userId: int("userId").notNull(),
+  date: varchar("date", { length: 10 }).notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 10 }).default("KRW"),
+  category: varchar("category", { length: 30 }).notNull().default("기타"),
+  description: text("description"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Expense = typeof expenses.$inferSelect;
+export type InsertExpense = typeof expenses.$inferInsert;
+
+// ─── 체크리스트 ───────────────────────────────────────────────────────────────
+export const checklistItems = mysqlTable("checklist_items", {
+  id: int("id").autoincrement().primaryKey(),
+  tripId: int("tripId").notNull(),
+  userId: int("userId").notNull(),
+  group: varchar("group", { length: 50 }).notNull().default("기타"),
+  label: varchar("label", { length: 255 }).notNull(),
+  imageUrl: text("imageUrl"),
+  done: boolean("done").default(false),
+  order: int("order").default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ChecklistItem = typeof checklistItems.$inferSelect;
+export type InsertChecklistItem = typeof checklistItems.$inferInsert;
