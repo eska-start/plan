@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
   MapPin, Navigation, Loader2, CheckCircle2, GripVertical,
-  Plus, Sparkles, FileText, Camera, FolderOpen, X, Pencil, Trash2, Circle,
+  Plus, Sparkles, FileText, Camera, FolderOpen, X, Pencil, Trash2, Circle, Map,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -151,6 +151,19 @@ function SortableVisitItem({
       {/* 우측 액션 */}
       <div className="flex items-center gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
         {index < total - 1 && <Navigation className="w-3.5 h-3.5 text-muted-foreground/30 mr-1" />}
+        {/* 구글 지도 링크 */}
+        <a
+          href={item.lat && item.lng
+            ? `https://maps.google.com/?q=${item.lat},${item.lng}`
+            : `https://maps.google.com/?q=${encodeURIComponent([item.placeName, item.address].filter(Boolean).join(" "))}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-blue-500 transition-colors"
+          title="구글 지도에서 보기"
+          onClick={e => e.stopPropagation()}
+        >
+          <Map className="w-3.5 h-3.5" />
+        </a>
         {!isAccommodation && (
           <>
             <button onClick={() => onEdit(item)}

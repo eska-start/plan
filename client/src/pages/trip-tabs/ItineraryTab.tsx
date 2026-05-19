@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   CalendarDays, Loader2, MapPin, Clock, CheckCircle2, Circle,
   Plus, Utensils, Camera, ShoppingBag, Hotel,
-  Sparkles, FileText, X, Pencil, Trash2, FolderOpen,
+  Sparkles, FileText, X, Pencil, Trash2, FolderOpen, Map,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -561,6 +561,18 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
 
                             {/* Actions — 기본 40% 불투명, hover 100% (모바일도 보임) */}
                             <div className="flex gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
+                              {/* 구글 지도 링크 */}
+                              <a
+                                href={item.lat && item.lng
+                                  ? `https://maps.google.com/?q=${item.lat},${item.lng}`
+                                  : `https://maps.google.com/?q=${encodeURIComponent([item.placeName, item.address].filter(Boolean).join(" "))}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-blue-500 transition-colors"
+                                title="구글 지도에서 보기"
+                              >
+                                <Map className="w-3.5 h-3.5" />
+                              </a>
                               {item.sourceType !== "accommodation" ? (
                                 <>
                                   <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
