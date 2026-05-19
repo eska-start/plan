@@ -128,7 +128,8 @@ function SortableVisitItem({
   }
 
   // 스와이프 — 경로 임시 제외/복원 토글
-  const [swipeX, setSwipeX] = useState(0);
+  const swipeXRef = useRef(0); // 실제 값 (클로저 트랩 방지)
+  const [swipeX, setSwipeX] = useState(0); // 시각적 애니메이션용
   const touchRef = useRef<{ x: number; y: number; horiz: boolean } | null>(null);
 
   function onTouchStart(e: React.TouchEvent) {
@@ -141,14 +142,19 @@ function SortableVisitItem({
     const dx = t.clientX - touchRef.current.x;
     const dy = t.clientY - touchRef.current.y;
     if (!touchRef.current.horiz) {
-      if (Math.abs(dy) > Math.abs(dx) + 3) { touchRef.current = null; setSwipeX(0); return; }
+      // 방향 결정 전: 세로 이동이 명확하면 취소
+      if (Math.abs(dy) > 12) { touchRef.current = null; swipeXRef.current = 0; setSwipeX(0); return; }
       if (Math.abs(dx) > 8) touchRef.current.horiz = true;
       else return;
     }
-    setSwipeX(dx < 0 ? Math.max(dx, -100) : 0);
+    // 수평으로 확정된 이후엔 세로 이동에 영향 없음
+    const newX = dx < 0 ? Math.max(dx, -100) : 0;
+    swipeXRef.current = newX;
+    setSwipeX(newX);
   }
   function onTouchEnd() {
-    if (swipeX < -70) onToggleExclude(item.id);
+    if (swipeXRef.current < -60) onToggleExclude(item.id); // ref로 읽어 클로저 트랩 없음
+    swipeXRef.current = 0;
     setSwipeX(0);
     touchRef.current = null;
   }
