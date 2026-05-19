@@ -283,6 +283,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   const aiExtractMutation = trpc.itinerary.aiExtract.useMutation();
   const aiExtractImageMutation = trpc.itinerary.aiExtractFromImage.useMutation();
+  // 시간 재배분용 — 토스트/다이얼로그 없이 조용히 업데이트
+  const silentUpdateMutation = trpc.itinerary.update.useMutation();
 
   // 서버 데이터 수신 시 로컬 순서 초기화
   useEffect(() => { setLocalOrder(null); }, [selectedDate, serverItems]);
@@ -313,13 +315,41 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     if (oldIndex === -1 || newIndex === -1) return;
     const newOrder = arrayMove(currentIds, oldIndex, newIndex);
     setLocalOrder(newOrder);
+
+    // 기존 방문 시간을 시간순 정렬해 새 순서에 배분
+    const sortedTimes = items
+      .map(i => i.visitTime)
+      .filter((t): t is string => Boolean(t))
+      .sort();
+    const newOrderItems = newOrder.map(id => items.find(i => i.id === id)!);
+    const timeUpdates = newOrderItems
+      .map((item, idx) => ({
+        id: item.id,
+        newTime: idx < sortedTimes.length ? sortedTimes[idx] : null,
+        oldTime: item.visitTime ?? null,
+      }))
+      .filter(u => u.newTime !== u.oldTime);
+
     reorderMutation.mutate({ tripId, orderedIds: newOrder }, {
       onSuccess: () => {
-        utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
-        toast.success("방문 순서가 저장되었습니다.");
+        if (timeUpdates.length === 0) {
+          utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
+          utils.itinerary.listByTrip.invalidate({ tripId });
+          toast.success("방문 순서가 저장됐습니다.");
+          return;
+        }
+        Promise.all(
+          timeUpdates.map(u =>
+            silentUpdateMutation.mutateAsync({ id: u.id, visitTime: u.newTime ?? undefined })
+          )
+        ).then(() => {
+          utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
+          utils.itinerary.listByTrip.invalidate({ tripId });
+          toast.success("방문 순서와 시간이 업데이트됐습니다.");
+        }).catch(() => toast.error("시간 업데이트에 실패했습니다."));
       },
     });
-  }, [items, reorderMutation, tripId, selectedDate, utils]);
+  }, [items, reorderMutation, silentUpdateMutation, tripId, selectedDate, utils]);
 
   // Google Places Autocomplete
   useEffect(() => {
