@@ -6,6 +6,7 @@ import { ko } from "date-fns/locale";
 import {
   MapPin, Navigation, Loader2, CheckCircle2, GripVertical,
   Plus, Sparkles, FileText, Camera, FolderOpen, X, Pencil, Trash2, Circle, Map as MapIcon,
+  EyeOff, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -102,90 +103,150 @@ async function resizeImageToBase64(file: File): Promise<string> {
 
 // 드래그 가능한 방문 순서 아이템
 function SortableVisitItem({
-  item, index, total, onEdit, onDelete, onToggleVisited, onFocusMap,
+  item, index, total, onEdit, onDelete, onToggleVisited, onFocusMap, isExcluded, onToggleExclude,
 }: {
   item: ItemType; index: number; total: number;
   onEdit: (item: ItemType) => void;
   onDelete: (item: ItemType) => void;
   onToggleVisited: (item: ItemType) => void;
   onFocusMap: (item: ItemType) => void;
+  isExcluded: boolean;
+  onToggleExclude: (id: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 50 : undefined };
+  const dndStyle = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
   const color = CATEGORY_COLORS[item.category ?? "place"] ?? "#6366f1";
   const isAccommodation = item.sourceType === "accommodation";
 
+  // 낙관적 방문 상태 — 버튼 누를 때 즉시 반영
+  const [optimisticVisited, setOptimisticVisited] = useState(!!item.visited);
+  useEffect(() => { setOptimisticVisited(!!item.visited); }, [item.visited]);
+
+  function handleToggle() {
+    setOptimisticVisited(v => !v);
+    onToggleVisited(item);
+  }
+
+  // 스와이프 — 경로 임시 제외/복원 토글
+  const [swipeX, setSwipeX] = useState(0);
+  const touchRef = useRef<{ x: number; y: number; horiz: boolean } | null>(null);
+
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0]!;
+    touchRef.current = { x: t.clientX, y: t.clientY, horiz: false };
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    if (!touchRef.current) return;
+    const t = e.touches[0]!;
+    const dx = t.clientX - touchRef.current.x;
+    const dy = t.clientY - touchRef.current.y;
+    if (!touchRef.current.horiz) {
+      if (Math.abs(dy) > Math.abs(dx) + 3) { touchRef.current = null; setSwipeX(0); return; }
+      if (Math.abs(dx) > 8) touchRef.current.horiz = true;
+      else return;
+    }
+    setSwipeX(dx < 0 ? Math.max(dx, -100) : 0);
+  }
+  function onTouchEnd() {
+    if (swipeX < -70) onToggleExclude(item.id);
+    setSwipeX(0);
+    touchRef.current = null;
+  }
+
   return (
-    <div ref={setNodeRef} style={style}
-      className={`flex items-center gap-2 bg-card border rounded-xl px-3 py-3 transition-shadow group ${isDragging ? "shadow-lg ring-2 ring-primary/30" : ""} ${item.visited ? "opacity-60" : ""}`}
+    <div ref={setNodeRef} style={dndStyle}
+      className={`relative overflow-hidden rounded-xl ${isDragging ? "opacity-50" : ""}`}
+      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
     >
-      {/* 드래그 핸들 */}
-      <button {...attributes} {...listeners}
-        className="text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none p-0.5 shrink-0"
-        aria-label="순서 변경"
+      {/* 스와이프 시 드러나는 제외/복원 배경 */}
+      <div
+        className={`absolute inset-y-0 right-0 flex items-center justify-center rounded-r-xl ${isExcluded ? "bg-emerald-500" : "bg-orange-400"}`}
+        style={{ width: Math.max(-swipeX, 0) }}
       >
-        <GripVertical className="w-4 h-4" />
-      </button>
-
-      {/* 방문 완료 토글 */}
-      <button onClick={() => onToggleVisited(item)} className="shrink-0 transition-colors">
-        {item.visited
-          ? <CheckCircle2 className="w-4 h-4 text-green-500" />
-          : <Circle className="w-4 h-4 text-muted-foreground hover:text-green-500" />}
-      </button>
-
-      {/* 번호 뱃지 */}
-      <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm" style={{ backgroundColor: color }}>
-        {index + 1}
+        {-swipeX > 24 && (isExcluded
+          ? <RotateCcw className="w-5 h-5 text-white shrink-0" />
+          : <EyeOff className="w-5 h-5 text-white shrink-0" />
+        )}
       </div>
 
-      {/* 장소 정보 — 클릭하면 지도에서 해당 핀으로 이동 */}
-      <button
-        type="button"
-        className="flex-1 min-w-0 text-left hover:text-primary transition-colors"
-        onClick={() => onFocusMap(item)}
+      {/* 카드 본체 */}
+      <div
+        className={`flex items-center gap-2 bg-card border rounded-xl px-3 py-3 transition-shadow group ${isDragging ? "shadow-lg ring-2 ring-primary/30" : ""} ${optimisticVisited || isExcluded ? "opacity-50" : ""}`}
+        style={{ transform: `translateX(${swipeX}px)`, transition: swipeX === 0 ? "transform 0.2s ease" : "none" }}
       >
-        <p className={`text-sm font-medium truncate ${item.visited ? "line-through text-muted-foreground" : "text-foreground"}`}>{item.placeName}</p>
-        {item.address && (
-          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
-            <MapPin className="w-3 h-3 shrink-0" /><span className="truncate">{item.address}</span>
-          </p>
-        )}
-        {item.visitTime && <p className="text-xs text-muted-foreground mt-0.5">⏰ {item.visitTime}</p>}
-        {item.memo && <p className="text-xs text-muted-foreground mt-0.5 truncate">📝 {item.memo}</p>}
-      </button>
-
-      {/* 우측 액션 */}
-      <div className="flex items-center gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
-        {index < total - 1 && <Navigation className="w-3.5 h-3.5 text-muted-foreground/30 mr-1" />}
-        {/* 구글 지도 링크 */}
-        <a
-          href={item.lat && item.lng
-            ? `https://maps.google.com/?q=${item.lat},${item.lng}`
-            : `https://maps.google.com/?q=${encodeURIComponent([item.placeName, item.address].filter(Boolean).join(" "))}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-blue-500 transition-colors"
-          title="구글 지도에서 보기"
-          onClick={e => e.stopPropagation()}
+        {/* 드래그 핸들 */}
+        <button {...attributes} {...listeners}
+          className="text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none p-0.5 shrink-0"
+          aria-label="순서 변경"
         >
-          <MapIcon className="w-3.5 h-3.5" />
-        </a>
-        {!isAccommodation && (
-          <>
-            <button onClick={() => onEdit(item)}
-              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button onClick={() => onDelete(item)}
-              className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </>
-        )}
-        {isAccommodation && (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>
-        )}
+          <GripVertical className="w-4 h-4" />
+        </button>
+
+        {/* 방문 완료 토글 — 즉시 피드백 */}
+        <button
+          onClick={handleToggle}
+          className="shrink-0 transition-transform active:scale-125"
+        >
+          {optimisticVisited
+            ? <CheckCircle2 className="w-4 h-4 text-green-500" />
+            : <Circle className="w-4 h-4 text-muted-foreground hover:text-green-500" />}
+        </button>
+
+        {/* 번호 뱃지 */}
+        <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm"
+          style={{ backgroundColor: optimisticVisited ? "#9ca3af" : color }}>
+          {index + 1}
+        </div>
+
+        {/* 장소 정보 — 클릭하면 지도에서 해당 핀으로 이동 */}
+        <button
+          type="button"
+          className="flex-1 min-w-0 text-left hover:text-primary transition-colors"
+          onClick={() => onFocusMap(item)}
+        >
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p className={`text-sm font-medium truncate ${optimisticVisited ? "line-through text-muted-foreground" : "text-foreground"}`}>{item.placeName}</p>
+            {isExcluded && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 border border-orange-200 shrink-0">제외</span>}
+          </div>
+          {item.address && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
+              <MapPin className="w-3 h-3 shrink-0" /><span className="truncate">{item.address}</span>
+            </p>
+          )}
+          {item.visitTime && <p className="text-xs text-muted-foreground mt-0.5">⏰ {item.visitTime}</p>}
+          {item.memo && <p className="text-xs text-muted-foreground mt-0.5 truncate">📝 {item.memo}</p>}
+        </button>
+
+        {/* 우측 액션 */}
+        <div className="flex items-center gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
+          {index < total - 1 && <Navigation className="w-3.5 h-3.5 text-muted-foreground/30 mr-1" />}
+          <a
+            href={item.lat && item.lng
+              ? `https://maps.google.com/?q=${item.lat},${item.lng}`
+              : `https://maps.google.com/?q=${encodeURIComponent([item.placeName, item.address].filter(Boolean).join(" "))}`}
+            target="_blank" rel="noopener noreferrer"
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-blue-500 transition-colors"
+            title="구글 지도에서 보기"
+            onClick={e => e.stopPropagation()}
+          >
+            <MapIcon className="w-3.5 h-3.5" />
+          </a>
+          {!isAccommodation && (
+            <>
+              <button onClick={() => onEdit(item)}
+                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => onDelete(item)}
+                className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </>
+          )}
+          {isAccommodation && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -213,6 +274,17 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   // 로컬 순서 상태 (드래그 즉시 반영)
   const [localOrder, setLocalOrder] = useState<number[] | null>(null);
+
+  // 경로에서 임시 제외된 아이템 ID 세트 (날짜 변경 시 초기화)
+  const [excludedIds, setExcludedIds] = useState<Set<number>>(new Set());
+
+  function toggleExclude(id: number) {
+    setExcludedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   // 핀 간 이동 시간 { "id1:id2" → { walk, drive } }
   const [travelTimesMap, setTravelTimesMap] = useState<Record<string, { walk: string | null; drive: string | null }>>({});
@@ -475,6 +547,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     const positions: { item: ItemType; latlng: google.maps.LatLng }[] = [];
 
     for (const item of items) {
+      if (excludedIds.has(item.id)) continue; // 임시 제외
       let latlng: google.maps.LatLng | null = null;
       if (item.lat && item.lng) {
         latlng = new window.google.maps.LatLng(Number(item.lat), Number(item.lng));
@@ -484,7 +557,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         const geocodeName = item.placeName.replace(/^🏨\s*(체크인|체크아웃|숙박)\s*[—\-]\s*/, "").trim() || item.placeName;
         latlng = await geocodeAddress(`name:${geocodeName}`, geocodeName);
       }
-      if (latlng && !item.visited) positions.push({ item, latlng });
+      if (latlng) positions.push({ item, latlng });
     }
 
     setGeocoding(false);
@@ -555,16 +628,16 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       setTravelTimesMap(newTimesMap);
     }
-  }, [items, clearMap, geocodeAddress, drawRoute, getRouteDuration]);
+  }, [items, excludedIds, clearMap, geocodeAddress, drawRoute, getRouteDuration]);
 
-  useEffect(() => { geocacheRef.current.clear(); setLocalOrder(null); hasInitialFitRef.current = false; }, [selectedDate]);
+  useEffect(() => { geocacheRef.current.clear(); setLocalOrder(null); hasInitialFitRef.current = false; setExcludedIds(new Set()); }, [selectedDate]);
 
   useEffect(() => {
     if (mapReady) {
       if (items && items.length > 0) renderOnMap();
       else if (items && items.length === 0) clearMap();
     }
-  }, [mapReady, items, renderOnMap, clearMap]);
+  }, [mapReady, items, excludedIds, renderOnMap, clearMap]);
 
   // ── 지도에서 특정 핀으로 이동 ──
   const focusOnItem = useCallback((item: ItemType) => {
@@ -880,7 +953,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                   <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
                     <div className="space-y-1.5">
                       {items.map((item, idx) => {
-                        const nextUnvisited = !item.visited ? items.slice(idx + 1).find(i => !i.visited) : undefined;
+                        const nextUnvisited = (!item.visited && !excludedIds.has(item.id)) ? items.slice(idx + 1).find(i => !i.visited && !excludedIds.has(i.id)) : undefined;
                         const times = nextUnvisited
                           ? travelTimesMap[`${item.id}:${nextUnvisited.id}`]
                           : undefined;
@@ -891,6 +964,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                               onEdit={openEdit} onDelete={setDeleteTarget}
                               onToggleVisited={i => toggleVisitedMutation.mutate({ id: i.id, visited: !i.visited })}
                               onFocusMap={focusOnItem}
+                            isExcluded={excludedIds.has(item.id)}
+                            onToggleExclude={toggleExclude}
                             />
                             {times && (
                               <div className="flex items-center gap-2 px-2 py-1">
@@ -930,7 +1005,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
             <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-1.5">
                 {items.map((item, idx) => {
-                  const nextUnvisited = !item.visited ? items.slice(idx + 1).find(i => !i.visited) : undefined;
+                  const nextUnvisited = (!item.visited && !excludedIds.has(item.id)) ? items.slice(idx + 1).find(i => !i.visited && !excludedIds.has(i.id)) : undefined;
                   const times = nextUnvisited
                     ? travelTimesMap[`${item.id}:${nextUnvisited.id}`]
                     : undefined;
