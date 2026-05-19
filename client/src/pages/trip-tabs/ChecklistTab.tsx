@@ -51,6 +51,8 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
 
   const [newLabel, setNewLabel] = useState("");
   const [newGroup, setNewGroup] = useState("기타");
+  const [newGroupInputVisible, setNewGroupInputVisible] = useState(false);
+  const [newGroupInput, setNewGroupInput] = useState("");
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [aiMode, setAiMode] = useState<"text" | "image" | null>(null);
@@ -366,19 +368,67 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
       {/* Add new item */}
       <div className="rounded-2xl border bg-card p-4 space-y-3">
         <p className="text-sm font-semibold">항목 추가</p>
-        <div className="flex gap-2">
-          <datalist id="group-datalist">
+
+        {/* 그룹 선택 칩 */}
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">그룹 선택</p>
+          <div className="flex flex-wrap gap-1.5">
             {[...new Set([...Object.keys(groups), "필수서류", "돈·통신", "옷·가방", "기타"])].map(g => (
-              <option key={g} value={g} />
+              <button
+                key={g}
+                type="button"
+                onClick={() => { setNewGroup(g); setNewGroupInputVisible(false); }}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                  newGroup === g && !newGroupInputVisible
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-background border-border hover:border-primary/50 hover:bg-muted/50"
+                }`}
+              >
+                {g}
+              </button>
             ))}
-          </datalist>
-          <Input
-            list="group-datalist"
-            className="rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-24 shrink-0 h-auto"
-            placeholder="그룹"
-            value={newGroup}
-            onChange={e => setNewGroup(e.target.value)}
-          />
+            {/* 새 그룹 버튼 */}
+            {newGroupInputVisible ? (
+              <Input
+                autoFocus
+                className="h-7 text-xs w-28 rounded-full px-3"
+                placeholder="새 그룹명 입력"
+                value={newGroupInput}
+                onChange={e => setNewGroupInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter" && newGroupInput.trim()) {
+                    setNewGroup(newGroupInput.trim());
+                    setNewGroupInputVisible(false);
+                    setNewGroupInput("");
+                  }
+                  if (e.key === "Escape") { setNewGroupInputVisible(false); setNewGroupInput(""); }
+                }}
+                onBlur={() => {
+                  if (newGroupInput.trim()) setNewGroup(newGroupInput.trim());
+                  setNewGroupInputVisible(false);
+                  setNewGroupInput("");
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setNewGroupInputVisible(true); }}
+                className="px-2.5 py-1 rounded-full text-xs font-medium border border-dashed border-primary/40 text-primary hover:bg-primary/5 transition-colors flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" />새 그룹
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            현재 그룹: <span className="font-medium text-foreground">{newGroup}</span>
+            {!["필수서류", "돈·통신", "옷·가방", "기타"].includes(newGroup) && !Object.keys(groups).includes(newGroup) && (
+              <span className="ml-1 text-[10px] bg-indigo-100 text-indigo-600 rounded px-1 py-0.5 font-medium">새 그룹</span>
+            )}
+          </p>
+        </div>
+
+        {/* 항목 이름 + 등록 */}
+        <div className="flex gap-2">
           <Input
             className="flex-1 min-w-0"
             placeholder="항목 이름"
@@ -390,7 +440,6 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
             {create.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "등록"}
           </Button>
         </div>
-        <p className="text-[11px] text-muted-foreground">그룹 칸에 직접 입력해서 새 그룹(나, 와이프, 아들 등)을 만들 수 있어요.</p>
       </div>
 
 

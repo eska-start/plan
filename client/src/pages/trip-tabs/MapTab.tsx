@@ -68,6 +68,7 @@ type ItemType = {
   lng?: string | null;
   order?: number | null;
   sourceType?: string | null;
+  memo?: string | null;
 };
 
 type FormData = {
@@ -146,6 +147,7 @@ function SortableVisitItem({
           </p>
         )}
         {item.visitTime && <p className="text-xs text-muted-foreground mt-0.5">⏰ {item.visitTime}</p>}
+        {item.memo && <p className="text-xs text-muted-foreground mt-0.5 truncate">📝 {item.memo}</p>}
       </div>
 
       {/* 우측 액션 */}
@@ -533,7 +535,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       address: item.address ?? "",
       visitTime: item.visitTime ?? "",
       duration: "",
-      memo: "",
+      memo: item.memo ?? "",
       category: item.category ?? "place",
       lat: item.lat ?? "",
       lng: item.lng ?? "",
