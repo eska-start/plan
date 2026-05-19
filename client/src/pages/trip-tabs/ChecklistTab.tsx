@@ -55,6 +55,9 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
   const [newGroupInput, setNewGroupInput] = useState("");
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
   const [aiMode, setAiMode] = useState<"text" | "image" | null>(null);
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -178,14 +181,35 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-[#7CC8B0]">{done} / {total}</span>
-            {total > 0 && (
-              <Button size="sm" variant="outline" onClick={() => setDeleteAllOpen(true)} className="gap-1.5 h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30">
-                전체 지우기
-              </Button>
+            {selectMode ? (
+              <>
+                <Button size="sm" variant="outline" onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }} className="h-7 text-xs px-2">
+                  취소
+                </Button>
+                <Button size="sm" variant="outline"
+                  disabled={selectedIds.size === 0}
+                  onClick={() => setDeleteSelectedOpen(true)}
+                  className="gap-1 h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30 disabled:opacity-40">
+                  <Trash2 className="w-3 h-3" />{selectedIds.size > 0 ? `${selectedIds.size}개 삭제` : "삭제"}
+                </Button>
+              </>
+            ) : (
+              <>
+                {total > 0 && (
+                  <Button size="sm" variant="outline" onClick={() => { setSelectMode(true); setSelectedIds(new Set()); }} className="h-7 text-xs px-2">
+                    선택 삭제
+                  </Button>
+                )}
+                {total > 0 && (
+                  <Button size="sm" variant="outline" onClick={() => setDeleteAllOpen(true)} className="gap-1.5 h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30">
+                    전체 지우기
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => { if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; } setAiMode(aiMode ? null : "text"); setAiItems([]); }} className="gap-1.5 h-7 text-xs px-2">
+                  <Sparkles className="w-3 h-3" />AI
+                </Button>
+              </>
             )}
-            <Button size="sm" variant="outline" onClick={() => { if (isGuestUser) { toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요."); return; } setAiMode(aiMode ? null : "text"); setAiItems([]); }} className="gap-1.5 h-7 text-xs px-2">
-              <Sparkles className="w-3 h-3" />AI
-            </Button>
           </div>
         </div>
         <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -311,24 +335,43 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
               <span className="text-xs text-muted-foreground">{groupDone}/{groupTotal}</span>
             </div>
             <div className="divide-y divide-border">
-              {(groupItems ?? []).map(item => (
-                <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-                  <button
-                    onClick={() => { if (editingId === item.id) return; toggle.mutate({ id: item.id, done: !item.done }); }}
-                    className="shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors"
-                    style={{
-                      borderColor: item.done ? "#7CC8B0" : undefined,
-                      background: item.done ? "#7CC8B0" : undefined,
-                    }}
-                  >
-                    {item.done && (
-                      <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2 6l3 3 5-5"/>
-                      </svg>
-                    )}
-                  </button>
+              {(groupItems ?? []).map(item => {
+                const isSelected = selectedIds.has(item.id);
+                return (
+                <div key={item.id}
+                  className={`flex items-center gap-3 px-4 py-3 transition-colors ${selectMode && isSelected ? "bg-destructive/5" : ""}`}
+                  onClick={selectMode ? () => setSelectedIds(prev => {
+                    const next = new Set(prev);
+                    next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+                    return next;
+                  }) : undefined}
+                >
+                  {selectMode ? (
+                    <div className={`shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? "border-destructive bg-destructive" : "border-border"}`}>
+                      {isSelected && (
+                        <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 6l3 3 5-5"/>
+                        </svg>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { if (editingId === item.id) return; toggle.mutate({ id: item.id, done: !item.done }); }}
+                      className="shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors"
+                      style={{
+                        borderColor: item.done ? "#7CC8B0" : undefined,
+                        background: item.done ? "#7CC8B0" : undefined,
+                      }}
+                    >
+                      {item.done && (
+                        <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 6l3 3 5-5"/>
+                        </svg>
+                      )}
+                    </button>
+                  )}
 
-                  {editingId === item.id ? (
+                  {!selectMode && editingId === item.id ? (
                     <div className="flex flex-1 items-center gap-2">
                       <Input
                         autoFocus
@@ -341,12 +384,12 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
                       <button onClick={() => setEditingId(null)} className="text-muted-foreground shrink-0"><X className="w-4 h-4" /></button>
                     </div>
                   ) : (
-                    <span className={`flex-1 text-sm ${item.done ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                    <span className={`flex-1 text-sm ${item.done && !selectMode ? "line-through text-muted-foreground" : isSelected ? "text-destructive font-medium" : "text-foreground"}`}>
                       {item.label}
                     </span>
                   )}
 
-                  {editingId !== item.id && (
+                  {!selectMode && editingId !== item.id && (
                     <>
                       <button onClick={() => startEdit(item.id, item.label)} className="text-muted-foreground hover:text-primary shrink-0">
                         <Pencil className="w-3.5 h-3.5" />
@@ -361,7 +404,8 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
                     </>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
           </FadeIn>
@@ -445,6 +489,33 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
         </div>
       </div>
 
+
+      {/* 선택 삭제 확인 */}
+      <AlertDialog open={deleteSelectedOpen} onOpenChange={open => { if (!open) setDeleteSelectedOpen(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>선택 항목 삭제</AlertDialogTitle>
+            <AlertDialogDescription>선택한 {selectedIds.size}개 항목을 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                for (const id of selectedIds) {
+                  await del.mutateAsync({ id });
+                }
+                toast.success(`${selectedIds.size}개 항목이 삭제됐습니다.`);
+                setSelectedIds(new Set());
+                setSelectMode(false);
+                setDeleteSelectedOpen(false);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={deleteItemId !== null} onOpenChange={(open) => { if (!open) setDeleteItemId(null); }}>
         <AlertDialogContent>
