@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import { loadMapScript } from "@/components/Map";
 import { toast } from "sonner";
 import {
@@ -47,6 +47,80 @@ type FormData = {
   placeName: string; address: string; visitTime: string;
   duration: string; memo: string; category: string; lat: string; lng: string;
 };
+
+const ScheduleItemRow = memo(function ScheduleItemRow({
+  item, k, onVisitToggle, onEdit, onDelete,
+}: {
+  item: ItineraryItem; k: number;
+  onVisitToggle: (id: number, visited: boolean) => void;
+  onEdit: (item: ItineraryItem) => void;
+  onDelete: (id: number) => void;
+}) {
+  const [localVisited, setLocalVisited] = useState<boolean | null>(null);
+  const effectivelyVisited = localVisited !== null ? localVisited : !!item.visited;
+  useEffect(() => { setLocalVisited(null); }, [item.visited]);
+
+  const s = CAT_STYLE[item.sourceType === "accommodation" ? "accommodation" : (item.category ?? "place")] ?? CAT_STYLE.place;
+  const mapsUrl = item.lat && item.lng
+    ? `https://maps.google.com/?q=${item.lat},${item.lng}`
+    : `https://maps.google.com/?q=${encodeURIComponent([item.placeName, item.address].filter(Boolean).join(" "))}`;
+
+  return (
+    <div
+      className={`flex items-start gap-3 px-4 py-3.5 border-t first:border-t-0 border-border group hover:bg-muted/30 transition-colors ${effectivelyVisited ? "opacity-60" : ""}`}
+      style={{ animation: `fadeSlideUp 0.35s ease ${k * 0.06}s both` }}
+    >
+      <button
+        onPointerDown={(e) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          const newVisited = !effectivelyVisited;
+          setLocalVisited(newVisited);
+          onVisitToggle(item.id, newVisited);
+        }}
+        className="mt-0.5 shrink-0"
+      >
+        {effectivelyVisited
+          ? <CheckCircle2 className="w-4 h-4 text-accent" />
+          : <Circle className="w-4 h-4 text-muted-foreground hover:text-accent" />}
+      </button>
+
+      {item.visitTime
+        ? <div className="w-10 shrink-0 mt-0.5"><span className="text-xs font-medium text-muted-foreground tabular-nums">{item.visitTime}</span></div>
+        : <div className="w-10 shrink-0" />}
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+          <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: s.bg, color: s.color }}>{s.label}</span>
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`text-sm font-semibold ${effectivelyVisited ? "line-through text-muted-foreground" : "text-foreground hover:text-blue-500"}`}
+          >
+            {item.placeName}
+          </a>
+        </div>
+        {item.address && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1 truncate"><MapPin className="w-3 h-3 shrink-0" />{item.address}</p>
+        )}
+        {item.memo && (
+          <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.memo}</p>
+        )}
+      </div>
+
+      <div className="flex gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
+        {item.sourceType !== "accommodation" ? (
+          <>
+            <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+            <button onClick={() => onDelete(item.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+          </>
+        ) : (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>
+        )}
+      </div>
+    </div>
+  );
+});
 
 export default function ScheduleTab({ tripId, tripDays }: { tripId: number; tripDays: Date[] }) {
   const utils = trpc.useUtils();
@@ -272,53 +346,16 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
         </FadeIn>
       ) : (
         <div className="rounded-2xl border bg-card overflow-hidden">
-          {sortedItems.map((item, k) => {
-            const s = CAT_STYLE[item.sourceType === "accommodation" ? "accommodation" : (item.category ?? "place")] ?? CAT_STYLE.place;
-            return (
-              <div
+          {sortedItems.map((item, k) => (
+              <ScheduleItemRow
                 key={item.id}
-                className={`flex items-start gap-3 px-4 py-3.5 border-t first:border-t-0 border-border group hover:bg-muted/30 transition-colors ${item.visited ? "opacity-60" : ""}`}
-                style={{ animation: `fadeSlideUp 0.35s ease ${k * 0.06}s both` }}
-              >
-                <button onClick={() => updateMutation.mutate({ id: item.id, visited: !item.visited })} className="mt-0.5 shrink-0">
-                  {item.visited ? <CheckCircle2 className="w-4 h-4 text-accent" /> : <Circle className="w-4 h-4 text-muted-foreground hover:text-accent" />}
-                </button>
-
-                {item.visitTime ? (
-                  <div className="w-10 shrink-0 mt-0.5">
-                    <span className="text-xs font-medium text-muted-foreground tabular-nums">{item.visitTime}</span>
-                  </div>
-                ) : <div className="w-10 shrink-0" />}
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                    <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: s.bg, color: s.color }}>{s.label}</span>
-                    <span className={`text-sm font-semibold ${item.visited ? "line-through text-muted-foreground" : ""}`}>{item.placeName}</span>
-                  </div>
-                  {item.address && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1 truncate"><MapPin className="w-3 h-3 shrink-0" />{item.address}</p>
-                  )}
-                  {item.memo && !item.address && <p className="text-xs text-muted-foreground italic">{item.memo}</p>}
-                </div>
-
-                <div className="flex gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
-                  {item.sourceType !== "accommodation" ? (
-                    <>
-                      <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                      <button
-                        onClick={() => setDeleteId(item.id)}
-                        className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  ) : (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                item={item}
+                k={k}
+                onVisitToggle={(id, visited) => updateMutation.mutate({ id, visited })}
+                onEdit={openEdit}
+                onDelete={setDeleteId}
+              />
+          ))}
         </div>
       )}
 
