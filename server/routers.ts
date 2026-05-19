@@ -1150,8 +1150,8 @@ const checklistRouter = router({
               ],
             },
           ],
-          maxTokens: 4000,
-          timeoutMs: 60_000,
+          maxTokens: 2000,
+          timeoutMs: 22_000,
         });
       } catch (apiErr) {
         const msg = apiErr instanceof Error ? apiErr.message : String(apiErr);

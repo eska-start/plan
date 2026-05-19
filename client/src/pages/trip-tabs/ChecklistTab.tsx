@@ -92,7 +92,8 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
       const img = new Image(); const url = URL.createObjectURL(file);
       const b64 = await new Promise<string>((resolve, reject) => {
         img.onload = () => {
-          const MAX = 1400; let { width, height } = img;
+          // 텍스트 인식은 800px으로 충분 — Render 30초 제한 내 처리 위해 작게 유지
+          const MAX = 800; let { width, height } = img;
           if (width > MAX || height > MAX) {
             if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
             else { width = Math.round(width * MAX / height); height = MAX; }
@@ -100,7 +101,7 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
           const c = document.createElement("canvas"); c.width = width; c.height = height;
           c.getContext("2d")!.drawImage(img, 0, 0, width, height);
           URL.revokeObjectURL(url);
-          resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
+          resolve(c.toDataURL("image/jpeg", 0.75).split(",")[1]);
         };
         img.onerror = reject; img.src = url;
       });
