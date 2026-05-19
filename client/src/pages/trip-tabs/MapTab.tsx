@@ -880,8 +880,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                   <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
                     <div className="space-y-1.5">
                       {items.map((item, idx) => {
-                        const times = idx < items.length - 1
-                          ? travelTimesMap[`${item.id}:${items[idx + 1]!.id}`]
+                        const nextUnvisited = !item.visited ? items.slice(idx + 1).find(i => !i.visited) : undefined;
+                        const times = nextUnvisited
+                          ? travelTimesMap[`${item.id}:${nextUnvisited.id}`]
                           : undefined;
                         return (
                           <div key={item.id}>
@@ -929,8 +930,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
             <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-1.5">
                 {items.map((item, idx) => {
-                  const times = idx < items.length - 1
-                    ? travelTimesMap[`${item.id}:${items[idx + 1]!.id}`]
+                  const nextUnvisited = !item.visited ? items.slice(idx + 1).find(i => !i.visited) : undefined;
+                  const times = nextUnvisited
+                    ? travelTimesMap[`${item.id}:${nextUnvisited.id}`]
                     : undefined;
                   return (
                     <div key={item.id}>
