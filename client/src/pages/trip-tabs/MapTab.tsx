@@ -314,15 +314,29 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   // 로컬 순서 상태 (드래그 즉시 반영)
   const [localOrder, setLocalOrder] = useState<number[] | null>(null);
 
-  // 경로에서 임시 제외된 아이템 ID 세트 (날짜 변경 시 초기화)
-  const [excludedIds, setExcludedIds] = useState<Set<number>>(new Set());
+  // 경로에서 임시 제외된 아이템 ID 세트 — localStorage로 탭 이동 시에도 유지
+  const excludedStorageKey = `map-excluded-${tripId}-${selectedDate}`;
+  const [excludedIds, setExcludedIds] = useState<Set<number>>(() => {
+    try {
+      const saved = localStorage.getItem(excludedStorageKey);
+      return saved ? new Set(JSON.parse(saved) as number[]) : new Set();
+    } catch { return new Set(); }
+  });
+
+  const setExcludedIdsPersist = (updater: (prev: Set<number>) => Set<number>) => {
+    setExcludedIds(prev => {
+      const next = updater(prev);
+      try { localStorage.setItem(excludedStorageKey, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
   // 체크버튼으로 방문 완료 처리 → 지도에서 즉시 숨김 (낙관적 상태)
   const [optimisticVisitedIds, setOptimisticVisitedIds] = useState<Set<number>>(new Set());
   const optimisticVisitedIdsRef = useRef<Set<number>>(new Set());
   optimisticVisitedIdsRef.current = optimisticVisitedIds;
 
   function toggleExclude(id: number) {
-    setExcludedIds(prev => {
+    setExcludedIdsPersist(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
@@ -725,6 +739,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     hasInitialFitRef.current = false;
     renderVersionRef.current = 0;
     itemsHashRef.current = '';
+    try { localStorage.removeItem(excludedStorageKey); } catch {}
     setExcludedIds(new Set());
     setOptimisticVisitedIds(new Set());
   }, [selectedDate]);
