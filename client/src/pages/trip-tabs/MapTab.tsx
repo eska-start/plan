@@ -227,10 +227,10 @@ function SortableVisitItem({
             : <Circle className="w-4 h-4 text-muted-foreground hover:text-green-500" />}
         </button>
 
-        {/* 번호 뱃지 */}
+        {/* 번호 뱃지 — 숨김 상태(index -1)면 빈 원 */}
         <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm"
-          style={{ backgroundColor: optimisticVisited ? "#9ca3af" : color }}>
-          {index + 1}
+          style={{ backgroundColor: (optimisticVisited || isExcluded) ? "#9ca3af" : color }}>
+          {index >= 0 ? index + 1 : ""}
         </div>
 
         {/* 장소 정보 — 클릭하면 지도에서 해당 핀으로 이동 */}
@@ -254,7 +254,7 @@ function SortableVisitItem({
 
         {/* 우측 액션 */}
         <div className="flex items-center gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
-          {index < total - 1 && <Navigation className="w-3.5 h-3.5 text-muted-foreground/30 mr-1" />}
+          {index >= 0 && index < total - 1 && <Navigation className="w-3.5 h-3.5 text-muted-foreground/30 mr-1" />}
           <a
             href={item.lat && item.lng
               ? `https://maps.google.com/?q=${item.lat},${item.lng}`
@@ -1092,14 +1092,18 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
                     <div className="space-y-1.5">
-                      {items.map((item, idx) => {
+                      {(() => {
                         const isItemHidden = (i: ItemType) => i.visited || optimisticVisitedIds.has(i.id) || excludedIds.has(i.id);
-                        const nextVisible = !isItemHidden(item) ? items.slice(idx + 1).find(i => !isItemHidden(i)) : undefined;
+                        const visibleItems = items.filter(i => !isItemHidden(i));
+                        return items.map((item, idx) => {
+                        const hidden = isItemHidden(item);
+                        const visibleIdx = hidden ? -1 : visibleItems.findIndex(v => v.id === item.id);
+                        const nextVisible = !hidden ? items.slice(idx + 1).find(i => !isItemHidden(i)) : undefined;
                         const times = nextVisible ? travelTimesMap[`${item.id}:${nextVisible.id}`] : undefined;
                         return (
                           <div key={item.id}>
                             <SortableVisitItem
-                              item={item} index={idx} total={items.length}
+                              item={item} index={visibleIdx} total={visibleItems.length}
                               onEdit={openEdit} onDelete={setDeleteTarget}
                               onToggleVisited={i => {
                                 const newVisited = !i.visited;
@@ -1121,7 +1125,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                             )}
                           </div>
                         );
-                      })}
+                      });
+                      })()}
                     </div>
                   </SortableContext>
                 </DndContext>
@@ -1147,14 +1152,18 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-1.5">
-                {items.map((item, idx) => {
+                {(() => {
                   const isItemHidden = (i: ItemType) => i.visited || optimisticVisitedIds.has(i.id) || excludedIds.has(i.id);
-                  const nextVisible = !isItemHidden(item) ? items.slice(idx + 1).find(i => !isItemHidden(i)) : undefined;
+                  const visibleItems = items.filter(i => !isItemHidden(i));
+                  return items.map((item, idx) => {
+                  const hidden = isItemHidden(item);
+                  const visibleIdx = hidden ? -1 : visibleItems.findIndex(v => v.id === item.id);
+                  const nextVisible = !hidden ? items.slice(idx + 1).find(i => !isItemHidden(i)) : undefined;
                   const times = nextVisible ? travelTimesMap[`${item.id}:${nextVisible.id}`] : undefined;
                   return (
                     <div key={item.id}>
                       <SortableVisitItem
-                        item={item} index={idx} total={items.length}
+                        item={item} index={visibleIdx} total={visibleItems.length}
                         onEdit={openEdit} onDelete={setDeleteTarget}
                         onToggleVisited={i => {
                           const newVisited = !i.visited;
@@ -1176,7 +1185,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                       )}
                     </div>
                   );
-                })}
+                  });
+                })()}
               </div>
             </SortableContext>
           </DndContext>
