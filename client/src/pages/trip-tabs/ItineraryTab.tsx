@@ -560,7 +560,8 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
                             }}
                           >
                             <button
-                              onClick={() => {
+                              onPointerDown={(e) => {
+                                if (e.pointerType === 'mouse' && e.button !== 0) return;
                                 const newVisited = !effectivelyVisited;
                                 if (newVisited) {
                                   setOptimisticVisited(prev => { const next = new Set(prev); next.add(item.id); return next; });
@@ -569,7 +570,7 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
                                 }
                                 updateMutation.mutate({ id: item.id, visited: newVisited });
                               }}
-                              className="mt-0.5 shrink-0 transition-colors"
+                              className="mt-0.5 shrink-0"
                             >
                               {effectivelyVisited
                                 ? <CheckCircle2 className="w-4 h-4 text-accent" />
