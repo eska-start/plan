@@ -113,7 +113,9 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
       if (!extracted.length) { toast.error("항목을 찾지 못했습니다."); return; }
       setAiItems(extracted);
     } catch (e: any) {
-      toast.error(e?.message?.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : "이미지 분석 실패");
+      const msg: string = e?.message ?? "";
+      console.error("[checklist image]", msg);
+      toast.error(msg.includes("LLM_API_KEY") ? "LLM_API_KEY가 필요합니다." : `이미지 분석 실패: ${msg.slice(0, 120)}`);
     } finally { setAiLoading(false); }
   }
 

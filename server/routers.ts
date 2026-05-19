@@ -1119,41 +1119,51 @@ const checklistRouter = router({
       const groupHint = existingGroups.length > 0
         ? `현재 그룹: ${existingGroups.join(", ")} (기존 그룹을 우선 사용하되, 맞는 그룹이 없으면 새 그룹명을 만들어도 됨)`
         : `기본 그룹 예시: 필수서류, 돈·통신, 옷·가방, 기타 (새 그룹명 자유롭게 가능)`;
-      const dataUri = input.imageBase64.startsWith("data:") ? input.imageBase64 : `data:image/jpeg;base64,${input.imageBase64}`;
-      const res = await invokeLLM({
-        messages: [
-          {
-            role: "system" as const,
-            content: `당신은 여행 준비물 체크리스트 이미지를 파싱하는 전문가입니다.
 
-이미지에는 표(table) 또는 목록 형태로 준비물이 정리되어 있을 수 있습니다.
+      const raw64 = input.imageBase64.replace(/^data:[^;]+;base64,/, "");
+      const dataUri = `data:image/jpeg;base64,${raw64}`;
+      console.log("[checklist.aiExtractFromImage] image size:", raw64.length, "chars");
+
+      let res;
+      try {
+        res = await invokeLLM({
+          messages: [
+            {
+              role: "user" as const,
+              content: [
+                {
+                  type: "text" as const,
+                  text: `여행 준비물 체크리스트 이미지입니다. 다음 규칙에 따라 파싱해주세요.
 
 파싱 규칙:
-1. 표 구조인 경우 — 맨 왼쪽 열(또는 행 머리)에 있는 텍스트가 그룹명입니다 (예: 공통, 태온, 헤진, 승희, 아빠, 엄마 등 사람 이름이나 카테고리).
-2. ○, •, -, * 등 불릿 기호 뒤의 텍스트가 각 항목(label)입니다.
-3. 쉼표로 구분된 항목 묶음(예: "헤어캡, 샤워볼, 치약")은 개별 항목으로 분리하지 말고 하나의 label로 유지하세요.
-4. 콜론(:) 뒤에 나열된 경우(예: "세면도구 : 헤어캡, 샤워볼")도 통째로 하나의 label로 유지하세요.
-5. 이미지에 있는 그룹명을 그대로 사용하세요. ${groupHint}
+1. 표 구조인 경우, 맨 왼쪽 열의 텍스트가 그룹명입니다 (예: 공통, 태온, 헤진, 승희 같은 이름이나 카테고리).
+2. ○, •, - 등 불릿 뒤 텍스트가 각 항목입니다.
+3. 쉼표로 나열된 묶음은 하나의 항목으로 유지하세요.
+4. ${groupHint}
 
-반드시 아래 JSON 형식으로만 반환하세요 (다른 텍스트 없이):
-{ "items": [{ "group": "그룹명", "label": "항목명" }], "reply": "한국어 요약" }`,
-          },
-          {
-            role: "user" as const,
-            content: [
-              { type: "text" as const, text: "이 이미지에서 그룹별 여행 준비물 목록을 모두 추출해주세요. 그룹명과 각 항목을 정확히 파악하고, 이미지에 보이는 모든 항목을 빠짐없이 추출해주세요." },
-              { type: "image_url" as const, image_url: { url: dataUri, detail: "high" as const } },
-            ],
-          },
-        ],
-        maxTokens: 4000,
-        timeoutMs: 60_000,
-      });
+반드시 JSON만 반환 (다른 텍스트 없이):
+{"items":[{"group":"그룹명","label":"항목명"}],"reply":"한국어요약"}
+
+이미지의 모든 항목을 빠짐없이 추출하세요.`,
+                },
+                { type: "image_url" as const, image_url: { url: dataUri, detail: "auto" as const } },
+              ],
+            },
+          ],
+          maxTokens: 4000,
+          timeoutMs: 60_000,
+        });
+      } catch (apiErr) {
+        const msg = apiErr instanceof Error ? apiErr.message : String(apiErr);
+        console.error("[checklist.aiExtractFromImage] API error:", msg);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `GPT API 오류: ${msg.slice(0, 200)}` });
+      }
+
       try {
         const raw = res.choices?.[0]?.message?.content;
         if (!raw) throw new Error("모델이 빈 응답을 반환했습니다.");
         const text = typeof raw === "string" ? raw : "";
-        // JSON 블록 추출 (```json ... ``` 또는 순수 JSON 모두 처리)
+        console.log("[checklist.aiExtractFromImage] raw response:", text.slice(0, 300));
         const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) || text.match(/(\{[\s\S]*\})/);
         const jsonStr = jsonMatch ? jsonMatch[1].trim() : text.trim();
         const p = JSON.parse(jsonStr || "{}") as Record<string, unknown>;
@@ -1162,7 +1172,7 @@ const checklistRouter = router({
       } catch (parseErr) {
         const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
         console.error("[checklist.aiExtractFromImage] parse error:", msg);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `이미지 분석 실패: ${msg}` });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `응답 파싱 실패: ${msg}` });
       }
     }),
 });
