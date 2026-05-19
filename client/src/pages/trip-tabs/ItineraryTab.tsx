@@ -100,9 +100,16 @@ const ItineraryItemRow = memo(function ItineraryItemRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap mb-0.5">
           <CategoryPill category={item.sourceType === "accommodation" ? "accommodation" : (item.category ?? "place")} />
-          <span className={`text-sm font-semibold ${effectivelyVisited ? "line-through text-muted-foreground" : "text-foreground"}`}>
+          <a
+            href={item.lat && item.lng
+              ? `https://maps.google.com/?q=${item.lat},${item.lng}`
+              : `https://maps.google.com/?q=${encodeURIComponent([item.placeName, item.address].filter(Boolean).join(" "))}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`text-sm font-semibold ${effectivelyVisited ? "line-through text-muted-foreground" : "text-foreground hover:text-blue-500"}`}
+          >
             {item.placeName}
-          </span>
+          </a>
         </div>
         {item.address && (
           <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
@@ -110,7 +117,7 @@ const ItineraryItemRow = memo(function ItineraryItemRow({
           </p>
         )}
         {item.memo && (
-          <p className="text-xs text-muted-foreground italic mt-0.5">{item.memo}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.memo}</p>
         )}
       </div>
 
