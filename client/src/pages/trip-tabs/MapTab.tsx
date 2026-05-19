@@ -127,10 +127,11 @@ function SortableVisitItem({
     onToggleVisited(item);
   }
 
-  // 스와이프 — 경로 임시 제외/복원 토글
+  // 스와이프 — 경로 임시 제외/복원 토글 (터치 + 마우스 포인터 공통)
   const swipeXRef = useRef(0); // 실제 값 (클로저 트랩 방지)
   const [swipeX, setSwipeX] = useState(0); // 시각적 애니메이션용
   const touchRef = useRef<{ x: number; y: number; horiz: boolean } | null>(null);
+  const pointerRef = useRef<{ x: number; y: number; horiz: boolean; id: number } | null>(null);
 
   function onTouchStart(e: React.TouchEvent) {
     const t = e.touches[0]!;
@@ -142,27 +143,54 @@ function SortableVisitItem({
     const dx = t.clientX - touchRef.current.x;
     const dy = t.clientY - touchRef.current.y;
     if (!touchRef.current.horiz) {
-      // 방향 결정 전: 세로 이동이 명확하면 취소
       if (Math.abs(dy) > 12) { touchRef.current = null; swipeXRef.current = 0; setSwipeX(0); return; }
       if (Math.abs(dx) > 8) touchRef.current.horiz = true;
       else return;
     }
-    // 수평으로 확정된 이후엔 세로 이동에 영향 없음
     const newX = dx < 0 ? Math.max(dx, -100) : 0;
     swipeXRef.current = newX;
     setSwipeX(newX);
   }
   function onTouchEnd() {
-    if (swipeXRef.current < -60) onToggleExclude(item.id); // ref로 읽어 클로저 트랩 없음
+    if (swipeXRef.current < -60) onToggleExclude(item.id);
     swipeXRef.current = 0;
     setSwipeX(0);
     touchRef.current = null;
+  }
+
+  // 마우스/포인터 이벤트 (PC 스와이프)
+  // setPointerCapture 미사용 — 버튼 클릭 이벤트와 충돌 방지
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('[data-dnd-handle]')) return;
+    pointerRef.current = { x: e.clientX, y: e.clientY, horiz: false, id: e.pointerId };
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!pointerRef.current || pointerRef.current.id !== e.pointerId) return;
+    const dx = e.clientX - pointerRef.current.x;
+    const dy = e.clientY - pointerRef.current.y;
+    if (!pointerRef.current.horiz) {
+      if (Math.abs(dy) > 12) { pointerRef.current = null; swipeXRef.current = 0; setSwipeX(0); return; }
+      if (Math.abs(dx) > 8) pointerRef.current.horiz = true;
+      else return;
+    }
+    const newX = dx < 0 ? Math.max(dx, -100) : 0;
+    swipeXRef.current = newX;
+    setSwipeX(newX);
+  }
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (!pointerRef.current || pointerRef.current.id !== e.pointerId) return;
+    if (swipeXRef.current < -60) onToggleExclude(item.id);
+    swipeXRef.current = 0;
+    setSwipeX(0);
+    pointerRef.current = null;
   }
 
   return (
     <div ref={setNodeRef} style={dndStyle}
       className={`relative overflow-hidden rounded-xl ${isDragging ? "opacity-50" : ""}`}
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
     >
       {/* 스와이프 시 드러나는 제외/복원 배경 */}
       <div
@@ -182,6 +210,7 @@ function SortableVisitItem({
       >
         {/* 드래그 핸들 */}
         <button {...attributes} {...listeners}
+          data-dnd-handle="true"
           className="text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none p-0.5 shrink-0"
           aria-label="순서 변경"
         >
@@ -553,7 +582,6 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     const positions: { item: ItemType; latlng: google.maps.LatLng }[] = [];
 
     for (const item of items) {
-      if (excludedIds.has(item.id)) continue; // 임시 제외
       let latlng: google.maps.LatLng | null = null;
       if (item.lat && item.lng) {
         latlng = new window.google.maps.LatLng(Number(item.lat), Number(item.lng));
@@ -569,7 +597,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     setGeocoding(false);
     if (positions.length === 0) return;
 
-    // 번호 마커
+    // 번호 마커 (전체 아이템 렌더 — 제외 상태는 별도 effect에서 토글)
     const bounds = new window.google.maps.LatLngBounds();
     positions.forEach(({ item, latlng }, idx) => {
       bounds.extend(latlng);
@@ -634,7 +662,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       setTravelTimesMap(newTimesMap);
     }
-  }, [items, excludedIds, clearMap, geocodeAddress, drawRoute, getRouteDuration]);
+  }, [items, clearMap, geocodeAddress, drawRoute, getRouteDuration]);
 
   useEffect(() => { geocacheRef.current.clear(); setLocalOrder(null); hasInitialFitRef.current = false; setExcludedIds(new Set()); }, [selectedDate]);
 
@@ -643,7 +671,32 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       if (items && items.length > 0) renderOnMap();
       else if (items && items.length === 0) clearMap();
     }
-  }, [mapReady, items, excludedIds, renderOnMap, clearMap]);
+  }, [mapReady, items, renderOnMap, clearMap]);
+
+  // 제외 토글 전용 effect — renderOnMap 재실행 없이 마커/경로만 즉시 반영
+  const itemsRef = useRef<ItemType[]>([]);
+  itemsRef.current = items;
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+
+    // 마커 표시/숨김
+    markersByIdRef.current.forEach((marker, id) => {
+      marker.map = excludedIds.has(id) ? null : map;
+    });
+
+    // 경로 재설정 (제외 아이템 건너뜀)
+    if (routeRendererRef.current) { routeRendererRef.current.setMap(null); routeRendererRef.current = null; }
+    if (polylineRef.current) { polylineRef.current.setMap(null); polylineRef.current = null; }
+    const visiblePositions = itemsRef.current
+      .filter(item => !excludedIds.has(item.id))
+      .map(item => positionsByIdRef.current.get(item.id))
+      .filter((p): p is google.maps.LatLng => Boolean(p));
+    if (visiblePositions.length >= 2) drawRoute(visiblePositions);
+    else if (visiblePositions.length < 2 && routeRendererRef.current == null && polylineRef.current == null) {
+      // already cleared above
+    }
+  }, [excludedIds, mapReady, drawRoute]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 지도에서 특정 핀으로 이동 ──
   const focusOnItem = useCallback((item: ItemType) => {
@@ -1022,6 +1075,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                         onEdit={openEdit} onDelete={setDeleteTarget}
                         onToggleVisited={i => toggleVisitedMutation.mutate({ id: i.id, visited: !i.visited })}
                         onFocusMap={focusOnItem}
+                        isExcluded={excludedIds.has(item.id)}
+                        onToggleExclude={toggleExclude}
                       />
                       {times && (
                         <div className="flex items-center gap-2 px-2 py-1">
