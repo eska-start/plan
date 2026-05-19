@@ -556,7 +556,7 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
                             style={{
                               opacity: visible ? (effectivelyVisited ? 0.6 : 1) : 0,
                               transform: visible ? "translateY(0)" : "translateY(8px)",
-                              transition: `opacity 0.4s ease ${0.2 + k * 0.07}s, transform 0.4s ease ${0.2 + k * 0.07}s`,
+                              transition: `opacity 0s, transform 0.4s ease ${0.2 + k * 0.07}s`,
                             }}
                           >
                             <button
