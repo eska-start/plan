@@ -841,69 +841,78 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         })}
       </div>
 
-      {/* 지도 */}
-      <div className="rounded-2xl overflow-hidden border border-border shadow-sm relative">
-        {(geocoding || isLoading) && (
-          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm z-10 flex items-center justify-center">
-            <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-4 py-2.5 shadow-sm">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">지도 로딩 중...</span>
+      {/* 넓은 화면: 지도 + 목록 나란히, 좁은 화면: 세로 배치 */}
+      <div className="lg:flex lg:gap-4 lg:items-start">
+
+        {/* 지도 */}
+        <div className="lg:flex-1 min-w-0">
+          <div className="rounded-2xl overflow-hidden border border-border shadow-sm relative">
+            {(geocoding || isLoading) && (
+              <div className="absolute inset-0 bg-background/60 backdrop-blur-sm z-10 flex items-center justify-center">
+                <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-4 py-2.5 shadow-sm">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">지도 로딩 중...</span>
+                </div>
+              </div>
+            )}
+            <MapView className="w-full h-[400px] sm:h-[480px] lg:h-[600px]" initialCenter={{ lat: 35.6762, lng: 139.6503 }} initialZoom={13}
+              onMapReady={(map) => { mapRef.current = map; setMapReady(true); }} />
+          </div>
+        </div>
+
+        {/* 방문 순서 목록 */}
+        {items && items.length > 0 && (
+          <div className="mt-5 lg:mt-0 lg:w-72 xl:w-80 lg:shrink-0">
+            <div className="lg:border lg:border-border lg:rounded-2xl lg:bg-card lg:p-3 lg:max-h-[600px] lg:overflow-y-auto space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">
+                  {format(new Date(selectedDate + "T00:00:00"), "M월 d일", { locale: ko })} 방문 순서
+                </h3>
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <GripVertical className="w-3.5 h-3.5" />드래그
+                </span>
+              </div>
+
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-1.5">
+                    {items.map((item, idx) => {
+                      const times = idx < items.length - 1
+                        ? travelTimesMap[`${item.id}:${items[idx + 1]!.id}`]
+                        : undefined;
+                      return (
+                        <div key={item.id}>
+                          <SortableVisitItem
+                            item={item} index={idx} total={items.length}
+                            onEdit={openEdit}
+                            onDelete={setDeleteTarget}
+                            onToggleVisited={i => toggleVisitedMutation.mutate({ id: i.id, visited: !i.visited })}
+                            onFocusMap={focusOnItem}
+                          />
+                          {times && (
+                            <div className="flex items-center gap-2 px-2 py-1">
+                              <div className="h-px flex-1 bg-border" />
+                              <span className="text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
+                                <span>🚶 {times.walk ?? "—"}</span>
+                                <span className="text-border">|</span>
+                                <span>🚗 {times.drive ?? "—"}</span>
+                              </span>
+                              <div className="h-px flex-1 bg-border" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </SortableContext>
+              </DndContext>
+
+              <p className="text-xs text-muted-foreground text-center pt-1">순서 변경 시 지도·일정 탭 자동 업데이트</p>
             </div>
           </div>
         )}
-        <MapView className="w-full h-[400px] sm:h-[480px]" initialCenter={{ lat: 35.6762, lng: 139.6503 }} initialZoom={13}
-          onMapReady={(map) => { mapRef.current = map; setMapReady(true); }} />
+
       </div>
-
-      {/* 방문 순서 목록 */}
-      {items && items.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-foreground">
-              {format(new Date(selectedDate + "T00:00:00"), "M월 d일", { locale: ko })} 방문 순서
-            </h3>
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
-              <GripVertical className="w-3.5 h-3.5" />드래그해서 순서 변경
-            </span>
-          </div>
-
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-1.5">
-                {items.map((item, idx) => {
-                  const times = idx < items.length - 1
-                    ? travelTimesMap[`${item.id}:${items[idx + 1]!.id}`]
-                    : undefined;
-                  return (
-                    <div key={item.id}>
-                      <SortableVisitItem
-                        item={item} index={idx} total={items.length}
-                        onEdit={openEdit}
-                        onDelete={setDeleteTarget}
-                        onToggleVisited={i => toggleVisitedMutation.mutate({ id: i.id, visited: !i.visited })}
-                        onFocusMap={focusOnItem}
-                      />
-                      {times && (
-                        <div className="flex items-center gap-2 px-2 py-1">
-                          <div className="h-px flex-1 bg-border" />
-                          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
-                            <span>🚶 {times.walk ?? "—"}</span>
-                            <span className="text-border">|</span>
-                            <span>🚗 {times.drive ?? "—"}</span>
-                          </span>
-                          <div className="h-px flex-1 bg-border" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </SortableContext>
-          </DndContext>
-
-          <p className="text-xs text-muted-foreground text-center pt-1">순서를 변경하면 지도 마커 번호, 경로, 일정 탭이 자동으로 업데이트됩니다</p>
-        </div>
-      )}
 
       {(!items || items.length === 0) && !isLoading && (
         <div className="flex flex-col items-center justify-center py-10 gap-3 rounded-2xl border border-dashed border-border bg-muted/30">
