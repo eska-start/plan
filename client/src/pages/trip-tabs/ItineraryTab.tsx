@@ -554,8 +554,8 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
                                   <MapPin className="w-3 h-3 shrink-0" />{item.address}
                                 </p>
                               )}
-                              {item.memo && !item.address && (
-                                <p className="text-xs text-muted-foreground italic">{item.memo}</p>
+                              {item.memo && (
+                                <p className="text-xs text-muted-foreground italic mt-0.5">{item.memo}</p>
                               )}
                             </div>
 
