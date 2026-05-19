@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   CalendarDays, Loader2, MapPin, Clock, CheckCircle2, Circle,
   Plus, Utensils, Camera, ShoppingBag, Hotel,
-  Sparkles, FileText, X, Pencil, Trash2, FolderOpen, Map,
+  Sparkles, FileText, X, Pencil, Trash2, FolderOpen, Map as MapIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -571,7 +571,7 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
                                 className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-blue-500 transition-colors"
                                 title="구글 지도에서 보기"
                               >
-                                <Map className="w-3.5 h-3.5" />
+                                <MapIcon className="w-3.5 h-3.5" />
                               </a>
                               {item.sourceType !== "accommodation" ? (
                                 <>

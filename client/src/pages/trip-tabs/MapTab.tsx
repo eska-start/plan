@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
   MapPin, Navigation, Loader2, CheckCircle2, GripVertical,
-  Plus, Sparkles, FileText, Camera, FolderOpen, X, Pencil, Trash2, Circle, Map,
+  Plus, Sparkles, FileText, Camera, FolderOpen, X, Pencil, Trash2, Circle, Map as MapIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -162,7 +162,7 @@ function SortableVisitItem({
           title="구글 지도에서 보기"
           onClick={e => e.stopPropagation()}
         >
-          <Map className="w-3.5 h-3.5" />
+          <MapIcon className="w-3.5 h-3.5" />
         </a>
         {!isAccommodation && (
           <>
