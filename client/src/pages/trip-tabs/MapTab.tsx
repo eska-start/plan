@@ -484,7 +484,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         const geocodeName = item.placeName.replace(/^🏨\s*(체크인|체크아웃|숙박)\s*[—\-]\s*/, "").trim() || item.placeName;
         latlng = await geocodeAddress(`name:${geocodeName}`, geocodeName);
       }
-      if (latlng) positions.push({ item, latlng });
+      if (latlng && !item.visited) positions.push({ item, latlng });
     }
 
     setGeocoding(false);
