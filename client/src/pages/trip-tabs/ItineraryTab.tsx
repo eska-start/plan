@@ -93,6 +93,23 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
 
   const { data: allItems, isLoading } = trpc.itinerary.listByTrip.useQuery({ tripId });
 
+  // 서버 데이터가 업데이트되면 해당 id의 옵티미스틱 상태 정리
+  useEffect(() => {
+    if (!allItems) return;
+    setOptimisticVisited(prev => {
+      const next = new Set(prev);
+      let changed = false;
+      (allItems as ItineraryItem[]).forEach(i => { if (i.visited && next.has(i.id)) { next.delete(i.id); changed = true; } });
+      return changed ? next : prev;
+    });
+    setOptimisticUnvisited(prev => {
+      const next = new Set(prev);
+      let changed = false;
+      (allItems as ItineraryItem[]).forEach(i => { if (!i.visited && next.has(i.id)) { next.delete(i.id); changed = true; } });
+      return changed ? next : prev;
+    });
+  }, [allItems]);
+
   const createMutation = trpc.itinerary.create.useMutation({
     onSuccess: () => {
       utils.itinerary.listByTrip.invalidate();
@@ -108,9 +125,11 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
 
   const updateMutation = trpc.itinerary.update.useMutation({
     onSuccess: (_, vars) => {
-      setOptimisticVisited(prev => { const next = new Set(prev); next.delete(vars.id); return next; });
-      setOptimisticUnvisited(prev => { const next = new Set(prev); next.delete(vars.id); return next; });
-      utils.itinerary.listByTrip.invalidate(); utils.itinerary.listByDate.invalidate(); setDialogOpen(false); setEditId(null); toast.success("수정됐습니다.");
+      utils.itinerary.listByTrip.invalidate();
+      utils.itinerary.listByDate.invalidate();
+      setDialogOpen(false);
+      setEditId(null);
+      if (vars.visited === undefined) toast.success("수정됐습니다.");
     },
     onError: (_, vars) => {
       setOptimisticVisited(prev => { const next = new Set(prev); next.delete(vars.id); return next; });
