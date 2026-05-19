@@ -863,7 +863,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         {/* 방문 순서 목록 */}
         {items && items.length > 0 && (
           <div className="mt-5 lg:mt-0 lg:w-96 xl:w-[26rem] lg:shrink-0">
-            <div className="lg:border lg:border-border lg:rounded-2xl lg:bg-card lg:p-3 lg:max-h-[600px] lg:overflow-y-auto space-y-2">
+            <div className="border border-border rounded-2xl bg-card p-3 max-h-[60vh] overflow-y-auto lg:max-h-[600px] space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-foreground">
                   {format(new Date(selectedDate + "T00:00:00"), "M월 d일", { locale: ko })} 방문 순서
