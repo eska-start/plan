@@ -150,6 +150,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   // 로컬 순서 상태 (드래그 즉시 반영)
   const [localOrder, setLocalOrder] = useState<number[] | null>(null);
 
+  // 핀 간 이동 시간 { "id1:id2" → { walk, drive } }
+  const [travelTimesMap, setTravelTimesMap] = useState<Record<string, { walk: string | null; drive: string | null }>>({});
+
   // ── 일정 추가 다이얼로그 ──
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<FormData>({
@@ -314,6 +317,24 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     );
   }, []);
 
+  // 두 지점 간 이동 시간 (Directions API)
+  const getRouteDuration = useCallback((
+    origin: google.maps.LatLng,
+    dest: google.maps.LatLng,
+    mode: google.maps.TravelMode,
+  ): Promise<string | null> => {
+    return new Promise(resolve => {
+      const svc = new window.google.maps.DirectionsService();
+      svc.route(
+        { origin, destination: dest, travelMode: mode },
+        (result, status) => {
+          const duration = result?.routes?.[0]?.legs?.[0]?.duration?.text ?? null;
+          resolve(status === "OK" && duration ? duration : null);
+        },
+      );
+    });
+  }, []);
+
   const renderOnMap = useCallback(async () => {
     if (!mapRef.current || !items || items.length === 0) return;
     clearMap();
@@ -326,10 +347,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       if (item.lat && item.lng) {
         latlng = new window.google.maps.LatLng(Number(item.lat), Number(item.lng));
       } else if (item.address) {
-        // 같은 주소는 캐시 공유
         latlng = await geocodeAddress(`addr:${item.address}`, item.address);
       } else if (item.placeName) {
-        // 숙박 자동 생성 항목은 "🏨 체크인 — 호텔명" 형식이므로 호텔명만 추출해 지오코딩
         const geocodeName = item.placeName.replace(/^🏨\s*(체크인|체크아웃|숙박)\s*[—\-]\s*/, "").trim() || item.placeName;
         latlng = await geocodeAddress(`name:${geocodeName}`, geocodeName);
       }
@@ -339,6 +358,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     setGeocoding(false);
     if (positions.length === 0) return;
 
+    // 번호 마커
     const bounds = new window.google.maps.LatLngBounds();
     positions.forEach(({ item, latlng }, idx) => {
       bounds.extend(latlng);
@@ -360,7 +380,44 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
     mapRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 60, left: 40 });
     drawRoute(positions.map(p => p.latlng));
-  }, [items, clearMap, geocodeAddress, drawRoute]);
+
+    // 핀 사이 이동 시간 계산 (도보 + 차량)
+    if (positions.length >= 2) {
+      const newTimesMap: Record<string, { walk: string | null; drive: string | null }> = {};
+
+      for (let i = 0; i < positions.length - 1; i++) {
+        const { item: a, latlng: la } = positions[i];
+        const { item: b, latlng: lb } = positions[i + 1];
+
+        const [walk, drive] = await Promise.all([
+          getRouteDuration(la, lb, window.google.maps.TravelMode.WALKING),
+          getRouteDuration(la, lb, window.google.maps.TravelMode.DRIVING),
+        ]);
+
+        const key = `${a.id}:${b.id}`;
+        newTimesMap[key] = { walk, drive };
+
+        // 지도 중간 지점에 이동시간 뱃지 마커 추가
+        const midLat = (la.lat() + lb.lat()) / 2;
+        const midLng = (la.lng() + lb.lng()) / 2;
+        const mid = new window.google.maps.LatLng(midLat, midLng);
+
+        const badge = document.createElement("div");
+        badge.style.cssText = "background:rgba(255,255,255,0.96);border:1px solid #e2e8f0;border-radius:10px;padding:3px 8px;font-size:10px;font-family:Inter,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.12);white-space:nowrap;display:flex;gap:6px;align-items:center;pointer-events:none;";
+        badge.innerHTML = `<span>🚶 ${walk ?? "—"}</span><span style="color:#cbd5e1">|</span><span>🚗 ${drive ?? "—"}</span>`;
+
+        const badgeMarker = new window.google.maps.marker.AdvancedMarkerElement({
+          map: mapRef.current!,
+          position: mid,
+          content: badge,
+          zIndex: 0,
+        });
+        markersRef.current.push(badgeMarker);
+      }
+
+      setTravelTimesMap(newTimesMap);
+    }
+  }, [items, clearMap, geocodeAddress, drawRoute, getRouteDuration]);
 
   useEffect(() => { geocacheRef.current.clear(); setLocalOrder(null); }, [selectedDate]);
 
@@ -637,9 +694,27 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-1.5">
-                {items.map((item, idx) => (
-                  <SortableVisitItem key={item.id} item={item} index={idx} total={items.length} />
-                ))}
+                {items.map((item, idx) => {
+                  const times = idx < items.length - 1
+                    ? travelTimesMap[`${item.id}:${items[idx + 1]!.id}`]
+                    : undefined;
+                  return (
+                    <div key={item.id}>
+                      <SortableVisitItem item={item} index={idx} total={items.length} />
+                      {times && (
+                        <div className="flex items-center gap-2 px-2 py-1">
+                          <div className="h-px flex-1 bg-border" />
+                          <span className="text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
+                            <span>🚶 {times.walk ?? "—"}</span>
+                            <span className="text-border">|</span>
+                            <span>🚗 {times.drive ?? "—"}</span>
+                          </span>
+                          <div className="h-px flex-1 bg-border" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </SortableContext>
           </DndContext>
