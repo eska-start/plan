@@ -314,6 +314,10 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   // 경로에서 임시 제외된 아이템 ID 세트 (날짜 변경 시 초기화)
   const [excludedIds, setExcludedIds] = useState<Set<number>>(new Set());
+  // 체크버튼으로 방문 완료 처리 → 지도에서 즉시 숨김 (낙관적 상태)
+  const [optimisticVisitedIds, setOptimisticVisitedIds] = useState<Set<number>>(new Set());
+  const optimisticVisitedIdsRef = useRef<Set<number>>(new Set());
+  optimisticVisitedIdsRef.current = optimisticVisitedIds;
 
   function toggleExclude(id: number) {
     setExcludedIds(prev => {
@@ -587,13 +591,16 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     const map = mapRef.current;
     const allItems = itemsRef.current;
     const excluded = excludedIdsRef.current;
-    const visibleItems = allItems.filter(i => !excluded.has(i.id));
+    const optVisited = optimisticVisitedIdsRef.current;
+    // 숨길 조건: 스와이프 제외 OR 서버 방문완료 OR 낙관적 방문완료
+    const isHidden = (item: ItemType) => excluded.has(item.id) || !!item.visited || optVisited.has(item.id);
+    const visibleItems = allItems.filter(i => !isHidden(i));
 
     // 핀 표시/숨김 + 보이는 순서로 번호 재부여
     allItems.forEach(item => {
       const marker = markersByIdRef.current.get(item.id);
       if (!marker) return;
-      if (excluded.has(item.id)) {
+      if (isHidden(item)) {
         marker.map = null;
       } else {
         marker.map = map;
@@ -695,14 +702,17 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         ]);
         newTimesMap[`${a.id}:${b.id}`] = { walk, drive };
       }
-      setTravelTimesMap(newTimesMap);
+      // 기존에 계산된 skip-pair 시간도 보존 (excludedIds 변경으로 추가된 쌍)
+      const mergedTimesMap = { ...travelTimesMapRef.current, ...newTimesMap };
+      setTravelTimesMap(mergedTimesMap);
+      // 제외 상태 + 번호 + 뱃지 + 경로 일괄 적용
+      applyExclusionSync(mergedTimesMap);
+    } else {
+      applyExclusionSync({});
     }
-
-    // 제외 상태 + 번호 + 뱃지 + 경로 일괄 적용
-    applyExclusionSync(newTimesMap);
   }, [items, clearMap, geocodeAddress, drawRoute, getRouteDuration, applyExclusionSync]);
 
-  useEffect(() => { geocacheRef.current.clear(); setLocalOrder(null); hasInitialFitRef.current = false; setExcludedIds(new Set()); }, [selectedDate]);
+  useEffect(() => { geocacheRef.current.clear(); setLocalOrder(null); hasInitialFitRef.current = false; setExcludedIds(new Set()); setOptimisticVisitedIds(new Set()); }, [selectedDate]);
 
   useEffect(() => {
     if (mapReady) {
@@ -717,17 +727,20 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const excludedIdsRef = useRef<Set<number>>(new Set());
   excludedIdsRef.current = excludedIds;
 
-  // 제외 상태 변경 시: 핀 번호·뱃지·경로 즉시 재적용 + 새 쌍 이동 시간 비동기 계산
+  // 제외·방문완료 상태 변경 시: 핀 번호·뱃지·경로 즉시 재적용 + 새 쌍 이동 시간 비동기 계산
   useEffect(() => {
     if (!mapReady) return;
     applyExclusionSync(travelTimesMapRef.current);
 
     // 새로 생긴 인접 쌍(건너뛴 쌍)의 이동 시간이 없으면 비동기로 계산 후 재적용
-    const visibleItems = itemsRef.current.filter(i => !excludedIds.has(i.id));
-    const capturedSet = excludedIds;
+    const allItems = itemsRef.current;
+    const optV = optimisticVisitedIdsRef.current;
+    const visibleItems = allItems.filter(i => !excludedIds.has(i.id) && !i.visited && !optV.has(i.id));
+    const capturedExcluded = excludedIds;
+    const capturedOptV = optimisticVisitedIds;
     (async () => {
       for (let i = 0; i < visibleItems.length - 1; i++) {
-        if (excludedIdsRef.current !== capturedSet) return;
+        if (excludedIdsRef.current !== capturedExcluded || optimisticVisitedIdsRef.current !== capturedOptV) return;
         const a = visibleItems[i];
         const b = visibleItems[i + 1];
         const key = `${a.id}:${b.id}`;
@@ -739,14 +752,14 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           getRouteDuration(posA, posB, window.google.maps.TravelMode.WALKING),
           getRouteDuration(posA, posB, window.google.maps.TravelMode.DRIVING),
         ]);
-        if (excludedIdsRef.current !== capturedSet || !mapRef.current) return;
+        if (excludedIdsRef.current !== capturedExcluded || optimisticVisitedIdsRef.current !== capturedOptV || !mapRef.current) return;
         const times = { walk, drive };
         travelTimesMapRef.current[key] = times;
         setTravelTimesMap(prev => ({ ...prev, [key]: times }));
         applyExclusionSync({ ...travelTimesMapRef.current });
       }
     })();
-  }, [excludedIds, mapReady, applyExclusionSync, getRouteDuration]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [excludedIds, optimisticVisitedIds, mapReady, applyExclusionSync, getRouteDuration]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 지도에서 특정 핀으로 이동 ──
   const focusOnItem = useCallback((item: ItemType) => {
@@ -1062,16 +1075,19 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                   <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
                     <div className="space-y-1.5">
                       {items.map((item, idx) => {
-                        const nextUnvisited = (!item.visited && !excludedIds.has(item.id)) ? items.slice(idx + 1).find(i => !i.visited && !excludedIds.has(i.id)) : undefined;
-                        const times = nextUnvisited
-                          ? travelTimesMap[`${item.id}:${nextUnvisited.id}`]
-                          : undefined;
+                        const isItemHidden = (i: ItemType) => i.visited || optimisticVisitedIds.has(i.id) || excludedIds.has(i.id);
+                        const nextVisible = !isItemHidden(item) ? items.slice(idx + 1).find(i => !isItemHidden(i)) : undefined;
+                        const times = nextVisible ? travelTimesMap[`${item.id}:${nextVisible.id}`] : undefined;
                         return (
                           <div key={item.id}>
                             <SortableVisitItem
                               item={item} index={idx} total={items.length}
                               onEdit={openEdit} onDelete={setDeleteTarget}
-                              onToggleVisited={i => toggleVisitedMutation.mutate({ id: i.id, visited: !i.visited })}
+                              onToggleVisited={i => {
+                                const newVisited = !i.visited;
+                                setOptimisticVisitedIds(prev => { const next = new Set(prev); if (newVisited) next.add(i.id); else next.delete(i.id); return next; });
+                                toggleVisitedMutation.mutate({ id: i.id, visited: newVisited });
+                              }}
                               onFocusMap={focusOnItem}
                             isExcluded={excludedIds.has(item.id)}
                             onToggleExclude={toggleExclude}
@@ -1114,16 +1130,19 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
             <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-1.5">
                 {items.map((item, idx) => {
-                  const nextUnvisited = (!item.visited && !excludedIds.has(item.id)) ? items.slice(idx + 1).find(i => !i.visited && !excludedIds.has(i.id)) : undefined;
-                  const times = nextUnvisited
-                    ? travelTimesMap[`${item.id}:${nextUnvisited.id}`]
-                    : undefined;
+                  const isItemHidden = (i: ItemType) => i.visited || optimisticVisitedIds.has(i.id) || excludedIds.has(i.id);
+                  const nextVisible = !isItemHidden(item) ? items.slice(idx + 1).find(i => !isItemHidden(i)) : undefined;
+                  const times = nextVisible ? travelTimesMap[`${item.id}:${nextVisible.id}`] : undefined;
                   return (
                     <div key={item.id}>
                       <SortableVisitItem
                         item={item} index={idx} total={items.length}
                         onEdit={openEdit} onDelete={setDeleteTarget}
-                        onToggleVisited={i => toggleVisitedMutation.mutate({ id: i.id, visited: !i.visited })}
+                        onToggleVisited={i => {
+                          const newVisited = !i.visited;
+                          setOptimisticVisitedIds(prev => { const next = new Set(prev); if (newVisited) next.add(i.id); else next.delete(i.id); return next; });
+                          toggleVisitedMutation.mutate({ id: i.id, visited: newVisited });
+                        }}
                         onFocusMap={focusOnItem}
                         isExcluded={excludedIds.has(item.id)}
                         onToggleExclude={toggleExclude}
