@@ -366,6 +366,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     const renderer = new window.google.maps.DirectionsRenderer({
       map: mapRef.current,
       suppressMarkers: true,
+      preserveViewport: true,
       polylineOptions: { strokeColor: "#6366f1", strokeWeight: 3, strokeOpacity: 0.7 },
     });
     routeRendererRef.current = renderer;
