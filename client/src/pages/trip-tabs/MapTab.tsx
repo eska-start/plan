@@ -305,7 +305,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const routeRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const polylineRef = useRef<google.maps.Polyline | null>(null);
   const geocacheRef = useRef<Map<string, google.maps.LatLng>>(new Map());
-  const hasInitialFitRef = useRef(false); // 날짜별 최초 1회만 fitBounds 실행
+  const hasInitialFitRef = useRef(false);
+  const renderVersionRef = useRef(0); // 동시 renderOnMap 실행 방지
+  const itemsHashRef = useRef('');    // 내용 변경 시에만 renderOnMap 실행
   const [mapReady, setMapReady] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
 
@@ -639,13 +641,15 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   }, [drawRoute]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderOnMap = useCallback(async () => {
-    if (!mapRef.current || !items || items.length === 0) return;
+    const currentItems = itemsRef.current;
+    if (!mapRef.current || !currentItems || currentItems.length === 0) return;
+    const myVersion = ++renderVersionRef.current;
     clearMap();
     setGeocoding(true);
 
     const positions: { item: ItemType; latlng: google.maps.LatLng }[] = [];
 
-    for (const item of items) {
+    for (const item of currentItems) {
       let latlng: google.maps.LatLng | null = null;
       if (item.lat && item.lng) {
         latlng = new window.google.maps.LatLng(Number(item.lat), Number(item.lng));
@@ -659,9 +663,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     }
 
     setGeocoding(false);
+    if (renderVersionRef.current !== myVersion) return; // 더 새로운 renderOnMap이 시작됨
     if (positions.length === 0) return;
 
-    // 번호 마커 (전체 아이템 렌더 — 제외 상태는 별도 effect에서 토글)
     const bounds = new window.google.maps.LatLngBounds();
     positions.forEach(({ item, latlng }, idx) => {
       bounds.extend(latlng);
@@ -694,6 +698,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     const newTimesMap: Record<string, { walk: string | null; drive: string | null }> = {};
     if (positions.length >= 2) {
       for (let i = 0; i < positions.length - 1; i++) {
+        if (renderVersionRef.current !== myVersion) return; // stale, 중단
         const { item: a, latlng: la } = positions[i];
         const { item: b, latlng: lb } = positions[i + 1];
         const [walk, drive] = await Promise.all([
@@ -702,23 +707,36 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         ]);
         newTimesMap[`${a.id}:${b.id}`] = { walk, drive };
       }
-      // 기존에 계산된 skip-pair 시간도 보존 (excludedIds 변경으로 추가된 쌍)
+    }
+    if (renderVersionRef.current !== myVersion) return; // stale, 중단
+    if (positions.length >= 2) {
+      // 기존에 계산된 skip-pair 시간도 보존
       const mergedTimesMap = { ...travelTimesMapRef.current, ...newTimesMap };
       setTravelTimesMap(mergedTimesMap);
-      // 제외 상태 + 번호 + 뱃지 + 경로 일괄 적용
       applyExclusionSync(mergedTimesMap);
     } else {
       applyExclusionSync({});
     }
-  }, [items, clearMap, geocodeAddress, drawRoute, getRouteDuration, applyExclusionSync]);
-
-  useEffect(() => { geocacheRef.current.clear(); setLocalOrder(null); hasInitialFitRef.current = false; setExcludedIds(new Set()); setOptimisticVisitedIds(new Set()); }, [selectedDate]);
+  }, [clearMap, geocodeAddress, drawRoute, getRouteDuration, applyExclusionSync]);
 
   useEffect(() => {
-    if (mapReady) {
-      if (items && items.length > 0) renderOnMap();
-      else if (items && items.length === 0) clearMap();
-    }
+    geocacheRef.current.clear();
+    setLocalOrder(null);
+    hasInitialFitRef.current = false;
+    renderVersionRef.current = 0;
+    itemsHashRef.current = '';
+    setExcludedIds(new Set());
+    setOptimisticVisitedIds(new Set());
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    if (!items || items.length === 0) { clearMap(); itemsHashRef.current = ''; return; }
+    // 내용이 실제로 바뀐 경우에만 renderOnMap 실행 (3초 refetch 무시)
+    const hash = items.map(i => `${i.id}:${i.visited}:${i.order ?? 0}:${i.lat ?? ''}:${i.lng ?? ''}:${i.visitTime ?? ''}`).join('|');
+    if (hash === itemsHashRef.current) return;
+    itemsHashRef.current = hash;
+    renderOnMap();
   }, [mapReady, items, renderOnMap, clearMap]);
 
   // 렌더 시마다 ref 동기화
