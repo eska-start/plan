@@ -6,7 +6,7 @@
  * 2) Network requests (fetch + XHR)
  * 3) User interactions (semantic uiEvents: click/type/submit/nav/scroll/etc.)
  *
- * Data is periodically sent to /__manus__/logs
+ * Data is periodically sent to /__debug__/logs
  * Note: uiEvents are mirrored to sessionEvents for sessionReplay.log
  */
 (function () {
@@ -19,7 +19,7 @@
   // Configuration
   // ==========================================================================
   const CONFIG = {
-    reportEndpoint: "/__manus__/logs",
+    reportEndpoint: "/__debug__/logs",
     bufferSize: {
       console: 500,
       network: 200,
@@ -133,7 +133,7 @@
   function shouldIgnoreTarget(target) {
     try {
       if (!target || !(target instanceof Element)) return false;
-      return !!target.closest(".manus-no-record");
+      return !!target.closest(".debug-no-record");
     } catch (e) {
       return false;
     }
@@ -462,7 +462,7 @@
     var method = init.method || (input && input.method) || "GET";
 
     // Don't intercept internal requests
-    if (url.indexOf("/__manus__/") === 0) {
+    if (url.indexOf("/__debug__/") === 0) {
       return originalFetch(input, init);
     }
 
@@ -612,7 +612,7 @@
     if (
       xhr._manusData &&
       xhr._manusData.url &&
-      xhr._manusData.url.indexOf("/__manus__/") !== 0
+      xhr._manusData.url.indexOf("/__debug__/") !== 0
     ) {
       xhr._manusData.startTime = Date.now();
       xhr._manusData.requestBody = body ? sanitizeValue(tryParseJson(body)) : null;

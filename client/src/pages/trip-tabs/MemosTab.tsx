@@ -4,18 +4,23 @@ import { toast } from "sonner";
 import { StickyNote, Loader2, Pin, PinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import TabShell from "./TabShell";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
+import LinkifiedText from "@/components/LinkifiedText";
 
 type FormData = { title: string; content: string; pinned: boolean };
 const defaultForm: FormData = { title: "", content: "", pinned: false };
 
 export default function MemosTab({ tripId }: { tripId: number }) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteMemoId, setDeleteMemoId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>(defaultForm);
   const utils = trpc.useUtils();
@@ -85,15 +90,22 @@ export default function MemosTab({ tripId }: { tripId: number }) {
                 </p>
               </div>
               {m.content && (
-                <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap mb-3 line-clamp-6">{m.content}</p>
+                <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap mb-3 line-clamp-6">
+                  <LinkifiedText text={m.content} />
+                </p>
               )}
               <div className="flex items-center gap-1 pt-2 border-t border-border">
                 <button onClick={() => togglePin(m)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">
                   {m.pinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
-                  {m.pinned ? "고정 해제" : "고정"}
+                  {m.pinned ? "노트 해제" : "여행노트 표시"}
                 </button>
                 <button onClick={() => openEdit(m)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
-                <button onClick={() => deleteMutation.mutate({ id: m.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors ml-auto">삭제</button>
+                <button
+                  onClick={() => setDeleteMemoId(m.id)}
+                  className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors ml-auto"
+                >
+                  삭제
+                </button>
               </div>
             </div>
           ))}
@@ -127,7 +139,7 @@ export default function MemosTab({ tripId }: { tripId: number }) {
                 onChange={e => setForm(f => ({ ...f, pinned: e.target.checked }))}
                 className="w-4 h-4 rounded accent-primary"
               />
-              <span className="text-sm font-medium text-foreground">상단 고정</span>
+              <span className="text-sm font-medium text-foreground">여행노트에 표시</span>
             </label>
           </div>
           <div className="flex gap-2 mt-4">
@@ -139,6 +151,27 @@ export default function MemosTab({ tripId }: { tripId: number }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteMemoId !== null} onOpenChange={(open) => { if (!open) setDeleteMemoId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>메모 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 메모를 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteMemoId == null) return;
+                deleteMutation.mutate({ id: deleteMemoId });
+                setDeleteMemoId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

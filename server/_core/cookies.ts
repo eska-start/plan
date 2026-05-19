@@ -39,10 +39,13 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
+  const secure = isSecureRequest(req);
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req),
+    // sameSite:"lax" works for same-site first-party cookies on all browsers including iOS Safari.
+    // "none" is only needed for cross-site (third-party) contexts and breaks ITP on mobile Safari.
+    sameSite: "lax",
+    secure,
   };
 }

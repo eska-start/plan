@@ -1,7 +1,11 @@
 import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+const AUTH_STUCK_RECOVERY_MS = 6_000;
+const AUTH_MAX_LOADING_MS = 10_000;
+const RECOVERY_DEBOUNCE_MS = 3_000;
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
@@ -14,15 +18,92 @@ export function useAuth(options?: UseAuthOptions) {
   const utils = trpc.useUtils();
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
-    retry: false,
+    retry: 1,
+    retryDelay: 1_000,
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+    refetchInterval: false,
+    staleTime: Infinity,
   });
+
+  // 5초 이상 로딩 → 콜드스타트 안내 메시지 표시
+  const [slowLoading, setSlowLoading] = useState(false);
+  const [stalledLoading, setStalledLoading] = useState(false);
+  const lastRecoveryAtRef = useRef(0);
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
       utils.auth.me.setData(undefined, null);
     },
   });
+
+  useEffect(() => {
+    if (!meQuery.isLoading) { setSlowLoading(false); return; }
+    const t = setTimeout(() => setSlowLoading(true), 5_000);
+    return () => clearTimeout(t);
+  }, [meQuery.isLoading]);
+
+  useEffect(() => {
+    if (!meQuery.isLoading || logoutMutation.isPending) {
+      setStalledLoading(false);
+      return;
+    }
+    const t = setTimeout(() => setStalledLoading(true), AUTH_MAX_LOADING_MS);
+    return () => clearTimeout(t);
+  }, [logoutMutation.isPending, meQuery.isLoading]);
+
+  const recoverAuthQuery = useCallback((force = false) => {
+    if (logoutMutation.isPending) return;
+    if (!force && meQuery.isFetching) return;
+
+    const now = Date.now();
+    if (!force && now - lastRecoveryAtRef.current < RECOVERY_DEBOUNCE_MS) return;
+    lastRecoveryAtRef.current = now;
+
+    if (force) {
+      void utils.auth.me.cancel().finally(() => {
+        void meQuery.refetch({ cancelRefetch: true });
+      });
+      return;
+    }
+
+    void meQuery.refetch({ cancelRefetch: false });
+  }, [logoutMutation.isPending, meQuery.isFetching, meQuery.refetch, utils.auth.me]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) recoverAuthQuery();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") recoverAuthQuery();
+    };
+    const onFocus = () => recoverAuthQuery();
+    const onOnline = () => recoverAuthQuery();
+
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onOnline);
+
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [recoverAuthQuery]);
+
+  useEffect(() => {
+    if (!meQuery.isLoading || logoutMutation.isPending) return;
+
+    const t = setTimeout(() => recoverAuthQuery(true), AUTH_STUCK_RECOVERY_MS);
+
+    return () => clearTimeout(t);
+  }, [logoutMutation.isPending, meQuery.isLoading, recoverAuthQuery]);
 
   const logout = useCallback(async () => {
     try {
@@ -41,23 +122,28 @@ export function useAuth(options?: UseAuthOptions) {
     }
   }, [logoutMutation, utils]);
 
-  const state = useMemo(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
-    return {
-      user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
-      error: meQuery.error ?? logoutMutation.error ?? null,
-      isAuthenticated: Boolean(meQuery.data),
-    };
-  }, [
+  // localStorage는 useMemo 밖 useEffect에서만 — Safari에서 useMemo 안 사이드이펙트가 SecurityError 유발
+  useEffect(() => {
+    try {
+      localStorage.setItem("runtime-user-info", JSON.stringify(meQuery.data ?? null));
+    } catch {
+      // Safari 프라이버시 모드 등에서 localStorage 차단 시 무시
+    }
+  }, [meQuery.data]);
+
+  const state = useMemo(() => ({
+    user: meQuery.data ?? null,
+    loading: logoutMutation.isPending || (meQuery.isLoading && !stalledLoading),
+    error: meQuery.error ?? logoutMutation.error ?? (stalledLoading ? new Error("auth loading stalled") : null),
+    isAuthenticated: Boolean(meQuery.data),
+    stalledLoading,
+  }), [
     meQuery.data,
     meQuery.error,
     meQuery.isLoading,
     logoutMutation.error,
     logoutMutation.isPending,
+    stalledLoading,
   ]);
 
   useEffect(() => {
@@ -67,7 +153,7 @@ export function useAuth(options?: UseAuthOptions) {
     if (typeof window === "undefined") return;
     if (window.location.pathname === redirectPath) return;
 
-    window.location.href = redirectPath
+    window.location.href = redirectPath;
   }, [
     redirectOnUnauthenticated,
     redirectPath,
@@ -78,6 +164,7 @@ export function useAuth(options?: UseAuthOptions) {
 
   return {
     ...state,
+    slowLoading,
     refresh: () => meQuery.refetch(),
     logout,
   };

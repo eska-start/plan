@@ -5,71 +5,84 @@ import { getSessionCookieOptions } from "./cookies";
 import { sanitizeGuestRedirect } from "./redirect";
 import { sdk } from "./sdk";
 
-function getQueryParam(req: Request, key: string): string | undefined {
-  const value = req.query[key];
-  return typeof value === "string" ? value : undefined;
-}
-
-function parseStateOrigin(state: string): { origin: string; returnPath: string } {
-  try {
-    // state is base64(redirectUri) where redirectUri = `${origin}/api/oauth/callback`
-    const redirectUri = atob(state);
-    const url = new URL(redirectUri);
-    return { origin: url.origin, returnPath: "/" };
-  } catch {
-    return { origin: "", returnPath: "/" };
-  }
-}
-
 export function registerOAuthRoutes(app: Express) {
   // Trust the proxy so req.protocol reflects the real HTTPS upstream
   app.set("trust proxy", 1);
 
-  app.get("/api/oauth/callback", async (req: Request, res: Response) => {
-    const code = getQueryParam(req, "code");
-    const state = getQueryParam(req, "state");
+  app.get("/api/auth/clear", (req: Request, res: Response) => {
+    const cookieOptions = getSessionCookieOptions(req);
+    res.clearCookie(COOKIE_NAME, cookieOptions);
+    // iOS Safari: JS redirect ensures cookie is cleared before navigation
+    res.type("html").send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<script>window.location.replace("/");</script>
+</head><body></body></html>`);
+  });
 
-    if (!code || !state) {
-      res.status(400).json({ error: "code and state are required" });
-      return;
-    }
-
-    // Parse the frontend origin from state so the redirect lands on the correct domain
-    const { origin: frontendOrigin, returnPath } = parseStateOrigin(state);
-
+  app.get("/api/auth/guest-login", async (req: Request, res: Response) => {
+    const redirect = sanitizeGuestRedirect(
+      typeof req.query.redirect === "string" ? req.query.redirect : undefined
+    );
     try {
-      const tokenResponse = await sdk.exchangeCodeForToken(code, state);
-      const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
-
-      if (!userInfo.openId) {
-        res.status(400).json({ error: "openId missing from user info" });
-        return;
-      }
+      const openId = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const name = `게스트-${openId.slice(-4)}`;
 
       await db.upsertUser({
-        openId: userInfo.openId,
-        name: userInfo.name || null,
-        email: userInfo.email ?? null,
-        loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+        openId,
+        name,
+        email: null,
+        loginMethod: "guest",
         lastSignedIn: new Date(),
       });
 
-      const sessionToken = await sdk.createSessionToken(userInfo.openId, {
-        name: userInfo.name || "",
+      const sessionToken = await sdk.createSessionToken(openId, {
+        name,
         expiresInMs: ONE_YEAR_MS,
       });
 
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
-      // Redirect back to the frontend origin (not just "/" which may resolve to the server)
-      const redirectTarget = frontendOrigin ? `${frontendOrigin}${returnPath}` : "/";
-      console.log("[OAuth] Redirecting to", redirectTarget);
-      res.redirect(302, redirectTarget);
+      // iOS Safari: HTTP 302 + Set-Cookie 동시 처리 시 쿠키가 무시되는 버그.
+      // HTML 응답 후 JS로 이동하면 쿠키가 먼저 저장된 뒤 navigate → 안정적.
+      const safeRedirect = JSON.stringify(redirect);
+      res.type("html").send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<script>window.location.replace(${safeRedirect});</script>
+</head><body></body></html>`);
     } catch (error) {
-      console.error("[OAuth] Callback failed", error);
-      const errorTarget = frontendOrigin ? `${frontendOrigin}/?error=auth_failed` : "/?error=auth_failed";
-      res.redirect(302, errorTarget);
+      console.error("[GuestAuth] Login failed", error);
+      res.type("html").send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<script>window.location.replace("/");</script>
+</head><body></body></html>`);
+    }
+  });
+
+  app.get("/api/auth/guest-login", async (req: Request, res: Response) => {
+    const redirect = sanitizeGuestRedirect(
+      typeof req.query.redirect === "string" ? req.query.redirect : undefined
+    );
+    try {
+      const openId = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const name = `게스트-${openId.slice(-4)}`;
+
+      await db.upsertUser({
+        openId,
+        name,
+        email: null,
+        loginMethod: "guest",
+        lastSignedIn: new Date(),
+      });
+
+      const sessionToken = await sdk.createSessionToken(openId, {
+        name,
+        expiresInMs: ONE_YEAR_MS,
+      });
+
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.redirect(302, redirect);
+    } catch (error) {
+      console.error("[GuestAuth] Login failed", error);
+      res.redirect(302, "/?error=guest_auth_failed");
     }
   });
 

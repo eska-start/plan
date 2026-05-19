@@ -5,6 +5,10 @@ import { toast } from "sonner";
 import { Car, Loader2, MapPin, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,6 +43,7 @@ function formatDT(dt?: string | null) {
 export default function RentalsTab({ tripId }: { tripId: number }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>(defaultForm);
   const utils = trpc.useUtils();
 
@@ -75,8 +80,10 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
   };
 
   const handleSubmit = () => {
-    if (editId) updateMutation.mutate({ id: editId, ...form });
-    else createMutation.mutate({ tripId, ...form });
+    const price = form.price.replace(/[^0-9.]/g, "") || undefined;
+    const payload = { ...form, price };
+    if (editId) updateMutation.mutate({ id: editId, ...payload });
+    else createMutation.mutate({ tripId, ...payload });
   };
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
@@ -111,7 +118,14 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <button onClick={() => openEdit(r)} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors">수정</button>
-                  <button onClick={() => deleteMutation.mutate({ id: r.id })} className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors">삭제</button>
+                  <button
+                    onClick={() => {
+                      setDeleteId(r.id);
+                    }}
+                    className="text-xs text-muted-foreground hover:text-destructive px-2 py-1 rounded-md hover:bg-destructive/10 transition-colors"
+                  >
+                    삭제
+                  </button>
                 </div>
               </div>
 
@@ -157,8 +171,7 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
             {/* OCR 자동 입력 */}
             <OcrUploadButton
-              uploadEndpoint="/api/upload-ocr"
-              extractEndpoint={async (url) => extractMutation.mutateAsync({ imageUrl: url })}
+              extractEndpoint={async (base64) => extractMutation.mutateAsync({ imageBase64: base64 })}
               onExtracted={(data) => {
                 setForm(f => ({
                   ...f,
@@ -231,6 +244,26 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>렌트카 삭제</AlertDialogTitle>
+            <AlertDialogDescription>이 렌트카를 삭제할까요?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteId == null) return;
+                deleteMutation.mutate({ id: deleteId });
+                setDeleteId(null);
+              }}
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

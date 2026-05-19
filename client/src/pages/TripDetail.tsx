@@ -1,42 +1,87 @@
 import { trpc } from "@/lib/trpc";
+import { TRPCClientError } from "@trpc/client";
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { Loader2, ArrowLeft, Plane, Car, Hotel, StickyNote, CalendarDays, BookOpen, Map, Users } from "lucide-react";
+import { Loader2, ArrowLeft, Plane, Hotel, CalendarDays, BookOpen, Map, Users, Download, Bot, LayoutDashboard, Wallet, ClipboardList, DollarSign, AlignLeft, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format, parseISO, differenceInDays, eachDayOfInterval } from "date-fns";
 import { ko } from "date-fns/locale";
+import OverviewTab from "./trip-tabs/OverviewTab";
 import FlightsTab from "./trip-tabs/FlightsTab";
-import RentalsTab from "./trip-tabs/RentalsTab";
-import AccommodationsTab from "./trip-tabs/AccommodationsTab";
-import MemosTab from "./trip-tabs/MemosTab";
+import StaysTab from "./trip-tabs/StaysTab";
 import ItineraryTab from "./trip-tabs/ItineraryTab";
+import ScheduleTab from "./trip-tabs/ScheduleTab";
 import DiaryTab from "./trip-tabs/DiaryTab";
+import MemosTab from "./trip-tabs/MemosTab";
 import MapTab from "./trip-tabs/MapTab";
+import BudgetTab from "./trip-tabs/BudgetTab";
+import ChecklistTab from "./trip-tabs/ChecklistTab";
+import ExchangeTab from "./trip-tabs/ExchangeTab";
 import { ShareDialog } from "@/components/ShareDialog";
+import { AiImportDialog } from "@/components/AiImportDialog";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { toast } from "sonner";
 
 const TABS = [
+  { id: "overview", label: "오버뷰", icon: LayoutDashboard },
+  { id: "journey", label: "타임라인", icon: CalendarDays },
+  { id: "schedule", label: "일정", icon: AlignLeft },
   { id: "flights", label: "항공편", icon: Plane },
-  { id: "rentals", label: "렌트카", icon: Car },
-  { id: "accommodations", label: "숙박", icon: Hotel },
-  { id: "memos", label: "메모", icon: StickyNote },
-  { id: "itinerary", label: "일정", icon: CalendarDays },
-  { id: "diary", label: "일기", icon: BookOpen },
+  { id: "stays", label: "숙박·이동", icon: Hotel },
   { id: "map", label: "지도", icon: Map },
+  { id: "budget", label: "예산", icon: Wallet },
+  { id: "exchange", label: "환율", icon: DollarSign },
+  { id: "checklist", label: "체크리스트", icon: ClipboardList },
+  { id: "memos", label: "메모", icon: StickyNote },
+  { id: "memory", label: "기억", icon: BookOpen },
 ];
 
 export default function TripDetail() {
   const params = useParams<{ id: string; tab?: string }>();
   const [, setLocation] = useLocation();
   const [shareOpen, setShareOpen] = useState(false);
+  const [aiImportOpen, setAiImportOpen] = useState(false);
   const tripId = parseInt(params.id);
-  const activeTab = params.tab || "flights";
+  const activeTab = params.tab || "overview";
+  const { user } = useAuth();
+  const isGuestUser = user?.loginMethod === "guest";
 
-  const { data: trip, isLoading } = trpc.trips.get.useQuery({ id: tripId });
+  const { data: trip, isLoading, error, refetch, isFetching } = trpc.trips.get.useQuery(
+    { id: tripId },
+    {
+      retry: 1,
+      retryDelay: 1_000,
+      refetchOnWindowFocus: true,
+    }
+  );
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const isUnauthorized = error instanceof TRPCClientError && error.data?.code === "UNAUTHORIZED";
+
+  // 데이터가 전혀 없고 에러인 경우만 에러 화면 노출 (기존 데이터가 있으면 화면 유지)
+  if (error && !trip) {
+    if (isUnauthorized) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+          <p className="text-muted-foreground text-sm">로그인이 필요합니다.</p>
+          <Button variant="outline" size="sm" onClick={() => setLocation("/")}>홈으로</Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-4">
+        <p className="text-muted-foreground text-sm text-center">서버 연결이 지연되고 있어요. 잠시 후 다시 시도해주세요.</p>
+        <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
+          {isFetching ? "다시 시도 중..." : "다시 시도"}
+        </Button>
       </div>
     );
   }
@@ -76,14 +121,40 @@ export default function TripDetail() {
               <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
               <span>내 여행</span>
             </button>
-            {/* 공유 버튼 */}
-            <button
-              onClick={() => setShareOpen(true)}
-              className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>공유</span>
-            </button>
+            <div className="flex items-center gap-3">
+              {/* AI 자동 입력 */}
+              <button
+                onClick={() => {
+                  if (isGuestUser) {
+                    toast.info("게스트는 AI 기능을 사용할 수 없어요. 로그인 후 이용해주세요.");
+                    return;
+                  }
+                  setAiImportOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
+              >
+                <Bot className="w-3.5 h-3.5" />
+                <span>AI 입력</span>
+              </button>
+              {/* 내보내기 버튼 */}
+              <a
+                href={`/api/trips/${tripId}/export`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>내보내기</span>
+              </a>
+              {/* 공유 버튼 */}
+              <button
+                onClick={() => setShareOpen(true)}
+                className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>공유</span>
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -141,22 +212,35 @@ export default function TripDetail() {
       </div>
 
       {/* ── Tab Content ── */}
-      <div className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-5 sm:py-6">
-        {activeTab === "flights" && <FlightsTab tripId={tripId} />}
-        {activeTab === "rentals" && <RentalsTab tripId={tripId} />}
-        {activeTab === "accommodations" && <AccommodationsTab tripId={tripId} />}
-        {activeTab === "memos" && <MemosTab tripId={tripId} />}
-        {activeTab === "itinerary" && <ItineraryTab tripId={tripId} tripDays={tripDays} />}
-        {activeTab === "diary" && <DiaryTab tripId={tripId} tripDays={tripDays} />}
+      <div
+        className={`flex-1 mx-auto w-full px-4 sm:px-6 py-5 sm:py-6 ${
+          activeTab === "map" ? "max-w-7xl" : activeTab === "journey" ? "max-w-6xl" : "max-w-5xl"
+        }`}
+      >
+        {activeTab === "overview" && <OverviewTab tripId={tripId} trip={trip} tripDays={tripDays} />}
+        {activeTab === "schedule" && <ScheduleTab tripId={tripId} tripDays={tripDays} />}
+        {activeTab === "journey" && <ItineraryTab tripId={tripId} tripDays={tripDays} isGuestUser={isGuestUser} />}
+        {activeTab === "flights" && <FlightsTab tripId={tripId} isGuestUser={isGuestUser} />}
+        {activeTab === "stays" && <StaysTab tripId={tripId} isGuestUser={isGuestUser} />}
         {activeTab === "map" && <MapTab tripId={tripId} tripDays={tripDays} />}
+        {activeTab === "budget" && <BudgetTab tripId={tripId} trip={trip} isGuestUser={isGuestUser} />}
+        {activeTab === "exchange" && <ExchangeTab tripId={tripId} trip={trip} />}
+        {activeTab === "checklist" && <ChecklistTab tripId={tripId} isGuestUser={isGuestUser} />}
+        {activeTab === "memos" && <MemosTab tripId={tripId} />}
+        {activeTab === "memory" && <DiaryTab tripId={tripId} tripDays={tripDays} />}
       </div>
 
-      {/* ── Share Dialog ── */}
       <ShareDialog
         tripId={tripId}
         tripName={trip.name}
         open={shareOpen}
         onOpenChange={setShareOpen}
+      />
+      <AiImportDialog
+        tripId={tripId}
+        open={aiImportOpen}
+        onOpenChange={setAiImportOpen}
+        onSaved={() => {}}
       />
     </div>
   );

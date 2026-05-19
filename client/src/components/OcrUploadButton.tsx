@@ -2,52 +2,61 @@ import { useRef, useState } from "react";
 import { Camera, FolderOpen, Loader2, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
-interface OcrUploadButtonProps {
-  onExtracted: (data: Record<string, string | null>) => void;
-  uploadEndpoint?: string;
-  extractEndpoint: (imageUrl: string) => Promise<Record<string, string | null>>;
+interface OcrUploadButtonProps<T extends Record<string, unknown>> {
+  onExtracted: (data: T) => void;
+  extractEndpoint: (imageBase64: string) => Promise<T>;
   label?: string;
+  disabled?: boolean;
+  onBlocked?: () => void;
 }
 
-/**
- * 사진 업로드 → 서버 OCR 추출 → 결과 콜백
- * - 카메라 촬영 (모바일)
- * - 파일 선택 (갤러리 / 데스크탑 파일)
- */
-export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진으로 자동 입력" }: OcrUploadButtonProps) {
+function resizeToBase64(file: File, maxPx = 1400, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxPx || height > maxPx) {
+        if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
+        else { width = Math.round(width * maxPx / height); height = maxPx; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+export function OcrUploadButton<T extends Record<string, unknown>>({ onExtracted, extractEndpoint, label = "사진으로 자동 입력", disabled = false, onBlocked }: OcrUploadButtonProps<T>) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
 
   const handleFile = async (file: File) => {
+    if (disabled) {
+      onBlocked?.();
+      return;
+    }
     if (!file.type.startsWith("image/")) {
       toast.error("이미지 파일만 업로드할 수 있습니다.");
       return;
     }
-    if (file.size > 16 * 1024 * 1024) {
-      toast.error("파일 크기는 16MB 이하여야 합니다.");
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("파일 크기는 20MB 이하여야 합니다.");
       return;
     }
 
     setLoading(true);
-    const objectUrl = URL.createObjectURL(file);
-    setPreview(objectUrl);
-
     try {
-      // 1. 서버에 이미지 업로드 (multipart)
-      const formData = new FormData();
-      formData.append("file", file);
-      const uploadRes = await fetch("/api/upload-ocr", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-      if (!uploadRes.ok) throw new Error("이미지 업로드 실패");
-      const { url } = await uploadRes.json() as { url: string };
-
-      // 2. LLM OCR 추출
-      const extracted = await extractEndpoint(url);
+      const base64 = await resizeToBase64(file);
+      setPreview(base64);
+      const extracted = await extractEndpoint(base64);
       onExtracted(extracted);
       toast.success("정보가 자동으로 입력되었습니다. 확인 후 수정해주세요.");
     } catch (e) {
@@ -66,23 +75,8 @@ export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진�
 
   return (
     <div className="mb-4 space-y-2">
-      {/* 숨겨진 인풋 - 카메라 전용 */}
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={onInputChange}
-      />
-      {/* 숨겨진 인풋 - 파일 선택 전용 (capture 없음) */}
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*,image/heic,image/heif"
-        className="hidden"
-        onChange={onInputChange}
-      />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onInputChange} />
+      <input ref={fileRef} type="file" accept="image/*,image/heic,image/heif" className="hidden" onChange={onInputChange} />
 
       {loading ? (
         <div className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 text-sm font-medium text-primary">
@@ -91,20 +85,23 @@ export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진�
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
-          {/* 카메라 촬영 버튼 */}
           <button
             type="button"
-            onClick={() => cameraRef.current?.click()}
+            onClick={() => {
+              if (disabled) { onBlocked?.(); return; }
+              cameraRef.current?.click();
+            }}
             className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-all text-sm font-medium text-primary"
           >
             <Camera className="w-4 h-4 shrink-0" />
             <span>카메라 촬영</span>
           </button>
-
-          {/* 파일 선택 버튼 */}
           <button
             type="button"
-            onClick={() => fileRef.current?.click()}
+            onClick={() => {
+              if (disabled) { onBlocked?.(); return; }
+              fileRef.current?.click();
+            }}
             className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-400 transition-all text-sm font-medium text-indigo-600"
           >
             <FolderOpen className="w-4 h-4 shrink-0" />
@@ -113,7 +110,6 @@ export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진�
         </div>
       )}
 
-      {/* AI 자동 입력 안내 */}
       {!loading && (
         <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
           <Sparkles className="w-3 h-3 text-primary/60" />
@@ -121,14 +117,9 @@ export function OcrUploadButton({ onExtracted, extractEndpoint, label = "사진�
         </p>
       )}
 
-      {/* 미리보기 */}
       {preview && !loading && (
         <div className="mt-1 relative inline-block">
-          <img
-            src={preview}
-            alt="업로드된 이미지"
-            className="h-20 w-auto rounded-lg object-cover border border-border shadow-sm"
-          />
+          <img src={preview} alt="업로드된 이미지" className="h-20 w-auto rounded-lg object-cover border border-border shadow-sm" />
           <button
             type="button"
             onClick={() => setPreview(null)}

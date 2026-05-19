@@ -88,7 +88,7 @@ declare global {
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
-function loadMapScript() {
+export function loadMapScript() {
   return new Promise(resolve => {
     if (window.google?.maps) {
       resolve(null);
