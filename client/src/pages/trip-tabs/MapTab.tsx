@@ -862,7 +862,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
         {/* 방문 순서 목록 */}
         {items && items.length > 0 && (
-          <div className="mt-5 lg:mt-0 lg:w-72 xl:w-80 lg:shrink-0">
+          <div className="mt-5 lg:mt-0 lg:w-96 xl:w-[26rem] lg:shrink-0">
             <div className="lg:border lg:border-border lg:rounded-2xl lg:bg-card lg:p-3 lg:max-h-[600px] lg:overflow-y-auto space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-foreground">
