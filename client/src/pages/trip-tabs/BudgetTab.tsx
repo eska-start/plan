@@ -296,7 +296,7 @@ export default function BudgetTab({ tripId, trip, tripDays, isGuestUser = false 
                 <button
                   onClick={() => setBudgetViewMode("ontrip")}
                   className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${budgetViewMode === "ontrip" ? "bg-white/20 text-white" : "text-white/50"}`}
-                >📍 현지</button>
+                >현지</button>
               </div>
               {budgetNum && <span className="text-xs text-white/50">{Math.round(budgetPct)}% 사용</span>}
             </div>
