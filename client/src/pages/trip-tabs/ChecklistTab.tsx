@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import { Plus, Trash2, Loader2, CheckSquare, Sparkles, FileText, Camera, X, Pencil, Check, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,75 @@ const GROUP_COLORS: Record<string, string> = {
   "옷·가방": "#FDE2D7",
   기타: "#FBEFCC",
 };
+
+const ChecklistItemRow = memo(function ChecklistItemRow({
+  item, isSelected, selectMode, editingId,
+  onToggle, onSelectToggle, onStartEdit, onDelete,
+}: {
+  item: { id: number; group: string; label: string; done: boolean };
+  isSelected: boolean; selectMode: boolean; editingId: number | null;
+  onToggle: (id: number, done: boolean) => void;
+  onSelectToggle: (id: number) => void;
+  onStartEdit: (id: number, label: string) => void;
+  onDelete: (id: number) => void;
+}) {
+  const [localDone, setLocalDone] = useState<boolean | null>(null);
+  const effectiveDone = localDone !== null ? localDone : item.done;
+  useEffect(() => { setLocalDone(null); }, [item.done]);
+
+  return (
+    <div
+      className={`flex items-center gap-3 px-4 py-3 transition-colors ${selectMode && isSelected ? "bg-destructive/5" : ""}`}
+      onClick={selectMode ? () => onSelectToggle(item.id) : undefined}
+    >
+      {selectMode ? (
+        <div className={`shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? "border-destructive bg-destructive" : "border-border"}`}>
+          {isSelected && (
+            <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 6l3 3 5-5"/>
+            </svg>
+          )}
+        </div>
+      ) : (
+        <button
+          onPointerDown={(e) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            if (editingId === item.id) return;
+            const newDone = !effectiveDone;
+            setLocalDone(newDone);
+            onToggle(item.id, newDone);
+          }}
+          className="shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors"
+          style={{
+            borderColor: effectiveDone ? "#7CC8B0" : undefined,
+            background: effectiveDone ? "#7CC8B0" : undefined,
+          }}
+        >
+          {effectiveDone && (
+            <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 6l3 3 5-5"/>
+            </svg>
+          )}
+        </button>
+      )}
+
+      <span className={`flex-1 text-sm ${effectiveDone && !selectMode ? "line-through text-muted-foreground" : isSelected ? "text-destructive font-medium" : "text-foreground"}`}>
+        {item.label}
+      </span>
+
+      {!selectMode && editingId !== item.id && (
+        <>
+          <button onClick={() => onStartEdit(item.id, item.label)} className="text-muted-foreground hover:text-primary shrink-0">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => onDelete(item.id)} className="text-muted-foreground hover:text-destructive shrink-0" style={{ opacity: 0.4 }}>
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </>
+      )}
+    </div>
+  );
+});
 
 export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
   const utils = trpc.useUtils();
@@ -335,43 +404,10 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
               <span className="text-xs text-muted-foreground">{groupDone}/{groupTotal}</span>
             </div>
             <div className="divide-y divide-border">
-              {(groupItems ?? []).map(item => {
-                const isSelected = selectedIds.has(item.id);
-                return (
-                <div key={item.id}
-                  className={`flex items-center gap-3 px-4 py-3 transition-colors ${selectMode && isSelected ? "bg-destructive/5" : ""}`}
-                  onClick={selectMode ? () => setSelectedIds(prev => {
-                    const next = new Set(prev);
-                    next.has(item.id) ? next.delete(item.id) : next.add(item.id);
-                    return next;
-                  }) : undefined}
-                >
-                  {selectMode ? (
-                    <div className={`shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? "border-destructive bg-destructive" : "border-border"}`}>
-                      {isSelected && (
-                        <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M2 6l3 3 5-5"/>
-                        </svg>
-                      )}
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => { if (editingId === item.id) return; toggle.mutate({ id: item.id, done: !item.done }); }}
-                      className="shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors"
-                      style={{
-                        borderColor: item.done ? "#7CC8B0" : undefined,
-                        background: item.done ? "#7CC8B0" : undefined,
-                      }}
-                    >
-                      {item.done && (
-                        <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M2 6l3 3 5-5"/>
-                        </svg>
-                      )}
-                    </button>
-                  )}
-
-                  {!selectMode && editingId === item.id ? (
+              {(groupItems ?? []).map(item => (
+                editingId === item.id ? (
+                  <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="w-5 h-5 shrink-0" />
                     <div className="flex flex-1 items-center gap-2">
                       <Input
                         autoFocus
@@ -383,29 +419,21 @@ export default function ChecklistTab({ tripId, isGuestUser = false }: Props) {
                       <button onClick={commitEdit} className="text-primary shrink-0"><Check className="w-4 h-4" /></button>
                       <button onClick={() => setEditingId(null)} className="text-muted-foreground shrink-0"><X className="w-4 h-4" /></button>
                     </div>
-                  ) : (
-                    <span className={`flex-1 text-sm ${item.done && !selectMode ? "line-through text-muted-foreground" : isSelected ? "text-destructive font-medium" : "text-foreground"}`}>
-                      {item.label}
-                    </span>
-                  )}
-
-                  {!selectMode && editingId !== item.id && (
-                    <>
-                      <button onClick={() => startEdit(item.id, item.label)} className="text-muted-foreground hover:text-primary shrink-0">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteItemId(item.id)}
-                        className="text-muted-foreground hover:text-destructive shrink-0"
-                        style={{ opacity: 0.4 }}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-                );
-              })}
+                  </div>
+                ) : (
+                  <ChecklistItemRow
+                    key={item.id}
+                    item={item}
+                    isSelected={selectedIds.has(item.id)}
+                    selectMode={selectMode}
+                    editingId={editingId}
+                    onToggle={(id, done) => toggle.mutate({ id, done })}
+                    onSelectToggle={id => setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; })}
+                    onStartEdit={startEdit}
+                    onDelete={setDeleteItemId}
+                  />
+                )
+              ))}
             </div>
           </div>
           </FadeIn>
