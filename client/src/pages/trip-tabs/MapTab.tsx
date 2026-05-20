@@ -242,7 +242,7 @@ function SortableVisitItem({
           <div className="flex items-center gap-1.5 min-w-0">
             <p className={`inline-flex items-center gap-1 text-sm font-medium truncate ${optimisticVisited ? "line-through text-muted-foreground" : "text-foreground"}`}>
               {isAccommodation && <Hotel className="w-3.5 h-3.5 shrink-0" />}
-              {item.placeName}
+              {item.placeName.replace(/^🏨\s*/, "")}
             </p>
             {isExcluded && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 border border-orange-200 shrink-0">제외</span>}
           </div>

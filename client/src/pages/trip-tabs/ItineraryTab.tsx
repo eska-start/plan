@@ -109,7 +109,7 @@ const ItineraryItemRow = memo(function ItineraryItemRow({
             className={`inline-flex items-center gap-1 text-sm font-semibold ${effectivelyVisited ? "line-through text-muted-foreground" : "text-foreground hover:text-blue-500"}`}
           >
             {item.sourceType === "accommodation" && <Hotel className="w-3.5 h-3.5 shrink-0" />}
-            {item.placeName}
+            {item.placeName.replace(/^🏨\s*/, "")}
           </a>
         </div>
         {item.address && (
