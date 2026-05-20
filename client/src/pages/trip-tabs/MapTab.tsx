@@ -58,6 +58,56 @@ const CATEGORIES = [
   { value: "shopping", label: "쇼핑" },
 ];
 
+function makeSvg(paths: string): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "12"); svg.setAttribute("height", "12");
+  svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "#6b7280"); svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round"); svg.setAttribute("stroke-linejoin", "round");
+  svg.style.flexShrink = "0";
+  svg.innerHTML = paths;
+  return svg;
+}
+function buildInfoWindowEl(item: { placeName: string; category?: string | null; visitTime?: string | null; address?: string | null; visited?: boolean | null }, idx: number, color: string): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "font-family:Inter,sans-serif;padding:6px 4px;min-width:160px;";
+
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight:700;font-size:13px;margin-bottom:4px;color:#1e293b;";
+  title.textContent = `${idx + 1}. ${item.placeName.replace(/^🏨\s*/, "")}`;
+  wrap.appendChild(title);
+
+  const cat = document.createElement("div");
+  cat.style.cssText = `font-size:11px;color:#64748b;background:${color}20;padding:2px 6px;border-radius:4px;display:inline-block;margin-bottom:4px;`;
+  cat.textContent = CATEGORY_LABELS[item.category ?? "place"] ?? "장소";
+  wrap.appendChild(cat);
+
+  if (item.visitTime) {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:4px;font-size:11px;color:#6b7280;margin-top:2px;";
+    row.appendChild(makeSvg('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 12"/>'));
+    row.appendChild(document.createTextNode(item.visitTime));
+    wrap.appendChild(row);
+  }
+
+  if (item.address) {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:4px;font-size:11px;color:#6b7280;margin-top:2px;";
+    row.appendChild(makeSvg('<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>'));
+    row.appendChild(document.createTextNode(item.address));
+    wrap.appendChild(row);
+  }
+
+  if (item.visited) {
+    const v = document.createElement("div");
+    v.style.cssText = "font-size:11px;color:#22c55e;margin-top:4px;font-weight:600;";
+    v.textContent = "✓ 방문 완료";
+    wrap.appendChild(v);
+  }
+
+  return wrap;
+}
+
 type ItemType = {
   id: number;
   placeName: string;
@@ -698,7 +748,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       const marker = new window.google.maps.marker.AdvancedMarkerElement({ map: mapRef.current!, position: latlng, title: item.placeName, content: el });
       const infoWindow = new window.google.maps.InfoWindow({
-        content: `<div style="font-family:Inter,sans-serif;padding:6px 4px;min-width:160px;"><div style="font-weight:700;font-size:13px;margin-bottom:4px;color:#1e293b;">${idx + 1}. ${item.placeName.replace(/^🏨\s*/, "")}</div><div style="font-size:11px;color:#64748b;background:${color}20;padding:2px 6px;border-radius:4px;display:inline-block;margin-bottom:4px;">${CATEGORY_LABELS[item.category ?? "place"] ?? "장소"}</div>${item.visitTime ? `<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#6b7280;margin-top:2px;"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 12"/></svg>${item.visitTime}</div>` : ""}${item.address ? `<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#6b7280;margin-top:2px;"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>${item.address}</div>` : ""}${item.visited ? `<div style="font-size:11px;color:#22c55e;margin-top:4px;font-weight:600;">✓ 방문 완료</div>` : ""}</div>`,
+        content: buildInfoWindowEl(item, idx, color),
       });
       marker.addListener("click", () => infoWindow.open({ anchor: marker, map: mapRef.current! }));
       markersRef.current.push(marker);
