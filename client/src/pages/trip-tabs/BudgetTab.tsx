@@ -251,13 +251,12 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
   async function handleSave() {
     if (!form.amount || isNaN(parseFloat(form.amount))) return;
     let krwAmount: string | undefined;
+    const amt = parseFloat(form.amount);
     if (form.currency === "KRW") {
-      krwAmount = form.amount;
-    } else {
-      try {
-        const rate = await fetchHistoricalRate(form.currency, "KRW", form.date);
-        if (rate) krwAmount = String(Math.round(parseFloat(form.amount) * rate));
-      } catch { /* 환율 조회 실패 시 미저장 */ }
+      krwAmount = String(Math.round(amt));
+    } else if (krwRates) {
+      const rate = krwRates[form.currency.toLowerCase()];
+      if (rate) krwAmount = String(Math.round(amt / rate));
     }
     await createExpense.mutateAsync({ tripId, date: form.date, amount: form.amount, currency: form.currency, category: form.category, description: form.description, paidBefore: form.paidBefore, krwAmount });
     setForm({ date: format(new Date(), "yyyy-MM-dd"), amount: "", currency, category: "기타", description: "", paidBefore: false });
@@ -507,7 +506,10 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
             </div>
             <div className="space-y-1">
               <Label className="text-xs">통화</Label>
-              <select className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}>
+              <select className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={form.currency} onChange={e => {
+                setForm(f => ({ ...f, currency: e.target.value }));
+                if (e.target.value !== "KRW" && !krwRates) fetchRates("KRW").then(r => setKrwRates(r)).catch(() => {});
+              }}>
                 {CURRENCIES.map(c => <option key={c} value={c}>{CURRENCY_FLAGS[c] ?? ""} {c}</option>)}
               </select>
             </div>
