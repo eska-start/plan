@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { useState, useRef, useEffect } from "react";
 import { format, parseISO } from "date-fns";
 import { ko } from "date-fns/locale";
-import { Plus, Wallet, TrendingUp, PiggyBank, Trash2, X, Loader2, Camera, FileText, Sparkles, RefreshCw, Image as ImageIcon, Pencil } from "lucide-react";
+import { Plus, Wallet, TrendingUp, PiggyBank, Trash2, X, Loader2, Camera, FileText, Sparkles, RefreshCw, Image as ImageIcon, Pencil, MapPin, Plane } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -304,12 +304,12 @@ export default function BudgetTab({ tripId, trip, tripDays, isGuestUser = false 
             <p className="text-xs text-white/50 mb-3">{budgetViewMode === "ontrip" ? `현지 지출 ${onTrip.length}건 · 원화 환산` : "원화 환산 합계"}</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-xl bg-white/5 p-2.5">
-                <p className="text-[10px] text-white/50 mb-0.5">✈️ 사전 지출</p>
+                <p className="text-[10px] text-white/50 mb-0.5 flex items-center gap-1"><Plane className="w-3 h-3" />사전 지출</p>
                 <p className="text-sm font-semibold text-white">₩{fmt(Math.round(preTripKrw))}</p>
                 <p className="text-[10px] text-white/40">{preTrip.length}건</p>
               </div>
               <div className="rounded-xl bg-white/5 p-2.5">
-                <p className="text-[10px] text-white/50 mb-0.5">📍 현지 지출</p>
+                <p className="text-[10px] text-white/50 mb-0.5 flex items-center gap-1"><MapPin className="w-3 h-3" />현지 지출</p>
                 <p className="text-sm font-semibold text-white">₩{fmt(Math.round(onTripKrw))}</p>
                 <p className="text-[10px] text-white/40">{onTrip.length}건</p>
               </div>
@@ -580,8 +580,8 @@ export default function BudgetTab({ tripId, trip, tripDays, isGuestUser = false 
       {/* Expense list tabs */}
       {(expenses ?? []).length > 0 && (
         <div className="flex gap-1 p-1 bg-muted rounded-xl">
-          <button onClick={() => setListTab("ontrip")} className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${listTab === "ontrip" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>📍 현지 지출 {onTrip.length > 0 && `(${onTrip.length})`}</button>
-          <button onClick={() => setListTab("pretrip")} className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${listTab === "pretrip" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>✈️ 사전 지출 {preTrip.length > 0 && `(${preTrip.length})`}</button>
+          <button onClick={() => setListTab("ontrip")} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${listTab === "ontrip" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}><MapPin className="w-3 h-3" />현지 지출{onTrip.length > 0 && ` (${onTrip.length})`}</button>
+          <button onClick={() => setListTab("pretrip")} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${listTab === "pretrip" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}><Plane className="w-3 h-3" />사전 지출{preTrip.length > 0 && ` (${preTrip.length})`}</button>
         </div>
       )}
 
