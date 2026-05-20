@@ -6,7 +6,7 @@ import { ko } from "date-fns/locale";
 import {
   MapPin, Navigation, Loader2, CheckCircle2, GripVertical,
   Plus, Sparkles, FileText, Camera, FolderOpen, X, Pencil, Trash2, Circle, Map as MapIcon,
-  EyeOff, RotateCcw,
+  EyeOff, RotateCcw, Clock, StickyNote, Car, PersonStanding,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -248,8 +248,8 @@ function SortableVisitItem({
               <MapPin className="w-3 h-3 shrink-0" /><span className="truncate">{item.address}</span>
             </p>
           )}
-          {item.visitTime && <p className="text-xs text-muted-foreground mt-0.5">⏰ {item.visitTime}</p>}
-          {item.memo && <p className="text-xs text-muted-foreground mt-0.5 truncate">📝 {item.memo}</p>}
+          {item.visitTime && <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1"><Clock className="w-3 h-3 shrink-0" />{item.visitTime}</p>}
+          {item.memo && <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1 truncate"><StickyNote className="w-3 h-3 shrink-0" />{item.memo}</p>}
         </button>
 
         {/* 우측 액션 */}
@@ -647,7 +647,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       if (!posA || !posB || !times || !mapRef.current) continue;
       const badge = document.createElement("div");
       badge.style.cssText = "background:rgba(255,255,255,0.96);border:1px solid #e2e8f0;border-radius:10px;padding:3px 8px;font-size:10px;font-family:Inter,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.12);white-space:nowrap;display:flex;gap:6px;align-items:center;pointer-events:none;";
-      badge.innerHTML = `<span>🚶 ${times.walk ?? "—"}</span><span style="color:#cbd5e1">|</span><span>🚗 ${times.drive ?? "—"}</span>`;
+      badge.innerHTML = `<span style="color:#64748b;font-weight:500;">도보 ${times.walk ?? "—"}</span><span style="color:#cbd5e1">|</span><span style="color:#64748b;font-weight:500;">차 ${times.drive ?? "—"}</span>`;
       badgeMarkersRef.current.set(key, new window.google.maps.marker.AdvancedMarkerElement({
         map, content: badge, zIndex: 0,
         position: new window.google.maps.LatLng((posA.lat() + posB.lat()) / 2, (posA.lng() + posB.lng()) / 2),
@@ -1136,7 +1136,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                               <div className="flex items-center gap-2 px-2 py-1">
                                 <div className="h-px flex-1 bg-border" />
                                 <span className="text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
-                                  <span>🚶 {times.walk ?? "—"}</span><span className="text-border">|</span><span>🚗 {times.drive ?? "—"}</span>
+                                  <PersonStanding className="w-3 h-3" /><span>{times.walk ?? "—"}</span><span className="text-border">|</span><Car className="w-3 h-3" /><span>{times.drive ?? "—"}</span>
                                 </span>
                                 <div className="h-px flex-1 bg-border" />
                               </div>
