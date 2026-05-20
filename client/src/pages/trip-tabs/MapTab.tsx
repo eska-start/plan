@@ -698,7 +698,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       const marker = new window.google.maps.marker.AdvancedMarkerElement({ map: mapRef.current!, position: latlng, title: item.placeName, content: el });
       const infoWindow = new window.google.maps.InfoWindow({
-        content: `<div style="font-family:Inter,sans-serif;padding:6px 4px;min-width:160px;"><div style="font-weight:700;font-size:13px;margin-bottom:4px;color:#1e293b;">${idx + 1}. ${item.placeName}</div><div style="font-size:11px;color:#64748b;background:${color}20;padding:2px 6px;border-radius:4px;display:inline-block;margin-bottom:4px;">${CATEGORY_LABELS[item.category ?? "place"] ?? "장소"}</div>${item.visitTime ? `<div style="font-size:11px;color:#6b7280;margin-top:2px;">⏰ ${item.visitTime}</div>` : ""}${item.address ? `<div style="font-size:11px;color:#6b7280;margin-top:2px;">📍 ${item.address}</div>` : ""}${item.visited ? `<div style="font-size:11px;color:#22c55e;margin-top:4px;font-weight:600;">✓ 방문 완료</div>` : ""}</div>`,
+        content: `<div style="font-family:Inter,sans-serif;padding:6px 4px;min-width:160px;"><div style="font-weight:700;font-size:13px;margin-bottom:4px;color:#1e293b;">${idx + 1}. ${item.placeName.replace(/^🏨\s*/, "")}</div><div style="font-size:11px;color:#64748b;background:${color}20;padding:2px 6px;border-radius:4px;display:inline-block;margin-bottom:4px;">${CATEGORY_LABELS[item.category ?? "place"] ?? "장소"}</div>${item.visitTime ? `<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#6b7280;margin-top:2px;"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 12"/></svg>${item.visitTime}</div>` : ""}${item.address ? `<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#6b7280;margin-top:2px;"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>${item.address}</div>` : ""}${item.visited ? `<div style="font-size:11px;color:#22c55e;margin-top:4px;font-weight:600;">✓ 방문 완료</div>` : ""}</div>`,
       });
       marker.addListener("click", () => infoWindow.open({ anchor: marker, map: mapRef.current! }));
       markersRef.current.push(marker);
@@ -1199,7 +1199,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="h-px flex-1 bg-border" />
                           <span className="text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
-                            <span>🚶 {times.walk ?? "—"}</span><span className="text-border">|</span><span>🚗 {times.drive ?? "—"}</span>
+                            <PersonStanding className="w-3 h-3" /><span>{times.walk ?? "—"}</span><span className="text-border">|</span><Car className="w-3 h-3" /><span>{times.drive ?? "—"}</span>
                           </span>
                           <div className="h-px flex-1 bg-border" />
                         </div>
