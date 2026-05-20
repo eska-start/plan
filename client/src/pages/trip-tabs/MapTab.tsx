@@ -699,20 +699,11 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       const posB = positionsByIdRef.current.get(b.id);
       if (!posA || !posB || !times || !mapRef.current) continue;
       const badge = document.createElement("div");
-      badge.style.cssText = "background:rgba(255,255,255,0.93);border:1px solid #e2e8f0;border-radius:10px;padding:3px 8px;font-size:10px;font-family:Inter,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.12);white-space:nowrap;display:flex;gap:6px;align-items:center;pointer-events:none;";
-      badge.innerHTML = `<span style="color:#64748b;font-weight:500;">도보 ${times.walk ?? "—"}</span><span style="color:#cbd5e1">|</span><span style="color:#64748b;font-weight:500;">차 ${times.drive ?? "—"}</span>`;
-      // 경로선 수직 방향으로 뱃지를 옆으로 오프셋 → 핀 번호 가림 방지
-      const midLat = (posA.lat() + posB.lat()) / 2;
-      const midLng = (posA.lng() + posB.lng()) / 2;
-      const dLat = posB.lat() - posA.lat();
-      const dLng = posB.lng() - posA.lng();
-      const len = Math.sqrt(dLat * dLat + dLng * dLng) || 1;
-      const OFFSET = 0.00022;
-      const perpLat = (-dLng / len) * OFFSET;
-      const perpLng = (dLat / len) * OFFSET;
+      badge.style.cssText = "background:rgba(255,255,255,0.72);border:1px solid rgba(226,232,240,0.7);border-radius:8px;padding:2px 6px;font-size:9px;font-family:Inter,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,0.08);white-space:nowrap;display:flex;gap:4px;align-items:center;pointer-events:none;backdrop-filter:blur(4px);";
+      badge.innerHTML = `<span style="color:#94a3b8;font-weight:500;">도보 ${times.walk ?? "—"}</span><span style="color:#e2e8f0">|</span><span style="color:#94a3b8;font-weight:500;">차 ${times.drive ?? "—"}</span>`;
       badgeMarkersRef.current.set(key, new window.google.maps.marker.AdvancedMarkerElement({
         map, content: badge, zIndex: 0,
-        position: new window.google.maps.LatLng(midLat + perpLat, midLng + perpLng),
+        position: new window.google.maps.LatLng((posA.lat() + posB.lat()) / 2, (posA.lng() + posB.lng()) / 2),
       }));
     }
   }, [drawRoute]); // eslint-disable-line react-hooks/exhaustive-deps
