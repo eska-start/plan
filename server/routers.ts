@@ -943,6 +943,8 @@ const expensesRouter = router({
       currency: z.string().optional(),
       category: z.string().optional(),
       description: z.string().optional(),
+      paidBefore: z.boolean().optional(),
+      krwAmount: z.string().optional(),
     }))
     .mutation(({ ctx, input }) => createExpense({ ...input, userId: ctx.user.id })),
 
@@ -954,6 +956,8 @@ const expensesRouter = router({
       currency: z.string().optional(),
       category: z.string().optional(),
       description: z.string().optional(),
+      paidBefore: z.boolean().optional(),
+      krwAmount: z.string().optional(),
     }))
     .mutation(({ ctx, input }) => {
       const { id, ...data } = input;

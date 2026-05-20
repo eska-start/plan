@@ -208,6 +208,8 @@ export const expenses = mysqlTable("expenses", {
   currency: varchar("currency", { length: 10 }).default("KRW"),
   category: varchar("category", { length: 30 }).notNull().default("기타"),
   description: text("description"),
+  paidBefore: boolean("paidBefore").default(false),
+  krwAmount: decimal("krwAmount", { precision: 12, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

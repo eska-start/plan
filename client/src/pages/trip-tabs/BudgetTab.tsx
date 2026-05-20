@@ -89,10 +89,10 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
   const [krwRates, setKrwRates] = useState<Record<string, number> | null>(null);
   const [deleteExpenseId, setDeleteExpenseId] = useState<number | null>(null);
   const [editExpenseId, setEditExpenseId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ date: "", amount: "", currency: "KRW", category: "기타" as Category, description: "" });
+  const [editForm, setEditForm] = useState({ date: "", amount: "", currency: "KRW", category: "기타" as Category, description: "", paidBefore: false });
 
   const [form, setForm] = useState({
-    date: format(new Date(), "yyyy-MM-dd"), amount: "", currency, category: "기타" as Category, description: "",
+    date: format(new Date(), "yyyy-MM-dd"), amount: "", currency, category: "기타" as Category, description: "", paidBefore: false,
   });
   const [budgetForm, setBudgetForm] = useState({ budget: trip.budget ?? "", budgetCurrency: currency });
 
@@ -126,13 +126,15 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
 
   const totalSpent = (expenses ?? []).reduce((s, e) =>
     s + toBase(parseFloat(e.amount ?? "0"), e.currency ?? currency), 0);
-  const totalSpentKrw = (expenses ?? []).reduce((s, e) => {
+  function expToKrw(e: { amount?: string | null; currency?: string | null; krwAmount?: string | null }): number {
+    if (e.krwAmount) return parseFloat(e.krwAmount);
     const amount = parseFloat(e.amount ?? "0");
-    const expCurrency = e.currency ?? currency;
-    if (expCurrency === "KRW") return s + amount;
-    const rate = krwRates?.[expCurrency.toLowerCase()];
-    return rate ? s + (amount / rate) : s + amount;
-  }, 0);
+    const cur = (e.currency ?? currency).toUpperCase();
+    if (cur === "KRW") return amount;
+    const rate = krwRates?.[cur.toLowerCase()];
+    return rate ? amount / rate : amount;
+  }
+  const totalSpentKrw = (expenses ?? []).reduce((s, e) => s + expToKrw(e), 0);
   const krwOnlyTotal = (expenses ?? []).reduce((s, e) => {
     const expCurrency = (e.currency ?? currency).toUpperCase();
     return expCurrency === "KRW" ? s + parseFloat(e.amount ?? "0") : s;
@@ -149,6 +151,16 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([cur, amount]) => `${CURRENCY_FLAGS[cur] ?? ""}${cur} ${fmt(Math.round(amount), cur)}`)
     .join(" · ");
+
+  // 사전 지출 / 현지 지출 분리
+  const preTrip = (expenses ?? []).filter(e => e.paidBefore);
+  const onTrip  = (expenses ?? []).filter(e => !e.paidBefore);
+  function sumKrw(list: typeof expenses) {
+    return (list ?? []).reduce((s, e) => s + expToKrw(e), 0);
+  }
+  const preTripKrw = sumKrw(preTrip);
+  const onTripKrw  = sumKrw(onTrip);
+
   const remaining = budgetNum != null ? budgetNum - totalSpent : null;
   const budgetPct = budgetNum && budgetNum > 0 ? Math.min((totalSpent / budgetNum) * 100, 100) : 0;
 
@@ -238,8 +250,17 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
 
   async function handleSave() {
     if (!form.amount || isNaN(parseFloat(form.amount))) return;
-    await createExpense.mutateAsync({ tripId, date: form.date, amount: form.amount, currency: form.currency, category: form.category, description: form.description });
-    setForm({ date: format(new Date(), "yyyy-MM-dd"), amount: "", currency, category: "기타", description: "" });
+    let krwAmount: string | undefined;
+    if (form.currency === "KRW") {
+      krwAmount = form.amount;
+    } else {
+      try {
+        const rate = await fetchHistoricalRate(form.currency, "KRW", form.date);
+        if (rate) krwAmount = String(Math.round(parseFloat(form.amount) * rate));
+      } catch { /* 환율 조회 실패 시 미저장 */ }
+    }
+    await createExpense.mutateAsync({ tripId, date: form.date, amount: form.amount, currency: form.currency, category: form.category, description: form.description, paidBefore: form.paidBefore, krwAmount });
+    setForm({ date: format(new Date(), "yyyy-MM-dd"), amount: "", currency, category: "기타", description: "", paidBefore: false });
     setShowAdd(false);
   }
 
@@ -278,46 +299,59 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
         </FadeIn>
       </div>
 
-      {/* 통화별 지출 breakdown */}
+      {/* 사전/현지 지출 breakdown */}
       {(expenses ?? []).length > 0 && (
         <FadeIn delay={0.1}>
           <div className="rounded-2xl border bg-card p-4 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground tracking-wide">통화별 지출</p>
-            <div className="space-y-2">
-              {/* 현지통화별 행 */}
+            <p className="text-xs font-semibold text-muted-foreground tracking-wide">지출 구분</p>
+            <div className="grid grid-cols-2 gap-3">
+              {/* 사전 지출 */}
+              <div className="rounded-xl bg-muted/50 p-3 space-y-1">
+                <p className="text-[11px] text-muted-foreground font-medium">✈️ 사전 지출</p>
+                <p className="text-base font-bold">₩{fmt(Math.round(preTripKrw))}</p>
+                <p className="text-[10px] text-muted-foreground">{preTrip.length}건</p>
+              </div>
+              {/* 현지 지출 */}
+              <div className="rounded-xl bg-muted/50 p-3 space-y-1">
+                <p className="text-[11px] text-muted-foreground font-medium">📍 현지 지출</p>
+                <p className="text-base font-bold">₩{fmt(Math.round(onTripKrw))}</p>
+                <p className="text-[10px] text-muted-foreground">{onTrip.length}건</p>
+              </div>
+            </div>
+            {/* 통화별 합계 */}
+            <div className="space-y-1.5 pt-1 border-t">
+              <p className="text-[11px] text-muted-foreground font-medium pt-1">통화별</p>
               {Object.entries(localCurrencyTotals)
                 .sort(([a], [b]) => a.localeCompare(b))
                 .map(([cur, amount]) => {
-                  const rate = krwRates?.[cur.toLowerCase()];
-                  const krwEq = rate ? Math.round(amount / rate) : null;
+                  const krwEq = (() => {
+                    const stored = (expenses ?? []).filter(e => (e.currency ?? currency).toUpperCase() === cur).reduce((s, e) => {
+                      if (e.krwAmount) return s + parseFloat(e.krwAmount);
+                      const rate = krwRates?.[cur.toLowerCase()];
+                      return rate ? s + parseFloat(e.amount ?? "0") / rate : s;
+                    }, 0);
+                    return Math.round(stored);
+                  })();
                   return (
                     <div key={cur} className="flex items-center justify-between">
-                      <span className="text-sm text-foreground">
-                        {CURRENCY_FLAGS[cur] ?? ""} {cur}
-                      </span>
+                      <span className="text-sm">{CURRENCY_FLAGS[cur] ?? ""} {cur}</span>
                       <div className="text-right">
                         <span className="text-sm font-semibold">{fmt(Math.round(amount), cur)}</span>
-                        {krwEq != null && (
-                          <span className="text-xs text-muted-foreground ml-2">≈ ₩{fmt(krwEq)}</span>
-                        )}
+                        <span className="text-xs text-muted-foreground ml-2">≈ ₩{fmt(krwEq)}</span>
                       </div>
                     </div>
                   );
                 })}
-              {/* 원화 행 */}
               {krwOnlyTotal > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-foreground">🇰🇷 KRW</span>
+                  <span className="text-sm">🇰🇷 KRW</span>
                   <span className="text-sm font-semibold">₩{fmt(Math.round(krwOnlyTotal))}</span>
                 </div>
               )}
-              {/* 구분선 + 합계 */}
-              {(Object.keys(localCurrencyTotals).length > 0 || krwOnlyTotal > 0) && (
-                <div className="border-t pt-2 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground font-medium">원화 환산 합계</span>
-                  <span className="text-sm font-bold text-primary">₩{fmt(Math.round(totalSpentKrw))}</span>
-                </div>
-              )}
+              <div className="border-t pt-1.5 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground font-medium">합계</span>
+                <span className="text-sm font-bold text-primary">₩{fmt(Math.round(totalSpentKrw))}</span>
+              </div>
             </div>
           </div>
         </FadeIn>
@@ -479,6 +513,18 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
             </div>
           </div>
           <div className="space-y-1"><Label className="text-xs">설명 (선택)</Label><Input placeholder="예: 라멘, 교통카드 충전" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, paidBefore: false }))}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${!form.paidBefore ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border"}`}
+            >📍 현지 지출</button>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, paidBefore: true }))}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.paidBefore ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border"}`}
+            >✈️ 사전 지출</button>
+          </div>
           <Button size="sm" onClick={handleSave} disabled={createExpense.isPending}>저장</Button>
         </div>
       )}
