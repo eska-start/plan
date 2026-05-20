@@ -133,6 +133,10 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
     const rate = krwRates?.[expCurrency.toLowerCase()];
     return rate ? s + (amount / rate) : s + amount;
   }, 0);
+  const krwOnlyTotal = (expenses ?? []).reduce((s, e) => {
+    const expCurrency = (e.currency ?? currency).toUpperCase();
+    return expCurrency === "KRW" ? s + parseFloat(e.amount ?? "0") : s;
+  }, 0);
   const localCurrencyTotals = (expenses ?? []).reduce<Record<string, number>>((acc, e) => {
     const expCurrency = (e.currency ?? currency).toUpperCase();
     if (expCurrency === "KRW") return acc;
@@ -276,6 +280,51 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
           </div>
         </FadeIn>
       </div>
+
+      {/* 통화별 지출 breakdown */}
+      {(expenses ?? []).length > 0 && (
+        <FadeIn delay={0.1}>
+          <div className="rounded-2xl border bg-card p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground tracking-wide">통화별 지출</p>
+            <div className="space-y-2">
+              {/* 현지통화별 행 */}
+              {Object.entries(localCurrencyTotals)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([cur, amount]) => {
+                  const rate = krwRates?.[cur.toLowerCase()];
+                  const krwEq = rate ? Math.round(amount / rate) : null;
+                  return (
+                    <div key={cur} className="flex items-center justify-between">
+                      <span className="text-sm text-foreground">
+                        {CURRENCY_FLAGS[cur] ?? ""} {cur}
+                      </span>
+                      <div className="text-right">
+                        <span className="text-sm font-semibold">{fmt(Math.round(amount), cur)}</span>
+                        {krwEq != null && (
+                          <span className="text-xs text-muted-foreground ml-2">≈ ₩{fmt(krwEq)}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              {/* 원화 행 */}
+              {krwOnlyTotal > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-foreground">🇰🇷 KRW</span>
+                  <span className="text-sm font-semibold">₩{fmt(Math.round(krwOnlyTotal))}</span>
+                </div>
+              )}
+              {/* 구분선 + 합계 */}
+              {(Object.keys(localCurrencyTotals).length > 0 || krwOnlyTotal > 0) && (
+                <div className="border-t pt-2 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground font-medium">원화 환산 합계</span>
+                  <span className="text-sm font-bold text-primary">₩{fmt(Math.round(totalSpentKrw))}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </FadeIn>
+      )}
 
       {/* Budget progress */}
       {budgetNum != null && (
