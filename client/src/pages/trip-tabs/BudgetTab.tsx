@@ -520,12 +520,12 @@ export default function BudgetTab({ tripId, trip, tripDays, isGuestUser = false 
               type="button"
               onClick={() => setForm(f => ({ ...f, paidBefore: false }))}
               className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${!form.paidBefore ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border"}`}
-            >📍 현지 지출</button>
+            >현지 지출</button>
             <button
               type="button"
               onClick={() => setForm(f => ({ ...f, paidBefore: true }))}
               className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.paidBefore ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border"}`}
-            >✈️ 사전 지출</button>
+            >사전 지출</button>
           </div>
           <Button size="sm" onClick={handleSave} disabled={createExpense.isPending}>저장</Button>
         </div>
@@ -711,12 +711,12 @@ export default function BudgetTab({ tripId, trip, tripDays, isGuestUser = false 
                 type="button"
                 onClick={() => setEditForm(f => ({ ...f, paidBefore: false }))}
                 className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${!editForm.paidBefore ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border"}`}
-              >📍 현지 지출</button>
+              >현지 지출</button>
               <button
                 type="button"
                 onClick={() => setEditForm(f => ({ ...f, paidBefore: true }))}
                 className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${editForm.paidBefore ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border"}`}
-              >✈️ 사전 지출</button>
+              >사전 지출</button>
             </div>
           </div>
           <div className="flex gap-2 mt-4">
