@@ -223,7 +223,7 @@ export default function TripDetail() {
         {activeTab === "flights" && <FlightsTab tripId={tripId} isGuestUser={isGuestUser} />}
         {activeTab === "stays" && <StaysTab tripId={tripId} isGuestUser={isGuestUser} />}
         {activeTab === "map" && <MapTab tripId={tripId} tripDays={tripDays} />}
-        {activeTab === "budget" && <BudgetTab tripId={tripId} trip={trip} isGuestUser={isGuestUser} />}
+        {activeTab === "budget" && <BudgetTab tripId={tripId} trip={trip} tripDays={tripDays} isGuestUser={isGuestUser} />}
         {activeTab === "exchange" && <ExchangeTab tripId={tripId} trip={trip} />}
         {activeTab === "checklist" && <ChecklistTab tripId={tripId} isGuestUser={isGuestUser} />}
         {activeTab === "memos" && <MemosTab tripId={tripId} />}

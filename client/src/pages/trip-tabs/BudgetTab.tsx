@@ -19,7 +19,7 @@ interface Trip {
   id: number; name: string;
   budget?: string | null; budgetCurrency?: string | null;
 }
-interface Props { tripId: number; trip: Trip; isGuestUser?: boolean; }
+interface Props { tripId: number; trip: Trip; tripDays?: Date[]; isGuestUser?: boolean; }
 
 const CATEGORIES = ["항공", "숙박", "식비", "교통", "쇼핑", "액티비티", "기타"] as const;
 type Category = typeof CATEGORIES[number];
@@ -56,7 +56,7 @@ type AiPreviewItem = {
   krwAmount?: number; rateUsed?: number; selected: boolean;
 };
 
-export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) {
+export default function BudgetTab({ tripId, trip, tripDays, isGuestUser = false }: Props) {
   const utils = trpc.useUtils();
   const currency = trip.budgetCurrency ?? "KRW";
   const budgetNum = trip.budget ? parseFloat(trip.budget) : null;
@@ -90,6 +90,8 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
   const [deleteExpenseId, setDeleteExpenseId] = useState<number | null>(null);
   const [editExpenseId, setEditExpenseId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ date: "", amount: "", currency: "KRW", category: "기타" as Category, description: "", paidBefore: false });
+  const [listTab, setListTab] = useState<"ontrip" | "pretrip">("ontrip");
+  const tripStartStr = tripDays?.[0] ? format(tripDays[0], "yyyy-MM-dd") : null;
 
   const [form, setForm] = useState({
     date: format(new Date(), "yyyy-MM-dd"), amount: "", currency, category: "기타" as Category, description: "", paidBefore: false,
@@ -170,8 +172,9 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
     catTotals[cat] = (catTotals[cat] ?? 0) + toBase(parseFloat(e.amount ?? "0"), e.currency ?? currency);
   });
 
+  const filteredExpenses = (expenses ?? []).filter(e => listTab === "pretrip" ? e.paidBefore : !e.paidBefore);
   const byDate: Record<string, typeof expenses> = {};
-  (expenses ?? []).forEach(e => { const d = e.date ?? ""; if (!byDate[d]) byDate[d] = []; byDate[d]!.push(e); });
+  filteredExpenses.forEach(e => { const d = e.date ?? ""; if (!byDate[d]) byDate[d] = []; byDate[d]!.push(e); });
   const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
 
   // Convert AI-extracted expenses with exchange rates
@@ -242,7 +245,9 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
       const desc = p.krwAmount && p.origCurrency !== "KRW"
         ? `${p.description}${p.description ? " " : ""}(${CURRENCY_FLAGS[p.origCurrency] ?? ""}${p.origCurrency} ${p.origAmount.toLocaleString()})`
         : p.description;
-      await createExpense.mutateAsync({ tripId, date: p.date, amount: String(p.amount), currency: p.currency, category: p.category, description: desc });
+      const paidBefore = tripStartStr ? p.date < tripStartStr : false;
+      const krwAmount = p.krwAmount ? String(p.krwAmount) : (p.currency === "KRW" ? String(p.amount) : undefined);
+      await createExpense.mutateAsync({ tripId, date: p.date, amount: String(p.amount), currency: p.currency, category: p.category, description: desc, paidBefore, krwAmount });
     }
     toast.success(`${toSave.length}개 지출이 추가됐습니다.`);
     setAiPreview([]); setAiMode(null); setAiText("");
@@ -271,102 +276,81 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
   return (
     <div className="space-y-5">
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <FadeIn delay={0}>
-          <div className="rounded-2xl border bg-card p-4 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-xs sm:text-[13px] text-muted-foreground"><Wallet className="w-3.5 h-3.5" /> 계획 예산</div>
-            <p className="text-lg sm:text-xl font-semibold break-all">{budgetNum != null ? fmt(budgetNum, currency) : "—"}</p>
-            <p className="text-xs text-muted-foreground">{currency}</p>
+      <div className="space-y-3">
+        {/* 메인 지출 카드 */}
+        <FadeIn>
+          <div className="rounded-2xl border bg-[#142033] p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5 text-xs text-white/60"><TrendingUp className="w-3.5 h-3.5" /> 총 지출</div>
+              {budgetNum && <span className="text-xs text-white/50">{Math.round(budgetPct)}% 사용</span>}
+            </div>
+            <p className="text-2xl font-bold text-white mb-1">₩{fmt(Math.round(totalSpentKrw))}</p>
+            <p className="text-xs text-white/50 mb-3">원화 환산 합계</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-white/5 p-2.5">
+                <p className="text-[10px] text-white/50 mb-0.5">✈️ 사전 지출</p>
+                <p className="text-sm font-semibold text-white">₩{fmt(Math.round(preTripKrw))}</p>
+                <p className="text-[10px] text-white/40">{preTrip.length}건</p>
+              </div>
+              <div className="rounded-xl bg-white/5 p-2.5">
+                <p className="text-[10px] text-white/50 mb-0.5">📍 현지 지출</p>
+                <p className="text-sm font-semibold text-white">₩{fmt(Math.round(onTripKrw))}</p>
+                <p className="text-[10px] text-white/40">{onTrip.length}건</p>
+              </div>
+            </div>
           </div>
         </FadeIn>
-        <FadeIn delay={0.07}>
-          <div className="rounded-2xl border bg-[#142033] p-4 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-xs sm:text-[13px] text-white/60"><TrendingUp className="w-3.5 h-3.5" /> 현재 지출</div>
-            <p className="text-lg sm:text-xl font-semibold text-white break-all">₩{fmt(Math.round(totalSpentKrw))}</p>
-            <p className="text-[11px] text-white/60 break-all">원화 환산 합계</p>
-            <p className="text-xs text-white/50">{budgetNum ? `${Math.round(budgetPct)}% 사용` : ""}</p>
-          </div>
-        </FadeIn>
-        <FadeIn delay={0.14}>
-          <div className="rounded-2xl border bg-card p-4 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-xs sm:text-[13px] text-muted-foreground"><PiggyBank className="w-3.5 h-3.5" /> 잔여 예산</div>
-            <p className={`text-lg sm:text-xl font-semibold break-all ${remaining != null && remaining < 0 ? "text-[#F18A6A]" : ""}`}>
-              {remaining != null ? fmt(Math.round(remaining), currency) : "—"}
-            </p>
-            <p className="text-xs text-muted-foreground">{currency}</p>
-          </div>
-        </FadeIn>
+        {/* 계획 예산 / 잔여 예산 */}
+        {budgetNum != null && (
+          <FadeIn delay={0.05}>
+            <div className="rounded-2xl border bg-card p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">계획 예산</p>
+                    <p className="text-sm font-semibold">{fmt(budgetNum, currency)} {currency}</p>
+                  </div>
+                  <div className="w-px h-8 bg-border" />
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">잔여 예산</p>
+                    <p className={`text-sm font-semibold ${remaining != null && remaining < 0 ? "text-[#F18A6A]" : ""}`}>
+                      {remaining != null ? `${fmt(Math.round(remaining), currency)} ${currency}` : "—"}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs text-muted-foreground">{Math.round(budgetPct)}%</span>
+              </div>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all" style={{ width: `${budgetPct}%`, background: budgetPct > 90 ? "#F18A6A" : "#5BB4D8" }} />
+              </div>
+            </div>
+          </FadeIn>
+        )}
       </div>
 
-      {/* 사전/현지 지출 breakdown */}
-      {(expenses ?? []).length > 0 && (
-        <FadeIn delay={0.1}>
-          <div className="rounded-2xl border bg-card p-4 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground tracking-wide">지출 구분</p>
-            <div className="grid grid-cols-2 gap-3">
-              {/* 사전 지출 */}
-              <div className="rounded-xl bg-muted/50 p-3 space-y-1">
-                <p className="text-[11px] text-muted-foreground font-medium">✈️ 사전 지출</p>
-                <p className="text-base font-bold">₩{fmt(Math.round(preTripKrw))}</p>
-                <p className="text-[10px] text-muted-foreground">{preTrip.length}건</p>
-              </div>
-              {/* 현지 지출 */}
-              <div className="rounded-xl bg-muted/50 p-3 space-y-1">
-                <p className="text-[11px] text-muted-foreground font-medium">📍 현지 지출</p>
-                <p className="text-base font-bold">₩{fmt(Math.round(onTripKrw))}</p>
-                <p className="text-[10px] text-muted-foreground">{onTrip.length}건</p>
-              </div>
-            </div>
-            {/* 통화별 합계 */}
-            <div className="space-y-1.5 pt-1 border-t">
-              <p className="text-[11px] text-muted-foreground font-medium pt-1">통화별</p>
-              {Object.entries(localCurrencyTotals)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([cur, amount]) => {
-                  const krwEq = (() => {
-                    const stored = (expenses ?? []).filter(e => (e.currency ?? currency).toUpperCase() === cur).reduce((s, e) => {
-                      if (e.krwAmount) return s + parseFloat(e.krwAmount);
-                      const rate = krwRates?.[cur.toLowerCase()];
-                      return rate ? s + parseFloat(e.amount ?? "0") / rate : s;
-                    }, 0);
-                    return Math.round(stored);
-                  })();
-                  return (
-                    <div key={cur} className="flex items-center justify-between">
-                      <span className="text-sm">{CURRENCY_FLAGS[cur] ?? ""} {cur}</span>
-                      <div className="text-right">
-                        <span className="text-sm font-semibold">{fmt(Math.round(amount), cur)}</span>
-                        <span className="text-xs text-muted-foreground ml-2">≈ ₩{fmt(krwEq)}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              {krwOnlyTotal > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">🇰🇷 KRW</span>
-                  <span className="text-sm font-semibold">₩{fmt(Math.round(krwOnlyTotal))}</span>
+      {/* 통화별 합계 */}
+      {Object.keys(localCurrencyTotals).length > 0 && (
+        <FadeIn delay={0.08}>
+          <div className="rounded-2xl border bg-card p-4 space-y-1.5">
+            <p className="text-xs font-semibold text-muted-foreground">통화별</p>
+            {Object.entries(localCurrencyTotals).sort(([a],[b]) => a.localeCompare(b)).map(([cur, amount]) => {
+              const krwEq = Math.round((expenses ?? []).filter(e => (e.currency ?? currency).toUpperCase() === cur).reduce((s,e) => s + expToKrw(e), 0));
+              return (
+                <div key={cur} className="flex items-center justify-between">
+                  <span className="text-sm">{CURRENCY_FLAGS[cur] ?? ""} {cur}</span>
+                  <div className="text-right">
+                    <span className="text-sm font-semibold">{fmt(Math.round(amount), cur)}</span>
+                    <span className="text-xs text-muted-foreground ml-2">≈ ₩{fmt(krwEq)}</span>
+                  </div>
                 </div>
-              )}
-              <div className="border-t pt-1.5 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium">합계</span>
-                <span className="text-sm font-bold text-primary">₩{fmt(Math.round(totalSpentKrw))}</span>
+              );
+            })}
+            {krwOnlyTotal > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm">🇰🇷 KRW</span>
+                <span className="text-sm font-semibold">₩{fmt(Math.round(krwOnlyTotal))}</span>
               </div>
-            </div>
-          </div>
-        </FadeIn>
-      )}
-
-      {/* Budget progress */}
-      {budgetNum != null && (
-        <FadeIn>
-          <div className="rounded-2xl border bg-card p-4 space-y-2">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>지출 {fmt(Math.round(totalSpent), currency)} {currency}</span>
-              <span>{remaining != null ? `잔여 ${fmt(Math.round(remaining), currency)} ${currency}` : ""}</span>
-            </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all" style={{ width: `${budgetPct}%`, background: budgetPct > 90 ? "#F18A6A" : "#5BB4D8" }} />
-            </div>
+            )}
           </div>
         </FadeIn>
       )}
@@ -577,6 +561,14 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
         </FadeIn>
       )}
 
+      {/* Expense list tabs */}
+      {(expenses ?? []).length > 0 && (
+        <div className="flex gap-1 p-1 bg-muted rounded-xl">
+          <button onClick={() => setListTab("ontrip")} className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${listTab === "ontrip" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>📍 현지 지출 {onTrip.length > 0 && `(${onTrip.length})`}</button>
+          <button onClick={() => setListTab("pretrip")} className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${listTab === "pretrip" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>✈️ 사전 지출 {preTrip.length > 0 && `(${preTrip.length})`}</button>
+        </div>
+      )}
+
       {/* Expense list */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
@@ -648,6 +640,7 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
                                 currency: exp.currency ?? currency,
                                 category: (exp.category ?? "기타") as Category,
                                 description: exp.description ?? "",
+                                paidBefore: exp.paidBefore ?? false,
                               });
                             }}
                             className="text-muted-foreground hover:text-foreground ml-1 shrink-0"
@@ -697,6 +690,18 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
                 </select>
               </div>
             </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEditForm(f => ({ ...f, paidBefore: false }))}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${!editForm.paidBefore ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border"}`}
+              >📍 현지 지출</button>
+              <button
+                type="button"
+                onClick={() => setEditForm(f => ({ ...f, paidBefore: true }))}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${editForm.paidBefore ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border"}`}
+              >✈️ 사전 지출</button>
+            </div>
           </div>
           <div className="flex gap-2 mt-4">
             <Button variant="outline" className="flex-1" onClick={() => setEditExpenseId(null)}>취소</Button>
@@ -705,7 +710,15 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
               disabled={updateExpense.isPending}
               onClick={() => {
                 if (editExpenseId == null || !editForm.amount) return;
-                updateExpense.mutate({ id: editExpenseId, date: editForm.date, amount: editForm.amount, currency: editForm.currency, category: editForm.category, description: editForm.description || undefined });
+                let krwAmount: string | undefined;
+                const amt = parseFloat(editForm.amount);
+                if (editForm.currency === "KRW") {
+                  krwAmount = String(Math.round(amt));
+                } else if (krwRates) {
+                  const rate = krwRates[editForm.currency.toLowerCase()];
+                  if (rate) krwAmount = String(Math.round(amt / rate));
+                }
+                updateExpense.mutate({ id: editExpenseId, date: editForm.date, amount: editForm.amount, currency: editForm.currency, category: editForm.category, description: editForm.description || undefined, paidBefore: editForm.paidBefore, krwAmount });
               }}
             >
               {updateExpense.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
