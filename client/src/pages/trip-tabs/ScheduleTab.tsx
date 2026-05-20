@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Loader2, MapPin, CheckCircle2, Circle, Plus,
   Utensils, Camera, ShoppingBag, Pencil, Trash2, CalendarDays,
-  Sparkles, FileText, X, FolderOpen,
+  Sparkles, FileText, X, FolderOpen, Map as MapIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -91,9 +91,14 @@ const ScheduleItemRow = memo(function ScheduleItemRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap mb-0.5">
           <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: s.bg, color: s.color }}>{s.label}</span>
-          <span className={`text-sm font-semibold ${effectivelyVisited ? "line-through text-muted-foreground" : "text-foreground"}`}>
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`text-sm font-semibold ${effectivelyVisited ? "line-through text-muted-foreground" : "text-foreground hover:text-blue-500"}`}
+          >
             {item.placeName}
-          </span>
+          </a>
         </div>
         {item.address && (
           <p className="text-xs text-muted-foreground flex items-center gap-1 truncate"><MapPin className="w-3 h-3 shrink-0" />{item.address}</p>
@@ -104,7 +109,7 @@ const ScheduleItemRow = memo(function ScheduleItemRow({
       </div>
 
       <div className="flex gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
-        <a href={mapsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-blue-500 transition-colors"><MapPin className="w-3.5 h-3.5" /></a>
+        <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-blue-500 transition-colors" title="구글 지도에서 보기"><MapIcon className="w-3.5 h-3.5" /></a>
         {item.sourceType !== "accommodation" ? (
           <>
             <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
