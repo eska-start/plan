@@ -91,13 +91,17 @@ const ScheduleItemRow = memo(function ScheduleItemRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap mb-0.5">
           <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: s.bg, color: s.color }}>{s.label}</span>
+          <span className={`text-sm font-semibold ${effectivelyVisited ? "line-through text-muted-foreground" : "text-foreground"}`}>
+            {item.placeName}
+          </span>
           <a
             href={mapsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={`text-sm font-semibold ${effectivelyVisited ? "line-through text-muted-foreground" : "text-foreground hover:text-blue-500"}`}
+            onClick={e => e.stopPropagation()}
+            className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-500 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded-full transition-colors shrink-0"
           >
-            {item.placeName}
+            <MapPin className="w-2.5 h-2.5" />지도
           </a>
         </div>
         {item.address && (
