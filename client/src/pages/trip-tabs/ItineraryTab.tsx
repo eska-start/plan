@@ -560,9 +560,9 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
                 }}
               >
                 {/* Date column */}
-                <div className="w-[70px] sm:w-[78px] md:w-[86px] shrink-0 pt-5 pr-2 sm:pr-3 md:pr-4 text-right">
+                <div className="w-[56px] sm:w-[62px] shrink-0 pt-5 pr-2 sm:pr-3 text-right">
                   <div
-                    className="font-display text-[2.2rem] font-semibold leading-none text-foreground"
+                    className="font-display text-[1.9rem] font-semibold leading-none text-foreground"
                     style={{
                       opacity: visible ? 1 : 0,
                       transform: visible ? "translateX(0)" : "translateX(-8px)",
@@ -581,7 +581,7 @@ export default function ItineraryTab({ tripId, tripDays, isGuestUser = false }: 
                 </div>
 
                 {/* Timeline right column */}
-                <div className="relative flex-1 min-w-0 pl-4 sm:pl-5 pt-4 pb-2">
+                <div className="relative flex-1 min-w-0 pl-3 sm:pl-4 pt-4 pb-2">
                   {/* Animated vertical line */}
                   <div
                     className="absolute left-0 top-0 bottom-0 w-px bg-border"
