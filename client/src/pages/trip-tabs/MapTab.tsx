@@ -6,7 +6,7 @@ import { ko } from "date-fns/locale";
 import {
   MapPin, Navigation, Loader2, CheckCircle2, GripVertical,
   Plus, Sparkles, FileText, Camera, FolderOpen, X, Pencil, Trash2, Circle, Map as MapIcon,
-  EyeOff, RotateCcw, Clock, StickyNote, Car, PersonStanding,
+  EyeOff, RotateCcw, Clock, StickyNote, Car, PersonStanding, Hotel,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -279,7 +279,7 @@ function SortableVisitItem({
             </>
           )}
           {isAccommodation && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium"><Hotel className="w-3 h-3" />숙박</span>
           )}
         </div>
       </div>

@@ -146,7 +146,7 @@ const ItineraryItemRow = memo(function ItineraryItemRow({
             </button>
           </>
         ) : (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium"><Hotel className="w-3 h-3" />숙박</span>
         )}
       </div>
     </div>

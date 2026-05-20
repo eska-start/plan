@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Loader2, MapPin, CheckCircle2, Circle, Plus,
   Utensils, Camera, ShoppingBag, Pencil, Trash2, CalendarDays,
-  Sparkles, FileText, X, FolderOpen, Map as MapIcon,
+  Sparkles, FileText, X, FolderOpen, Map as MapIcon, Hotel,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -116,7 +116,7 @@ const ScheduleItemRow = memo(function ScheduleItemRow({
             <button onClick={() => onDelete(item.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
           </>
         ) : (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium">숙박 연동</span>
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 font-medium"><Hotel className="w-3 h-3" />숙박</span>
         )}
       </div>
     </div>
