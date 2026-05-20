@@ -173,7 +173,10 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 mb-0.5">
                         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: s.bg, color: s.color }}>{s.label}</span>
-                        <p className="text-sm font-semibold truncate">{item.placeName}</p>
+                        <p className="inline-flex items-center gap-1 text-sm font-semibold truncate">
+                          {item.sourceType === "accommodation" && <Hotel className="w-3.5 h-3.5 shrink-0 text-amber-600" />}
+                          {item.placeName.replace(/^🏨\s*/, "")}
+                        </p>
                       </div>
                       {(item.address ?? item.memo) && <p className="text-xs text-muted-foreground truncate">{item.address ?? item.memo}</p>}
                     </div>
