@@ -161,9 +161,9 @@ async function syncAccommodationToItinerary(
       const dateStr = format(d, "yyyy-MM-dd");
       let label = "";
       let visitTime: string | undefined;
-      if (i === 0) { label = `🏨 체크인 — ${name}`; visitTime = checkInTime ?? undefined; }
-      else if (i === days.length - 1) { label = `🏨 체크아웃 — ${name}`; visitTime = checkOutTime ?? undefined; }
-      else label = `🏨 숙박 — ${name}`;
+      if (i === 0) { label = `체크인 — ${name}`; visitTime = checkInTime ?? undefined; }
+      else if (i === days.length - 1) { label = `체크아웃 — ${name}`; visitTime = checkOutTime ?? undefined; }
+      else label = `숙박 — ${name}`;
       await createItineraryItem({
         tripId,
         userId,

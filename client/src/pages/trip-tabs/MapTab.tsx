@@ -240,7 +240,10 @@ function SortableVisitItem({
           onClick={() => onFocusMap(item)}
         >
           <div className="flex items-center gap-1.5 min-w-0">
-            <p className={`text-sm font-medium truncate ${optimisticVisited ? "line-through text-muted-foreground" : "text-foreground"}`}>{item.placeName}</p>
+            <p className={`inline-flex items-center gap-1 text-sm font-medium truncate ${optimisticVisited ? "line-through text-muted-foreground" : "text-foreground"}`}>
+              {isAccommodation && <Hotel className="w-3.5 h-3.5 shrink-0" />}
+              {item.placeName}
+            </p>
             {isExcluded && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 border border-orange-200 shrink-0">제외</span>}
           </div>
           {item.address && (
@@ -671,7 +674,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       } else if (item.address) {
         latlng = await geocodeAddress(`addr:${item.address}`, item.address);
       } else if (item.placeName) {
-        const geocodeName = item.placeName.replace(/^🏨\s*(체크인|체크아웃|숙박)\s*[—\-]\s*/, "").trim() || item.placeName;
+        const geocodeName = item.placeName.replace(/^(체크인|체크아웃|숙박)\s*[—\-]\s*/, "").trim() || item.placeName;
         latlng = await geocodeAddress(`name:${geocodeName}`, geocodeName);
       }
       if (latlng) positions.push({ item, latlng });
