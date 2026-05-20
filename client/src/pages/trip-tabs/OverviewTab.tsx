@@ -199,7 +199,7 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
                   <button
                     onClick={() => setBudgetViewMode("ontrip")}
                     className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${budgetViewMode === "ontrip" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
-                  >📍현지</button>
+                  >현지</button>
                 </div>
               </div>
               <button onClick={() => setLocation(`/trips/${tripId}/budget`)} className="text-xs text-primary flex items-center gap-1 hover:underline">자세히 <ArrowRight className="w-3 h-3" /></button>
