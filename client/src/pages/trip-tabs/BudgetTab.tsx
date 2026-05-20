@@ -91,6 +91,13 @@ export default function BudgetTab({ tripId, trip, tripDays, isGuestUser = false 
   const [editExpenseId, setEditExpenseId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ date: "", amount: "", currency: "KRW", category: "기타" as Category, description: "", paidBefore: false });
   const [listTab, setListTab] = useState<"ontrip" | "pretrip">("ontrip");
+  const [budgetViewMode, setBudgetViewModeState] = useState<"total" | "ontrip">(() => {
+    try { return (localStorage.getItem(`budget-view-${tripId}`) as "total" | "ontrip") ?? "total"; } catch { return "total"; }
+  });
+  function setBudgetViewMode(mode: "total" | "ontrip") {
+    setBudgetViewModeState(mode);
+    try { localStorage.setItem(`budget-view-${tripId}`, mode); } catch {}
+  }
   const tripStartStr = tripDays?.[0] ? format(tripDays[0], "yyyy-MM-dd") : null;
 
   const [form, setForm] = useState({
@@ -281,11 +288,20 @@ export default function BudgetTab({ tripId, trip, tripDays, isGuestUser = false 
         <FadeIn>
           <div className="rounded-2xl border bg-[#142033] p-4">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-1.5 text-xs text-white/60"><TrendingUp className="w-3.5 h-3.5" /> 총 지출</div>
+              <div className="flex gap-0.5 bg-white/10 rounded-lg p-0.5">
+                <button
+                  onClick={() => setBudgetViewMode("total")}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${budgetViewMode === "total" ? "bg-white/20 text-white" : "text-white/50"}`}
+                >총 지출</button>
+                <button
+                  onClick={() => setBudgetViewMode("ontrip")}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${budgetViewMode === "ontrip" ? "bg-white/20 text-white" : "text-white/50"}`}
+                >📍 현지</button>
+              </div>
               {budgetNum && <span className="text-xs text-white/50">{Math.round(budgetPct)}% 사용</span>}
             </div>
-            <p className="text-2xl font-bold text-white mb-1">₩{fmt(Math.round(totalSpentKrw))}</p>
-            <p className="text-xs text-white/50 mb-3">원화 환산 합계</p>
+            <p className="text-2xl font-bold text-white mb-1">₩{fmt(Math.round(budgetViewMode === "ontrip" ? onTripKrw : totalSpentKrw))}</p>
+            <p className="text-xs text-white/50 mb-3">{budgetViewMode === "ontrip" ? `현지 지출 ${onTrip.length}건 · 원화 환산` : "원화 환산 합계"}</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-xl bg-white/5 p-2.5">
                 <p className="text-[10px] text-white/50 mb-0.5">✈️ 사전 지출</p>

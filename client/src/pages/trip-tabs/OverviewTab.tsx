@@ -53,6 +53,13 @@ function ProgressCard({ icon, label, value, sub, pct, tint }: { icon: React.Reac
 export default function OverviewTab({ tripId, trip, tripDays }: Props) {
   const [, setLocation] = useLocation();
   const [krwRates, setKrwRates] = useState<Record<string, number> | null>(null);
+  const [budgetViewMode, setBudgetViewModeState] = useState<"total" | "ontrip">(() => {
+    try { return (localStorage.getItem(`budget-view-${tripId}`) as "total" | "ontrip") ?? "total"; } catch { return "total"; }
+  });
+  function setBudgetViewMode(mode: "total" | "ontrip") {
+    setBudgetViewModeState(mode);
+    try { localStorage.setItem(`budget-view-${tripId}`, mode); } catch {}
+  }
   const queryOptions = { staleTime: 30_000, refetchOnWindowFocus: false } as const;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -102,8 +109,19 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
   const totalSpent = (expenses ?? []).reduce((s, e) =>
     s + toBase(parseFloat(e.amount ?? "0"), e.currency ?? budgetCurrency), 0);
   const safeTotalSpent = Number.isFinite(totalSpent) ? totalSpent : 0;
+  function expToKrw(e: { amount?: string | null; currency?: string | null; krwAmount?: string | null }): number {
+    if (e.krwAmount) return parseFloat(e.krwAmount);
+    const amount = parseFloat(e.amount ?? "0");
+    const cur = (e.currency ?? budgetCurrency).toUpperCase();
+    if (cur === "KRW") return amount;
+    const rate = krwRates?.[cur.toLowerCase()];
+    return rate ? amount / rate : amount;
+  }
+  const onTripExpenses = (expenses ?? []).filter(e => !e.paidBefore);
+  const onTripKrw = onTripExpenses.reduce((s, e) => s + expToKrw(e), 0);
+  const displaySpent = budgetViewMode === "ontrip" ? onTripKrw : safeTotalSpent;
   const budgetNum = trip.budget ? parseFloat(trip.budget) : null;
-  const budgetPct = budgetNum && budgetNum > 0 ? Math.min((safeTotalSpent / budgetNum) * 100, 100) : 0;
+  const budgetPct = budgetNum && budgetNum > 0 ? Math.min((displaySpent / budgetNum) * 100, 100) : 0;
   const checkDone = (checklist ?? []).filter(i => i.done).length;
   const checkTotal = (checklist ?? []).length;
   const nightsTotal = (accommodations ?? []).reduce((sum, a) => {
@@ -171,14 +189,26 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
           {/* Budget */}
           <div className="rounded-2xl border bg-card p-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-display text-base font-semibold">예산 현황</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-display text-base font-semibold">예산 현황</h3>
+                <div className="flex gap-0.5 bg-muted rounded-lg p-0.5">
+                  <button
+                    onClick={() => setBudgetViewMode("total")}
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${budgetViewMode === "total" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+                  >총</button>
+                  <button
+                    onClick={() => setBudgetViewMode("ontrip")}
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${budgetViewMode === "ontrip" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+                  >📍현지</button>
+                </div>
+              </div>
               <button onClick={() => setLocation(`/trips/${tripId}/budget`)} className="text-xs text-primary flex items-center gap-1 hover:underline">자세히 <ArrowRight className="w-3 h-3" /></button>
             </div>
             {budgetNum != null ? (
               <div className="space-y-2">
                 <div className="flex items-end justify-between">
                   <div>
-                    <p className="font-display text-xl font-semibold">{fmt(Math.round(safeTotalSpent))}</p>
+                    <p className="font-display text-xl font-semibold">{fmt(Math.round(displaySpent))}</p>
                     <p className="text-xs text-muted-foreground">/ {fmt(budgetNum)} {budgetCurrency}</p>
                   </div>
                   <p className="text-lg font-semibold" style={{ color: budgetPct > 90 ? "#F18A6A" : "#5BB4D8" }}>{Math.round(budgetPct)}%</p>
@@ -235,7 +265,7 @@ export default function OverviewTab({ tripId, trip, tripDays }: Props) {
           <ProgressCard icon={<Plane className="w-4 h-4" />} label="항공편" value={`${(flights ?? []).length}편`} sub="등록된 항공편" pct={(flights ?? []).length > 0 ? 100 : 0} tint="#5BB4D8" />
           <ProgressCard icon={<Hotel className="w-4 h-4" />} label="숙박" value={`${nightsTotal}박`} sub={`${(accommodations ?? []).length}곳 예약`} pct={(accommodations ?? []).length > 0 ? 100 : 0} tint="#7CC8B0" />
           <ProgressCard icon={<CheckSquare className="w-4 h-4" />} label="준비물" value={`${checkDone}/${checkTotal}`} sub={checkDone === checkTotal && checkTotal > 0 ? "모두 완료!" : `${checkTotal - checkDone}개 남음`} pct={checkTotal > 0 ? (checkDone / checkTotal) * 100 : 0} tint="#F18A6A" />
-          <ProgressCard icon={<Wallet className="w-4 h-4" />} label="예산" value={budgetNum != null ? `${Math.round(budgetPct)}%` : `${fmt(Math.round(safeTotalSpent))}`} sub={budgetNum != null ? `${fmt(Math.round(safeTotalSpent))} 사용` : `${fmt(Math.round(safeTotalSpent))} ${budgetCurrency}`} pct={budgetPct} tint="#F2C75A" />
+          <ProgressCard icon={<Wallet className="w-4 h-4" />} label="예산" value={budgetNum != null ? `${Math.round(budgetPct)}%` : `${fmt(Math.round(displaySpent))}`} sub={budgetNum != null ? `${fmt(Math.round(displaySpent))} 사용` : `${fmt(Math.round(displaySpent))} ${budgetCurrency}`} pct={budgetPct} tint="#F2C75A" />
         </div>
       </FadeIn>
     </div>
