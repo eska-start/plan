@@ -109,11 +109,16 @@ requestAnimationFrame(applyPlanLogBranding);
 
 const splash = document.getElementById("planlog-splash");
 if (splash) {
-  setTimeout(() => {
-    splash.classList.add("is-hiding");
+  if (sessionStorage.getItem("splash-shown")) {
+    splash.remove();
+  } else {
+    sessionStorage.setItem("splash-shown", "1");
     setTimeout(() => {
-      splash.remove();
-      requestAnimationFrame(applyPlanLogBranding);
-    }, 320);
-  }, 2200);
+      splash.classList.add("is-hiding");
+      setTimeout(() => {
+        splash.remove();
+        requestAnimationFrame(applyPlanLogBranding);
+      }, 320);
+    }, 2200);
+  }
 }
