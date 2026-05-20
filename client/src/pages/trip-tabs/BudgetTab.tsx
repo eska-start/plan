@@ -262,12 +262,9 @@ export default function BudgetTab({ tripId, trip, isGuestUser = false }: Props) 
         <FadeIn delay={0.07}>
           <div className="rounded-2xl border bg-[#142033] p-4 space-y-1.5">
             <div className="flex items-center gap-1.5 text-xs sm:text-[13px] text-white/60"><TrendingUp className="w-3.5 h-3.5" /> 현재 지출</div>
-            <p className="text-lg sm:text-xl font-semibold text-white break-all">{fmt(Math.round(totalSpentKrw), "KRW")}</p>
-            <p className="text-[11px] text-white/60 break-all">원화 합계 · ₩{fmt(Math.round(totalSpentKrw), "KRW")}</p>
-            <p className="text-[10px] text-white/50 break-all">
-              현지통화 합계 · {localCurrencySummary || "없음"}
-            </p>
-            <p className="text-xs text-white/50">{budgetNum ? `${Math.round(budgetPct)}% 사용` : "KRW 기준"}</p>
+            <p className="text-lg sm:text-xl font-semibold text-white break-all">₩{fmt(Math.round(totalSpentKrw))}</p>
+            <p className="text-[11px] text-white/60 break-all">원화 환산 합계</p>
+            <p className="text-xs text-white/50">{budgetNum ? `${Math.round(budgetPct)}% 사용` : ""}</p>
           </div>
         </FadeIn>
         <FadeIn delay={0.14}>
