@@ -94,15 +94,6 @@ const ScheduleItemRow = memo(function ScheduleItemRow({
           <span className={`text-sm font-semibold ${effectivelyVisited ? "line-through text-muted-foreground" : "text-foreground"}`}>
             {item.placeName}
           </span>
-          <a
-            href={mapsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
-            className="inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-500 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded-full transition-colors shrink-0"
-          >
-            <MapPin className="w-2.5 h-2.5" />지도
-          </a>
         </div>
         {item.address && (
           <p className="text-xs text-muted-foreground flex items-center gap-1 truncate"><MapPin className="w-3 h-3 shrink-0" />{item.address}</p>
@@ -113,6 +104,7 @@ const ScheduleItemRow = memo(function ScheduleItemRow({
       </div>
 
       <div className="flex gap-1 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
+        <a href={mapsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-blue-500 transition-colors"><MapPin className="w-3.5 h-3.5" /></a>
         {item.sourceType !== "accommodation" ? (
           <>
             <button onClick={() => onEdit(item)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
