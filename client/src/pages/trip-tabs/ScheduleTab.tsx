@@ -292,7 +292,7 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
             <CalendarDays className="w-4 h-4 text-primary" />
             <span className="text-sm font-semibold">날짜 선택</span>
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex gap-2 overflow-x-auto py-1 scrollbar-none">
             {tripDays.map((day, i) => {
               const dateStr = format(day, "yyyy-MM-dd");
               const isSelected = i === selectedIdx;
