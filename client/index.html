@@ -16,36 +16,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet" />
-    <style>
-      @keyframes planlog-screen-in { 0% { opacity: 0; } 100% { opacity: 1; } }
-      @keyframes planlog-card-in { 0% { opacity: 0; transform: translateY(18px) scale(.96); filter: blur(8px); } 100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
-      @keyframes planlog-logo-in { 0% { opacity: 0; transform: translateY(18px) scale(.84); } 58% { opacity: 1; transform: translateY(-7px) scale(1.06); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
-      @keyframes planlog-text-in { 0% { opacity: 0; transform: translateY(12px); letter-spacing: .04em; } 100% { opacity: 1; transform: translateY(0); letter-spacing: -.04em; } }
-      @keyframes planlog-shine { 0% { transform: translateX(-185%) rotate(18deg); opacity: 0; } 35% { opacity: .42; } 100% { transform: translateX(185%) rotate(18deg); opacity: 0; } }
-      .planlog-splash { position: fixed; inset: 0; z-index: 9999; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 35%, rgba(59,130,246,.13), transparent 32%), linear-gradient(145deg, #f8fbff 0%, #eef6ff 48%, #ecfdf5 100%); font-family: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: #0f172a; animation: planlog-screen-in .45s ease both; overflow: hidden; transition: opacity .32s ease, visibility .32s ease; }
-      .planlog-splash.is-hiding { opacity: 0; visibility: hidden; pointer-events: none; }
-      .planlog-splash-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 20px; animation: planlog-card-in .7s cubic-bezier(.2,.85,.2,1) both; }
-      .planlog-splash-icon-wrap { position: relative; width: 220px; height: 220px; display: grid; place-items: center; overflow: visible; border-radius: 44px; filter: drop-shadow(0 28px 44px rgba(37, 99, 235, .20)); }
-      .planlog-splash-icon-wrap::after { content: ""; position: absolute; inset: 16px; width: 34%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.70), transparent); animation: planlog-shine 2.9s 1s ease-in-out infinite; pointer-events: none; border-radius: 30px; }
-      .planlog-splash-icon { width: 188px; height: 188px; object-fit: contain; display: block; border-radius: 40px; animation: planlog-logo-in 1.15s .22s cubic-bezier(.18,.9,.2,1.18) both; }
-      @media (max-width: 480px) { .planlog-splash-icon-wrap { width: 190px; height: 190px; } .planlog-splash-icon { width: 164px; height: 164px; } }
-      .planlog-splash-title { margin: -2px 0 0; font-size: 31px; font-weight: 850; letter-spacing: -0.04em; animation: planlog-text-in .62s 1.35s ease both; }
-      .planlog-splash-sub { margin: -10px 0 0; font-size: 14px; font-weight: 650; color: #64748b; letter-spacing: .02em; opacity: 0; animation: planlog-text-in .62s 1.55s ease forwards; }
-    </style>
     <link rel="apple-touch-icon" href="/apple-touch-icon.svg?v=planlog-2" />
     <link rel="manifest" href="/manifest.webmanifest" />
   </head>
 
   <body>
-    <div id="planlog-splash" class="planlog-splash" role="status" aria-label="플랜로그를 불러오는 중">
-      <div class="planlog-splash-card">
-        <div class="planlog-splash-icon-wrap">
-          <img class="planlog-splash-icon" src="/apple-touch-icon.svg?v=planlog-2" alt="" aria-hidden="true" />
-        </div>
-        <h1 class="planlog-splash-title">플랜로그</h1>
-        <p class="planlog-splash-sub">여행을 계획하고 기록하는 중</p>
-      </div>
-    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

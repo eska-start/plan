@@ -106,19 +106,3 @@ root.render(
 
 queueMicrotask(applyPlanLogBranding);
 requestAnimationFrame(applyPlanLogBranding);
-
-const splash = document.getElementById("planlog-splash");
-if (splash) {
-  if (sessionStorage.getItem("splash-shown")) {
-    splash.remove();
-  } else {
-    sessionStorage.setItem("splash-shown", "1");
-    setTimeout(() => {
-      splash.classList.add("is-hiding");
-      setTimeout(() => {
-        splash.remove();
-        requestAnimationFrame(applyPlanLogBranding);
-      }, 320);
-    }, 2200);
-  }
-}
