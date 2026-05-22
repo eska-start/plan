@@ -1435,7 +1435,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       {/* 세로 모드 목록 — sticky 블록 아래에서 페이지와 함께 스크롤 */}
       {items && items.length > 0 && !isMobileLandscape && (
-        <div className="lg:hidden mt-1 space-y-2">
+        <div className="lg:hidden mt-1 space-y-2 min-h-[42vh]">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-sm font-semibold text-foreground">
               {format(new Date(selectedDate + "T00:00:00"), "M월 d일", { locale: ko })} 방문 순서
@@ -1487,6 +1487,12 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
             </SortableContext>
           </DndContext>
           <p className="text-xs text-muted-foreground text-center pt-1">순서 변경 시 지도·일정 탭 자동 업데이트</p>
+        </div>
+      )}
+
+      {!isMobileLandscape && (!items || items.length === 0) && (
+        <div className="lg:hidden mt-1 min-h-[42vh] rounded-2xl border border-dashed border-border bg-muted/20 flex items-center justify-center px-4">
+          <p className="text-sm text-muted-foreground text-center">선택한 날짜에 등록된 일정이 없어요.</p>
         </div>
       )}
 
