@@ -751,6 +751,7 @@ const itineraryRouter = router({
   update: protectedProcedure
     .input(z.object({
       id: z.number(),
+      date: z.string().optional(),
       order: z.number().optional(),
       placeName: z.string().optional(),
       address: z.string().optional(),

@@ -110,6 +110,7 @@ function buildInfoWindowEl(item: { placeName: string; category?: string | null; 
 
 type ItemType = {
   id: number;
+  date?: string | null;
   placeName: string;
   address?: string | null;
   visitTime?: string | null;
@@ -878,7 +879,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   function openEdit(item: ItemType) {
     setEditId(item.id);
     setForm({
-      date: selectedDate,
+      date: item.date ?? selectedDate,
       placeName: item.placeName,
       address: item.address ?? "",
       visitTime: item.visitTime ?? "",
@@ -906,7 +907,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       lng: form.lng || undefined,
     };
     if (editId) {
-      updateMutation.mutate({ id: editId, ...data });
+      updateMutation.mutate({ id: editId, date: form.date, ...data });
     } else {
       createMutation.mutate({ tripId, date: form.date, order: (serverItems?.length ?? 0), ...data });
     }
@@ -1365,25 +1366,23 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
               )}
             </div>
 
-            {/* 날짜 — 추가 시에만 */}
-            {!editId && (
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">날짜</Label>
-                <Select value={form.date} onValueChange={v => setForm(f => ({ ...f, date: v }))}>
-                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {tripDays.map((day, idx) => {
-                      const dateStr = format(day, "yyyy-MM-dd");
-                      return (
-                        <SelectItem key={dateStr} value={dateStr}>
-                          {format(day, "M월 d일 (EEE)", { locale: ko })} · Day {idx + 1}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            {/* 날짜 — 여행 기간 내에서만 선택 가능 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">날짜</Label>
+              <Select value={form.date} onValueChange={v => setForm(f => ({ ...f, date: v }))}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {tripDays.map((day, idx) => {
+                    const dateStr = format(day, "yyyy-MM-dd");
+                    return (
+                      <SelectItem key={dateStr} value={dateStr}>
+                        {format(day, "M월 d일 (EEE)", { locale: ko })} · Day {idx + 1}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* 카테고리 */}
             <div className="space-y-1.5">
