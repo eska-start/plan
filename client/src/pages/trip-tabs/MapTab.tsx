@@ -440,7 +440,16 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const utils = trpc.useUtils();
 
   async function handleNearbyRecommend() {
-    if (!mapRef.current || !window.google?.maps?.places) return toast.error("지도가 준비되지 않았습니다.");
+    if (!mapRef.current) return toast.error("지도가 준비되지 않았습니다.");
+    if (!window.google?.maps?.places) {
+      try {
+        await loadMapScript();
+      } catch {
+        toast.error("지도 API 로드에 실패했습니다.");
+        return;
+      }
+    }
+    if (!window.google?.maps?.places) return toast.error("주변 추천 API를 불러오지 못했습니다.");
     const service = new window.google.maps.places.PlacesService(mapRef.current);
     const center = mapRef.current.getCenter();
     if (!center) return;
@@ -1120,12 +1129,12 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   return (
     <div className="space-y-5">
       {/* 헤더 */}
-      <div className="flex items-start justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-lg sm:text-xl font-semibold text-foreground tracking-tight">동선 지도</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">드래그해서 방문 순서를 변경하면 지도와 일정 탭에 즉시 반영됩니다.</p>
+          <p className="text-sm text-muted-foreground mt-0.5 break-keep">드래그해서 방문 순서를 변경하면 지도와 일정 탭에 즉시 반영됩니다.</p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex flex-wrap gap-2 shrink-0">
           <Button size="sm" variant="outline" className="gap-1.5" onClick={handleNearbyRecommend}>주변 추천</Button>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={handleOptimizeRoute} disabled={optimizingRoute}>
             {optimizingRoute ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
