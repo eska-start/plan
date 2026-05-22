@@ -427,6 +427,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [aiLoading, setAiLoading] = useState(false);
   const [aiItems, setAiItems] = useState<AiItem[]>([]);
   const [optimizingRoute, setOptimizingRoute] = useState(false);
+  const [compactDateSelector, setCompactDateSelector] = useState(false);
   const aiCameraRef = useRef<HTMLInputElement>(null);
   const aiPhotoRef = useRef<HTMLInputElement>(null);
 
@@ -1154,8 +1155,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
               </div>
             </SheetContent>
           </Sheet>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={handleOptimizeRoute} disabled={optimizingRoute}>
-            {optimizingRoute ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+          <Button size="sm" variant="outline" className="gap-1.5 whitespace-nowrap" onClick={handleOptimizeRoute} disabled={optimizingRoute}>
+            <Loader2 className={`w-3.5 h-3.5 ${optimizingRoute ? "animate-spin opacity-100" : "opacity-0"}`} />
             동선 최적화
           </Button>
           <Button
@@ -1250,21 +1251,27 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       {/* ── 세로 모드: 날짜 + 지도 상단 고정, 목록은 아래에서 스크롤
            ── 가로/데스크탑: static 복귀 후 map+list flex 배치 ── */}
-      <div className="sticky top-0 z-10 bg-background -mx-4 sm:-mx-6 px-4 sm:px-6 pb-3 lg:static lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent space-y-3">
+      <div className={`sticky top-0 z-10 bg-background -mx-4 sm:-mx-6 px-4 sm:px-6 lg:static lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent space-y-3 transition-all ${compactDateSelector ? "pb-1" : "pb-3"}`}>
 
         {/* 날짜 선택 */}
-        <div className="flex gap-2 overflow-x-auto pt-2 pb-1 scrollbar-thin">
+        <div className={`flex gap-2 overflow-x-auto scrollbar-thin transition-all ${compactDateSelector ? "pt-1 pb-0.5" : "pt-2 pb-1"}`}>
           {tripDays.map((day, idx) => {
             const dateStr = format(day, "yyyy-MM-dd");
             const isSelected = selectedDate === dateStr;
             return (
               <button key={dateStr} onClick={() => setSelectedDate(dateStr)}
-                className={`flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-xl border transition-all shrink-0 ${isSelected ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"}`}
+                className={`flex items-center justify-center rounded-xl border transition-all shrink-0 ${compactDateSelector ? "px-3 py-1.5 min-w-[64px]" : "flex-col gap-0.5 px-3 py-2.5"} ${isSelected ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"}`}
               >
-                <span className="text-xs font-medium">{format(day, "EEE", { locale: ko })}</span>
-                <span className="text-lg font-bold leading-none">{format(day, "d")}</span>
-                <span className="text-xs opacity-70">{format(day, "M.d")}</span>
-                <span className={`text-xs mt-0.5 ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}`}>Day {idx + 1}</span>
+                {compactDateSelector ? (
+                  <span className="text-sm font-semibold leading-none">{format(day, "M.d")}</span>
+                ) : (
+                  <>
+                    <span className="text-xs font-medium">{format(day, "EEE", { locale: ko })}</span>
+                    <span className="text-lg font-bold leading-none">{format(day, "d")}</span>
+                    <span className="text-xs opacity-70">{format(day, "M.d")}</span>
+                    <span className={`text-xs mt-0.5 ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}`}>Day {idx + 1}</span>
+                  </>
+                )}
               </button>
             );
           })}
@@ -1597,3 +1604,19 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     </div>
   );
 }
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.innerWidth >= 1024) {
+        setCompactDateSelector(false);
+        return;
+      }
+      setCompactDateSelector(window.scrollY > 40);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
