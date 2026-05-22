@@ -449,6 +449,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [optimizingRoute, setOptimizingRoute] = useState(false);
   const [compactDateSelector, setCompactDateSelector] = useState(false);
   const [isMobileLandscape, setIsMobileLandscape] = useState(false);
+  const mobileListTopRef = useRef<HTMLDivElement>(null);
+  const prevCompactRef = useRef(false);
   const aiCameraRef = useRef<HTMLInputElement>(null);
   const aiPhotoRef = useRef<HTMLInputElement>(null);
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
@@ -490,6 +492,14 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       window.removeEventListener("resize", onScroll);
     };
   }, [isMobileLandscape]);
+
+  useEffect(() => {
+    if (isMobileLandscape) return;
+    const becameCompact = !prevCompactRef.current && compactDateSelector;
+    prevCompactRef.current = compactDateSelector;
+    if (!becameCompact) return;
+    mobileListTopRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
+  }, [compactDateSelector, isMobileLandscape]);
 
   // ── 다이얼로그 내부 AI ──
   const [dialogAiMode, setDialogAiMode] = useState<"text" | "image" | null>(null);
@@ -995,14 +1005,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const focusOnItem = useCallback((item: ItemType) => {
     const latlng = positionsByIdRef.current.get(item.id);
     if (!latlng || !mapRef.current) return;
-    // 지도 배율 변경/정보창 오픈 없이 이동하되,
-    // 선택 핀이 화면 상단 쪽(가림이 적은 위치)에 오도록 약간 위로 배치
+    // 지도 배율/정보창 변경 없이 중앙 기준으로 해당 핀 위치로만 이동
     mapRef.current.panTo(latlng);
-    const map = mapRef.current;
-    window.google.maps.event.addListenerOnce(map, "idle", () => {
-      const h = map.getDiv().clientHeight || 0;
-      if (h > 0) map.panBy(0, h * 0.28);
-    });
   }, []);
 
   // ── 다이얼로그 열기 ──
@@ -1435,8 +1439,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       {/* 세로 모드 목록 — sticky 블록 아래에서 페이지와 함께 스크롤 */}
       {items && items.length > 0 && !isMobileLandscape && (
-        <div className={`lg:hidden mt-1 space-y-2 ${(items.length <= 5) ? "min-h-[70vh]" : ""}`}>
-          <div className="flex items-center justify-between px-1">
+        <div className={`lg:hidden mt-1 space-y-2 ${(items.length <= 5) ? "min-h-[42vh]" : ""}`}>
+          <div ref={mobileListTopRef} className="scroll-mt-40 flex items-center justify-between px-1">
             <h3 className="text-sm font-semibold text-foreground">
               {format(new Date(selectedDate + "T00:00:00"), "M월 d일", { locale: ko })} 방문 순서
             </h3>
@@ -1491,7 +1495,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       )}
 
       {!isMobileLandscape && (!items || items.length === 0) && (
-        <div className="lg:hidden mt-1 min-h-[70vh] rounded-2xl border border-dashed border-border bg-muted/20 flex items-center justify-center px-4">
+        <div ref={mobileListTopRef} className="lg:hidden mt-1 min-h-[42vh] scroll-mt-40 rounded-2xl border border-dashed border-border bg-muted/20 flex items-center justify-center px-4">
           <p className="text-sm text-muted-foreground text-center">선택한 날짜에 등록된 일정이 없어요.</p>
         </div>
       )}
