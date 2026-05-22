@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -110,6 +111,7 @@ function buildInfoWindowEl(item: { placeName: string; category?: string | null; 
 
 type ItemType = {
   id: number;
+  date?: string | null;
   placeName: string;
   address?: string | null;
   visitTime?: string | null;
@@ -124,7 +126,7 @@ type ItemType = {
 
 type FormData = {
   date: string; placeName: string; address: string; visitTime: string;
-  duration: string; memo: string; category: string; lat: string; lng: string;
+  duration: string; memo: string; category: string; lat: string; lng: string; sourceType: "manual" | "pool";
 };
 
 type AiItem = {
@@ -153,7 +155,7 @@ async function resizeImageToBase64(file: File): Promise<string> {
 
 // 드래그 가능한 방문 순서 아이템
 function SortableVisitItem({
-  item, index, total, onEdit, onDelete, onToggleVisited, onFocusMap, isExcluded, onToggleExclude,
+  item, index, total, onEdit, onDelete, onToggleVisited, onFocusMap, isExcluded, onToggleExclude, onMoveToPool,
 }: {
   item: ItemType; index: number; total: number;
   onEdit: (item: ItemType) => void;
@@ -162,6 +164,7 @@ function SortableVisitItem({
   onFocusMap: (item: ItemType) => void;
   isExcluded: boolean;
   onToggleExclude: (id: number) => void;
+  onMoveToPool: (item: ItemType) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const dndStyle = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
@@ -329,6 +332,11 @@ function SortableVisitItem({
                 className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
+              <button onClick={() => onMoveToPool(item)}
+                className="p-1.5 rounded-lg hover:bg-amber-50 text-muted-foreground hover:text-amber-700 transition-colors"
+                title="보관함으로 이동">
+                <FolderOpen className="w-3.5 h-3.5" />
+              </button>
             </>
           )}
           {isAccommodation && (
@@ -408,7 +416,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [deleteTarget, setDeleteTarget] = useState<ItemType | null>(null);
   const [form, setForm] = useState<FormData>({
     date: tripStartDate, placeName: "", address: "", visitTime: "",
-    duration: "", memo: "", category: "place", lat: "", lng: "",
+    duration: "", memo: "", category: "place", lat: "", lng: "", sourceType: "manual",
   });
   const placeInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -418,6 +426,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiItems, setAiItems] = useState<AiItem[]>([]);
+  const [optimizingRoute, setOptimizingRoute] = useState(false);
   const aiCameraRef = useRef<HTMLInputElement>(null);
   const aiPhotoRef = useRef<HTMLInputElement>(null);
 
@@ -430,17 +439,79 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   const utils = trpc.useUtils();
 
+  async function handleOptimizeRoute() {
+    if (optimizingRoute) return;
+    if (!window.google?.maps) return toast.error("지도가 아직 준비되지 않았어요.");
+    if (items.length < 3) return toast.info("최적화하려면 장소가 3개 이상 필요해요.");
+
+    const getDurationSec = (origin: google.maps.LatLng, destination: google.maps.LatLng) =>
+      new Promise<number>((resolve) => {
+        const svc = new window.google.maps.DirectionsService();
+        svc.route(
+          { origin, destination, travelMode: window.google.maps.TravelMode.DRIVING },
+          (result, status) => {
+            const sec = result?.routes?.[0]?.legs?.[0]?.duration?.value;
+            resolve(status === "OK" && typeof sec === "number" ? sec : Number.POSITIVE_INFINITY);
+          },
+        );
+      });
+
+    setOptimizingRoute(true);
+    try {
+      const withPos = items
+        .map(item => ({ item, pos: positionsByIdRef.current.get(item.id) }))
+        .filter((x): x is { item: ItemType; pos: google.maps.LatLng } => !!x.pos);
+      if (withPos.length < 3) return toast.info("좌표가 있는 장소가 3개 이상 필요해요.");
+
+      // 현재 순서의 첫 장소/마지막 장소를 각각 출발지/도착지로 고정
+      const start = withPos[0];
+      const end = withPos[withPos.length - 1];
+      const remain = [...withPos.slice(1, -1)];
+      const orderedMiddle: typeof remain = [];
+      let current = start;
+
+      // 중간 지점만 이동시간(초) 기준으로 탐욕 최적화
+      while (remain.length > 0) {
+        const scores = await Promise.all(
+          remain.map(async cand => ({
+            cand,
+            cost: await getDurationSec(current.pos, cand.pos),
+          })),
+        );
+        scores.sort((a, b) => a.cost - b.cost);
+        const next = scores[0]?.cand;
+        if (!next) break;
+        orderedMiddle.push(next);
+        current = next;
+        const idx = remain.findIndex(r => r.item.id === next.item.id);
+        if (idx >= 0) remain.splice(idx, 1);
+      }
+
+      const orderedIds = [start, ...orderedMiddle, end].map(x => x.item.id);
+      setLocalOrder(orderedIds);
+      reorderMutation.mutate(
+        { tripId, orderedIds },
+        { onSuccess: () => toast.success("출발지/도착지 고정 기준으로 이동시간 최적화 완료") },
+      );
+    } catch {
+      toast.error("동선 최적화에 실패했습니다.");
+    } finally {
+      setOptimizingRoute(false);
+    }
+  }
+
   const { data: serverItems, isLoading } = trpc.itinerary.listByDate.useQuery(
     { tripId, date: selectedDate },
     { refetchInterval: 3000 }
   );
+  const { data: poolItems } = trpc.itinerary.listPoolByTrip.useQuery({ tripId }, { refetchInterval: 3000 });
 
   const createMutation = trpc.itinerary.create.useMutation({
     onSuccess: () => {
       utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
       utils.itinerary.listByTrip.invalidate({ tripId });
       setDialogOpen(false);
-      setForm(f => ({ ...f, placeName: "", address: "", visitTime: "", duration: "", memo: "", lat: "", lng: "" }));
+      setForm(f => ({ ...f, placeName: "", address: "", visitTime: "", duration: "", memo: "", lat: "", lng: "", sourceType: "manual" }));
       toast.success("장소가 추가됐습니다.");
     },
     onError: () => toast.error("장소 추가에 실패했습니다."),
@@ -869,7 +940,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   // ── 다이얼로그 열기 ──
   function openDialog() {
     setEditId(null);
-    setForm({ date: selectedDate, placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "" });
+    setForm({ date: selectedDate, placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "", sourceType: "manual" });
     setDialogAiMode(null);
     setDialogAiText("");
     setDialogOpen(true);
@@ -878,7 +949,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   function openEdit(item: ItemType) {
     setEditId(item.id);
     setForm({
-      date: selectedDate,
+      date: item.date ?? selectedDate,
       placeName: item.placeName,
       address: item.address ?? "",
       visitTime: item.visitTime ?? "",
@@ -887,6 +958,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       category: item.category ?? "place",
       lat: item.lat ?? "",
       lng: item.lng ?? "",
+      sourceType: item.sourceType === "pool" ? "pool" : "manual",
     });
     setDialogAiMode(null);
     setDialogAiText("");
@@ -904,12 +976,21 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       category: form.category,
       lat: form.lat || undefined,
       lng: form.lng || undefined,
+      sourceType: form.sourceType,
     };
     if (editId) {
-      updateMutation.mutate({ id: editId, ...data });
+      updateMutation.mutate({ id: editId, date: form.date, ...data });
     } else {
       createMutation.mutate({ tripId, date: form.date, order: (serverItems?.length ?? 0), ...data });
     }
+  }
+
+  function moveToPool(item: ItemType) {
+    updateMutation.mutate({ id: item.id, sourceType: "pool", date: selectedDate });
+  }
+
+  function moveFromPool(item: ItemType) {
+    updateMutation.mutate({ id: item.id, sourceType: "manual", date: selectedDate, order: items.length });
   }
 
   // ── 다이얼로그 내부 AI ──
@@ -996,14 +1077,14 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     } finally { setAiLoading(false); }
   }
 
-  async function handleAiSave() {
+  async function handleAiSave(sourceType: "manual" | "pool" = "manual") {
     const toSave = aiItems.filter(i => i.selected && i.placeName);
     for (const item of toSave) {
       await createMutation.mutateAsync({
         tripId, date: item.date ?? selectedDate,
         placeName: item.placeName, visitTime: item.visitTime ?? undefined,
         category: item.category, memo: item.memo ?? undefined,
-        address: item.address ?? undefined, order: 0,
+        address: item.address ?? undefined, order: 0, sourceType,
       });
     }
     toast.success(`${toSave.length}개 일정이 추가됐습니다.`);
@@ -1019,6 +1100,35 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           <p className="text-sm text-muted-foreground mt-0.5">드래그해서 방문 순서를 변경하면 지도와 일정 탭에 즉시 반영됩니다.</p>
         </div>
         <div className="flex gap-2 shrink-0">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button size="sm" variant="outline" className="gap-1.5">보관함</Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[360px] sm:w-[420px]">
+              <SheetHeader>
+                <SheetTitle>보관함 (날짜 미정)</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 space-y-2">
+                {(poolItems as ItemType[] | undefined)?.length ? (
+                  (poolItems as ItemType[]).map((item) => (
+                    <div key={item.id} className="flex items-center justify-between rounded-xl border px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{item.placeName}</p>
+                        {item.address && <p className="text-xs text-muted-foreground truncate">{item.address}</p>}
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => moveFromPool(item)}>오늘로 배치</Button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">보관함에 저장된 장소가 없어요.</p>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={handleOptimizeRoute} disabled={optimizingRoute}>
+            {optimizingRoute ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+            동선 최적화
+          </Button>
           <Button
             size="sm" variant="outline"
             className="gap-1.5"
@@ -1071,7 +1181,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
               ))}
               <div className="flex gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={() => setAiItems([])} className="flex-1">다시 입력</Button>
-                <Button size="sm" onClick={handleAiSave} disabled={!aiItems.some(i => i.selected) || createMutation.isPending} className="flex-1">저장</Button>
+                <Button size="sm" onClick={() => handleAiSave("manual")} disabled={!aiItems.some(i => i.selected) || createMutation.isPending} className="flex-1">일정 저장</Button>
+                <Button size="sm" variant="secondary" onClick={() => handleAiSave("pool")} disabled={!aiItems.some(i => i.selected) || createMutation.isPending} className="flex-1">보관함 저장</Button>
               </div>
             </div>
           ) : aiMode === "text" ? (
@@ -1106,6 +1217,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           )}
         </div>
       )}
+      
 
       {/* ── 세로 모드: 날짜 + 지도 상단 고정, 목록은 아래에서 스크롤
            ── 가로/데스크탑: static 복귀 후 map+list flex 배치 ── */}
@@ -1184,6 +1296,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                               onFocusMap={focusOnItem}
                             isExcluded={excludedIds.has(item.id)}
                             onToggleExclude={toggleExclude}
+                            onMoveToPool={moveToPool}
                             />
                             {times && (
                               <div className="flex items-center gap-2 px-2 py-1">
@@ -1244,6 +1357,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                         onFocusMap={focusOnItem}
                         isExcluded={excludedIds.has(item.id)}
                         onToggleExclude={toggleExclude}
+                        onMoveToPool={moveToPool}
                       />
                       {times && (
                         <div className="flex items-center gap-2 px-2 py-1">
@@ -1365,25 +1479,33 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
               )}
             </div>
 
-            {/* 날짜 — 추가 시에만 */}
-            {!editId && (
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">날짜</Label>
-                <Select value={form.date} onValueChange={v => setForm(f => ({ ...f, date: v }))}>
-                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {tripDays.map((day, idx) => {
-                      const dateStr = format(day, "yyyy-MM-dd");
-                      return (
-                        <SelectItem key={dateStr} value={dateStr}>
-                          {format(day, "M월 d일 (EEE)", { locale: ko })} · Day {idx + 1}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            {/* 날짜 — 여행 기간 내에서만 선택 가능 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">날짜</Label>
+              <Select value={form.date} onValueChange={v => setForm(f => ({ ...f, date: v }))}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {tripDays.map((day, idx) => {
+                    const dateStr = format(day, "yyyy-MM-dd");
+                    return (
+                      <SelectItem key={dateStr} value={dateStr}>
+                        {format(day, "M월 d일 (EEE)", { locale: ko })} · Day {idx + 1}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">저장 위치</Label>
+              <Select value={form.sourceType} onValueChange={v => setForm(f => ({ ...f, sourceType: (v as "manual" | "pool") }))}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">일정에 바로 배치</SelectItem>
+                  <SelectItem value="pool">보관함(날짜 미정)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* 카테고리 */}
             <div className="space-y-1.5">
