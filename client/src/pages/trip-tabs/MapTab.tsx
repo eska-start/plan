@@ -357,34 +357,24 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const tripStartDate = tripDays[0] ? format(tripDays[0], "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
 
   const pendingScrollRestoreRef = useRef<number | null>(null);
+  const isDateChangingRef = useRef(false);
+
+  const restoreWindowScroll = useCallback((y: number) => {
+    window.scrollTo({ top: y, behavior: "auto" });
+    requestAnimationFrame(() => window.scrollTo({ top: y, behavior: "auto" }));
+  }, []);
 
   const handleSelectDate = useCallback((dateStr: string) => {
     if (selectedDate === dateStr) return;
     pendingScrollRestoreRef.current = window.scrollY;
+    isDateChangingRef.current = true;
     setSelectedDate(dateStr);
   }, [selectedDate]);
 
   useLayoutEffect(() => {
     if (pendingScrollRestoreRef.current === null) return;
-    const y = pendingScrollRestoreRef.current;
-
-    let raf1 = 0;
-    let raf2 = 0;
-    const tid = window.setTimeout(() => window.scrollTo({ top: y, behavior: "auto" }), 120);
-
-    raf1 = requestAnimationFrame(() => {
-      window.scrollTo({ top: y, behavior: "auto" });
-      raf2 = requestAnimationFrame(() => window.scrollTo({ top: y, behavior: "auto" }));
-    });
-
-    pendingScrollRestoreRef.current = null;
-
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      window.clearTimeout(tid);
-    };
-  }, [selectedDate]);
+    restoreWindowScroll(pendingScrollRestoreRef.current);
+  }, [selectedDate, restoreWindowScroll]);
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
@@ -436,8 +426,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   }
 
   // 핀 간 이동 시간 { "id1:id2" → { walk, drive } }
-  const [travelTimesMap, setTravelTimesMap] = useState<Record<string, { walk: string | null; drive: string | null }>>({});
-  const travelTimesMapRef = useRef<Record<string, { walk: string | null; drive: string | null }>>({});
+  const [travelTimesMap, setTravelTimesMap] = useState<Record<string, { walk: string | null; drive: string | null; distance: string | null }>>({});
+  const travelTimesMapRef = useRef<Record<string, { walk: string | null; drive: string | null; distance: string | null }>>({});
   travelTimesMapRef.current = travelTimesMap;
 
   // ── 일정 추가/수정 다이얼로그 ──
@@ -458,13 +448,24 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [aiItems, setAiItems] = useState<AiItem[]>([]);
   const [optimizingRoute, setOptimizingRoute] = useState(false);
   const [compactDateSelector, setCompactDateSelector] = useState(false);
+  const [isMobileLandscape, setIsMobileLandscape] = useState(false);
   const aiCameraRef = useRef<HTMLInputElement>(null);
   const aiPhotoRef = useRef<HTMLInputElement>(null);
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const checkOrientation = () => {
+      const isLandscape = window.innerWidth > window.innerHeight;
+      setIsMobileLandscape(window.innerWidth < 1024 && isLandscape);
+    };
+    checkOrientation();
+    window.addEventListener("resize", checkOrientation);
+    return () => window.removeEventListener("resize", checkOrientation);
+  }, []);
+
+  useEffect(() => {
     const onScroll = () => {
-      if (window.innerWidth >= 1024) {
+      if (window.innerWidth >= 1024 || isMobileLandscape) {
         setCompactDateSelector(false);
         return;
       }
@@ -474,7 +475,10 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       const stickyTop = stickyEl.getBoundingClientRect().top;
       const stuckTop = parseFloat(window.getComputedStyle(stickyEl).top || "0") || 0;
-      setCompactDateSelector(stickyTop <= stuckTop + 1);
+      setCompactDateSelector(prev => {
+        const threshold = prev ? 10 : 1;
+        return stickyTop <= stuckTop + threshold;
+      });
     };
 
     onScroll();
@@ -485,7 +489,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, []);
+  }, [isMobileLandscape]);
 
   // ── 다이얼로그 내부 AI ──
   const [dialogAiMode, setDialogAiMode] = useState<"text" | "image" | null>(null);
@@ -562,6 +566,13 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     { refetchInterval: 3000 }
   );
   const { data: poolItems } = trpc.itinerary.listPoolByTrip.useQuery({ tripId }, { refetchInterval: 3000 });
+
+  useEffect(() => {
+    if (!isDateChangingRef.current || pendingScrollRestoreRef.current === null || isLoading) return;
+    restoreWindowScroll(pendingScrollRestoreRef.current);
+    pendingScrollRestoreRef.current = null;
+    isDateChangingRef.current = false;
+  }, [isLoading, restoreWindowScroll]);
 
   const createMutation = trpc.itinerary.create.useMutation({
     onSuccess: () => {
@@ -766,25 +777,27 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   }, []);
 
   // 두 지점 간 이동 시간 (Directions API)
-  const getRouteDuration = useCallback((
+  const getRouteInfo = useCallback((
     origin: google.maps.LatLng,
     dest: google.maps.LatLng,
     mode: google.maps.TravelMode,
-  ): Promise<string | null> => {
+  ): Promise<{ duration: string | null; distance: string | null }> => {
     return new Promise(resolve => {
       const svc = new window.google.maps.DirectionsService();
       svc.route(
         { origin, destination: dest, travelMode: mode },
         (result, status) => {
-          const duration = result?.routes?.[0]?.legs?.[0]?.duration?.text ?? null;
-          resolve(status === "OK" && duration ? duration : null);
+          const leg = result?.routes?.[0]?.legs?.[0];
+          const duration = leg?.duration?.text ?? null;
+          const distance = leg?.distance?.text ?? null;
+          resolve(status === "OK" ? { duration, distance } : { duration: null, distance: null });
         },
       );
     });
   }, []);
 
   // 제외 상태에 따라 핀 표시/번호·경로·이동시간 뱃지를 동기적으로 재적용
-  const applyExclusionSync = useCallback((timesMap: Record<string, { walk: string | null; drive: string | null }>) => {
+  const applyExclusionSync = useCallback((timesMap: Record<string, { walk: string | null; drive: string | null; distance: string | null }>) => {
     if (!mapRef.current) return;
     const map = mapRef.current;
     const allItems = itemsRef.current;
@@ -815,25 +828,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       .filter((p): p is google.maps.LatLng => !!p);
     if (visiblePositions.length >= 2) drawRoute(visiblePositions);
 
-    // 이동시간 뱃지: 기존 제거 후 보이는 인접 쌍만 재생성
+    // 지도 위 이동시간/거리 뱃지는 표시하지 않음 (목록 사이 정보만 유지)
     badgeMarkersRef.current.forEach(m => { m.map = null; });
     badgeMarkersRef.current.clear();
-    for (let i = 0; i < visibleItems.length - 1; i++) {
-      const a = visibleItems[i];
-      const b = visibleItems[i + 1];
-      const key = `${a.id}:${b.id}`;
-      const times = timesMap[key];
-      const posA = positionsByIdRef.current.get(a.id);
-      const posB = positionsByIdRef.current.get(b.id);
-      if (!posA || !posB || !times || !mapRef.current) continue;
-      const badge = document.createElement("div");
-      badge.style.cssText = "background:rgba(255,255,255,0.72);border:1px solid rgba(226,232,240,0.7);border-radius:8px;padding:2px 6px;font-size:9px;font-family:Inter,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,0.08);white-space:nowrap;display:flex;gap:4px;align-items:center;pointer-events:none;backdrop-filter:blur(4px);";
-      badge.innerHTML = `<span style="color:#94a3b8;font-weight:500;">도보 ${times.walk ?? "—"}</span><span style="color:#e2e8f0">|</span><span style="color:#94a3b8;font-weight:500;">차 ${times.drive ?? "—"}</span>`;
-      badgeMarkersRef.current.set(key, new window.google.maps.marker.AdvancedMarkerElement({
-        map, content: badge, zIndex: 0,
-        position: new window.google.maps.LatLng((posA.lat() + posB.lat()) / 2, (posA.lng() + posB.lng()) / 2),
-      }));
-    }
   }, [drawRoute]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderOnMap = useCallback(async () => {
@@ -891,17 +888,17 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     }
 
     // 인접 핀 이동 시간 계산 (뱃지 생성은 applyExclusionSync에서)
-    const newTimesMap: Record<string, { walk: string | null; drive: string | null }> = {};
+    const newTimesMap: Record<string, { walk: string | null; drive: string | null; distance: string | null }> = {};
     if (positions.length >= 2) {
       for (let i = 0; i < positions.length - 1; i++) {
         if (renderVersionRef.current !== myVersion) return; // stale, 중단
         const { item: a, latlng: la } = positions[i];
         const { item: b, latlng: lb } = positions[i + 1];
-        const [walk, drive] = await Promise.all([
-          getRouteDuration(la, lb, window.google.maps.TravelMode.WALKING),
-          getRouteDuration(la, lb, window.google.maps.TravelMode.DRIVING),
+        const [walkInfo, driveInfo] = await Promise.all([
+          getRouteInfo(la, lb, window.google.maps.TravelMode.WALKING),
+          getRouteInfo(la, lb, window.google.maps.TravelMode.DRIVING),
         ]);
-        newTimesMap[`${a.id}:${b.id}`] = { walk, drive };
+        newTimesMap[`${a.id}:${b.id}`] = { walk: walkInfo.duration, drive: driveInfo.duration, distance: driveInfo.distance ?? walkInfo.distance };
       }
     }
     if (renderVersionRef.current !== myVersion) return; // stale, 중단
@@ -913,7 +910,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     } else {
       applyExclusionSync({});
     }
-  }, [clearMap, geocodeAddress, drawRoute, getRouteDuration, applyExclusionSync]);
+  }, [clearMap, geocodeAddress, drawRoute, getRouteInfo, applyExclusionSync]);
 
   useEffect(() => {
     geocacheRef.current.clear();
@@ -965,33 +962,31 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         const posA = positionsByIdRef.current.get(a.id);
         const posB = positionsByIdRef.current.get(b.id);
         if (!posA || !posB) continue;
-        const [walk, drive] = await Promise.all([
-          getRouteDuration(posA, posB, window.google.maps.TravelMode.WALKING),
-          getRouteDuration(posA, posB, window.google.maps.TravelMode.DRIVING),
+        const [walkInfo, driveInfo] = await Promise.all([
+          getRouteInfo(posA, posB, window.google.maps.TravelMode.WALKING),
+          getRouteInfo(posA, posB, window.google.maps.TravelMode.DRIVING),
         ]);
         if (excludedIdsRef.current !== capturedExcluded || optimisticVisitedIdsRef.current !== capturedOptV || !mapRef.current) return;
-        const times = { walk, drive };
+        const times = { walk: walkInfo.duration, drive: driveInfo.duration, distance: driveInfo.distance ?? walkInfo.distance };
         travelTimesMapRef.current[key] = times;
         setTravelTimesMap(prev => ({ ...prev, [key]: times }));
         applyExclusionSync({ ...travelTimesMapRef.current });
       }
     })();
-  }, [excludedIds, optimisticVisitedIds, mapReady, applyExclusionSync, getRouteDuration]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [excludedIds, optimisticVisitedIds, mapReady, applyExclusionSync, getRouteInfo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 지도에서 특정 핀으로 이동 ──
   const focusOnItem = useCallback((item: ItemType) => {
     const latlng = positionsByIdRef.current.get(item.id);
     if (!latlng || !mapRef.current) return;
-    // 열려있는 인포윈도우 모두 닫기
-    infoWindowsByIdRef.current.forEach(w => w.close());
+    // 지도 배율 변경/정보창 오픈 없이 이동하되,
+    // 선택 핀이 화면 상단 쪽(가림이 적은 위치)에 오도록 약간 위로 배치
     mapRef.current.panTo(latlng);
-    mapRef.current.setZoom(16);
-    // 해당 마커의 인포윈도우 열기
-    const marker = markersByIdRef.current.get(item.id);
-    const infoWindow = infoWindowsByIdRef.current.get(item.id);
-    if (marker && infoWindow) {
-      infoWindow.open({ anchor: marker, map: mapRef.current });
-    }
+    const map = mapRef.current;
+    window.google.maps.event.addListenerOnce(map, "idle", () => {
+      const h = map.getDiv().clientHeight || 0;
+      if (h > 0) map.panBy(0, h * 0.28);
+    });
   }, []);
 
   // ── 다이얼로그 열기 ──
@@ -1326,19 +1321,14 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
             const isSelected = selectedDate === dateStr;
             return (
               <button type="button" key={dateStr} onClick={() => handleSelectDate(dateStr)}
-                className={`flex items-center justify-center rounded-xl border transition-all shrink-0 ${compactDateSelector ? "flex-col gap-0.5 px-2.5 py-1 min-w-[58px]" : "flex-col gap-0.5 px-3 py-2.5"} ${isSelected ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"}`}
+                className={`flex flex-col items-center justify-center rounded-xl border shrink-0 min-w-[68px] md:min-w-[74px] px-2.5 overflow-hidden transition-[padding,transform,background-color,border-color] duration-200 ease-out ${compactDateSelector ? "gap-0.5 py-1" : "gap-0.5 py-2.5"} ${isSelected ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"}`}
               >
-                {compactDateSelector ? (
+                <span className={`font-medium leading-none transition-all duration-200 ${compactDateSelector ? "text-[11px]" : "text-xs"}`}>{format(day, "EEE", { locale: ko })}</span>
+                <span className={`font-bold leading-none transition-all duration-200 ${compactDateSelector ? "text-sm" : "text-lg"}`}>{format(day, "d")}</span>
+                {!compactDateSelector && (
                   <>
-                    <span className="text-[11px] font-medium leading-none">{format(day, "EEE", { locale: ko })}</span>
-                    <span className="text-sm font-semibold leading-none">{format(day, "M.d")}</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-xs font-medium">{format(day, "EEE", { locale: ko })}</span>
-                    <span className="text-lg font-bold leading-none">{format(day, "d")}</span>
-                    <span className="text-xs opacity-70">{format(day, "M.d")}</span>
-                    <span className={`text-xs mt-0.5 ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}`}>Day {idx + 1}</span>
+                    <span className="text-xs opacity-70 transition-all duration-200">{format(day, "M.d")}</span>
+                    <span className={`text-xs mt-0.5 transition-all duration-200 ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}`}>Day {idx + 1}</span>
                   </>
                 )}
               </button>
@@ -1347,10 +1337,10 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         </div>
 
         {/* 지도 + 데스크탑 사이드바 */}
-        <div className="lg:flex lg:gap-4 lg:items-start">
+        <div className={`${isMobileLandscape ? "flex gap-3 items-start" : "lg:flex lg:gap-4 lg:items-start"}`}>
 
           {/* 지도 */}
-          <div className="lg:flex-1 min-w-0">
+          <div className={`${isMobileLandscape ? "flex-1 min-w-0" : "lg:flex-1 min-w-0"}`}>
             <div className="rounded-2xl overflow-hidden border border-border shadow-sm relative">
               {(geocoding || isLoading) && (
                 <div className="absolute inset-0 bg-background/60 backdrop-blur-sm z-10 flex items-center justify-center">
@@ -1360,15 +1350,15 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                   </div>
                 </div>
               )}
-              <MapView className="w-full h-[250px] sm:h-[420px] lg:h-[600px]" initialCenter={{ lat: 35.6762, lng: 139.6503 }} initialZoom={13}
+              <MapView className={`w-full ${isMobileLandscape ? "h-[64vh]" : "h-[250px] sm:h-[420px]"} lg:h-[600px]`} initialCenter={{ lat: 35.6762, lng: 139.6503 }} initialZoom={13}
                 onMapReady={(map) => { mapRef.current = map; setMapReady(true); }} />
             </div>
           </div>
 
           {/* 데스크탑 사이드바 목록 (lg 이상에서만 표시) */}
           {items && items.length > 0 && (
-            <div className="hidden lg:block lg:w-96 xl:w-[26rem] lg:shrink-0">
-              <div className="border border-border rounded-2xl bg-card p-3 lg:max-h-[600px] lg:overflow-y-auto space-y-2">
+            <div className={`${isMobileLandscape ? "block w-[44vw] max-w-[26rem] shrink-0" : "hidden lg:block lg:w-96 xl:w-[26rem] lg:shrink-0"}`}>
+              <div className={`border border-border rounded-2xl bg-card p-3 space-y-2 ${isMobileLandscape ? "max-h-[64vh] overflow-y-auto" : "lg:max-h-[600px] lg:overflow-y-auto"}`}>
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground">
                     {format(new Date(selectedDate + "T00:00:00"), "M월 d일", { locale: ko })} 방문 순서
@@ -1407,7 +1397,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                               <div className="flex items-center gap-2 px-2 py-1">
                                 <div className="h-px flex-1 bg-border" />
                                 <span className="text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
-                                  <PersonStanding className="w-3 h-3" /><span>{times.walk ?? "—"}</span><span className="text-border">|</span><Car className="w-3 h-3" /><span>{times.drive ?? "—"}</span>
+                                  <PersonStanding className="w-3 h-3" /><span>{times.walk ?? "—"}</span><span className="text-border">|</span><Car className="w-3 h-3" /><span>{times.drive ?? "—"}</span><span className="text-border">|</span><span>{times.distance ?? "—"}</span>
                                 </span>
                                 <div className="h-px flex-1 bg-border" />
                               </div>
@@ -1428,8 +1418,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       </div>
 
       {/* 세로 모드 목록 — sticky 블록 아래에서 페이지와 함께 스크롤 */}
-      {items && items.length > 0 && (
-        <div className="lg:hidden mt-1 space-y-2">
+      {items && items.length > 0 && !isMobileLandscape && (
+        <div className={`lg:hidden mt-1 space-y-2 ${(items.length <= 5) ? "min-h-[70vh]" : ""}`}>
           <div className="flex items-center justify-between px-1">
             <h3 className="text-sm font-semibold text-foreground">
               {format(new Date(selectedDate + "T00:00:00"), "M월 d일", { locale: ko })} 방문 순서
@@ -1468,7 +1458,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="h-px flex-1 bg-border" />
                           <span className="text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
-                            <PersonStanding className="w-3 h-3" /><span>{times.walk ?? "—"}</span><span className="text-border">|</span><Car className="w-3 h-3" /><span>{times.drive ?? "—"}</span>
+                            <PersonStanding className="w-3 h-3" /><span>{times.walk ?? "—"}</span><span className="text-border">|</span><Car className="w-3 h-3" /><span>{times.drive ?? "—"}</span><span className="text-border">|</span><span>{times.distance ?? "—"}</span>
                           </span>
                           <div className="h-px flex-1 bg-border" />
                         </div>
@@ -1481,6 +1471,12 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
             </SortableContext>
           </DndContext>
           <p className="text-xs text-muted-foreground text-center pt-1">순서 변경 시 지도·일정 탭 자동 업데이트</p>
+        </div>
+      )}
+
+      {!isMobileLandscape && (!items || items.length === 0) && (
+        <div className="lg:hidden mt-1 min-h-[70vh] rounded-2xl border border-dashed border-border bg-muted/20 flex items-center justify-center px-4">
+          <p className="text-sm text-muted-foreground text-center">선택한 날짜에 등록된 일정이 없어요.</p>
         </div>
       )}
 
