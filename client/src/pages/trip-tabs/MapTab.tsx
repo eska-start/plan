@@ -357,34 +357,24 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const tripStartDate = tripDays[0] ? format(tripDays[0], "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
 
   const pendingScrollRestoreRef = useRef<number | null>(null);
+  const isDateChangingRef = useRef(false);
+
+  const restoreWindowScroll = useCallback((y: number) => {
+    window.scrollTo({ top: y, behavior: "auto" });
+    requestAnimationFrame(() => window.scrollTo({ top: y, behavior: "auto" }));
+  }, []);
 
   const handleSelectDate = useCallback((dateStr: string) => {
     if (selectedDate === dateStr) return;
     pendingScrollRestoreRef.current = window.scrollY;
+    isDateChangingRef.current = true;
     setSelectedDate(dateStr);
   }, [selectedDate]);
 
   useLayoutEffect(() => {
     if (pendingScrollRestoreRef.current === null) return;
-    const y = pendingScrollRestoreRef.current;
-
-    let raf1 = 0;
-    let raf2 = 0;
-    const tid = window.setTimeout(() => window.scrollTo({ top: y, behavior: "auto" }), 120);
-
-    raf1 = requestAnimationFrame(() => {
-      window.scrollTo({ top: y, behavior: "auto" });
-      raf2 = requestAnimationFrame(() => window.scrollTo({ top: y, behavior: "auto" }));
-    });
-
-    pendingScrollRestoreRef.current = null;
-
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      window.clearTimeout(tid);
-    };
-  }, [selectedDate]);
+    restoreWindowScroll(pendingScrollRestoreRef.current);
+  }, [selectedDate, restoreWindowScroll]);
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
@@ -474,7 +464,10 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       const stickyTop = stickyEl.getBoundingClientRect().top;
       const stuckTop = parseFloat(window.getComputedStyle(stickyEl).top || "0") || 0;
-      setCompactDateSelector(stickyTop <= stuckTop + 1);
+      setCompactDateSelector(prev => {
+        const threshold = prev ? 10 : 1;
+        return stickyTop <= stuckTop + threshold;
+      });
     };
 
     onScroll();
@@ -562,6 +555,13 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     { refetchInterval: 3000 }
   );
   const { data: poolItems } = trpc.itinerary.listPoolByTrip.useQuery({ tripId }, { refetchInterval: 3000 });
+
+  useEffect(() => {
+    if (!isDateChangingRef.current || pendingScrollRestoreRef.current === null || isLoading) return;
+    restoreWindowScroll(pendingScrollRestoreRef.current);
+    pendingScrollRestoreRef.current = null;
+    isDateChangingRef.current = false;
+  }, [isLoading, restoreWindowScroll]);
 
   const createMutation = trpc.itinerary.create.useMutation({
     onSuccess: () => {
@@ -1326,21 +1326,12 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
             const isSelected = selectedDate === dateStr;
             return (
               <button type="button" key={dateStr} onClick={() => handleSelectDate(dateStr)}
-                className={`flex items-center justify-center rounded-xl border transition-all shrink-0 ${compactDateSelector ? "flex-col gap-0.5 px-2.5 py-1 min-w-[58px]" : "flex-col gap-0.5 px-3 py-2.5"} ${isSelected ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"}`}
+                className={`flex flex-col items-center justify-center rounded-xl border shrink-0 min-w-[68px] md:min-w-[74px] px-2.5 overflow-hidden transition-[padding,transform,background-color,border-color] duration-200 ease-out ${compactDateSelector ? "gap-0.5 py-1" : "gap-0.5 py-2.5"} ${isSelected ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"}`}
               >
-                {compactDateSelector ? (
-                  <>
-                    <span className="text-[11px] font-medium leading-none">{format(day, "EEE", { locale: ko })}</span>
-                    <span className="text-sm font-semibold leading-none">{format(day, "M.d")}</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-xs font-medium">{format(day, "EEE", { locale: ko })}</span>
-                    <span className="text-lg font-bold leading-none">{format(day, "d")}</span>
-                    <span className="text-xs opacity-70">{format(day, "M.d")}</span>
-                    <span className={`text-xs mt-0.5 ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}`}>Day {idx + 1}</span>
-                  </>
-                )}
+                <span className={`font-medium leading-none transition-all duration-200 ${compactDateSelector ? "text-[11px]" : "text-xs"}`}>{format(day, "EEE", { locale: ko })}</span>
+                <span className={`font-bold leading-none transition-all duration-200 ${compactDateSelector ? "text-sm" : "text-lg"}`}>{format(day, compactDateSelector ? "M.d" : "d")}</span>
+                <span className={`text-xs opacity-70 transition-all duration-200 ${compactDateSelector ? "max-h-0 opacity-0 -mt-1" : "max-h-4 opacity-70"}`}>{format(day, "M.d")}</span>
+                <span className={`text-xs mt-0.5 transition-all duration-200 ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground"} ${compactDateSelector ? "max-h-0 opacity-0 -mt-1" : "max-h-4 opacity-100"}`}>Day {idx + 1}</span>
               </button>
             );
           })}
