@@ -426,8 +426,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   }
 
   // 핀 간 이동 시간 { "id1:id2" → { walk, drive } }
-  const [travelTimesMap, setTravelTimesMap] = useState<Record<string, { walk: string | null; drive: string | null }>>({});
-  const travelTimesMapRef = useRef<Record<string, { walk: string | null; drive: string | null }>>({});
+  const [travelTimesMap, setTravelTimesMap] = useState<Record<string, { walk: string | null; drive: string | null; distance: string | null }>>({});
+  const travelTimesMapRef = useRef<Record<string, { walk: string | null; drive: string | null; distance: string | null }>>({});
   travelTimesMapRef.current = travelTimesMap;
 
   // ── 일정 추가/수정 다이얼로그 ──
@@ -777,25 +777,27 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   }, []);
 
   // 두 지점 간 이동 시간 (Directions API)
-  const getRouteDuration = useCallback((
+  const getRouteInfo = useCallback((
     origin: google.maps.LatLng,
     dest: google.maps.LatLng,
     mode: google.maps.TravelMode,
-  ): Promise<string | null> => {
+  ): Promise<{ duration: string | null; distance: string | null }> => {
     return new Promise(resolve => {
       const svc = new window.google.maps.DirectionsService();
       svc.route(
         { origin, destination: dest, travelMode: mode },
         (result, status) => {
-          const duration = result?.routes?.[0]?.legs?.[0]?.duration?.text ?? null;
-          resolve(status === "OK" && duration ? duration : null);
+          const leg = result?.routes?.[0]?.legs?.[0];
+          const duration = leg?.duration?.text ?? null;
+          const distance = leg?.distance?.text ?? null;
+          resolve(status === "OK" ? { duration, distance } : { duration: null, distance: null });
         },
       );
     });
   }, []);
 
   // 제외 상태에 따라 핀 표시/번호·경로·이동시간 뱃지를 동기적으로 재적용
-  const applyExclusionSync = useCallback((timesMap: Record<string, { walk: string | null; drive: string | null }>) => {
+  const applyExclusionSync = useCallback((timesMap: Record<string, { walk: string | null; drive: string | null; distance: string | null }>) => {
     if (!mapRef.current) return;
     const map = mapRef.current;
     const allItems = itemsRef.current;
@@ -839,7 +841,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       if (!posA || !posB || !times || !mapRef.current) continue;
       const badge = document.createElement("div");
       badge.style.cssText = "background:rgba(255,255,255,0.72);border:1px solid rgba(226,232,240,0.7);border-radius:8px;padding:2px 6px;font-size:9px;font-family:Inter,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,0.08);white-space:nowrap;display:flex;gap:4px;align-items:center;pointer-events:none;backdrop-filter:blur(4px);";
-      badge.innerHTML = `<span style="color:#94a3b8;font-weight:500;">도보 ${times.walk ?? "—"}</span><span style="color:#e2e8f0">|</span><span style="color:#94a3b8;font-weight:500;">차 ${times.drive ?? "—"}</span>`;
+      badge.innerHTML = `<span style="color:#94a3b8;font-weight:500;">도보 ${times.walk ?? "—"}</span><span style="color:#e2e8f0">|</span><span style="color:#94a3b8;font-weight:500;">차 ${times.drive ?? "—"}</span><span style="color:#e2e8f0">|</span><span style="color:#94a3b8;font-weight:500;">${times.distance ?? "—"}</span>`;
       badgeMarkersRef.current.set(key, new window.google.maps.marker.AdvancedMarkerElement({
         map, content: badge, zIndex: 0,
         position: new window.google.maps.LatLng((posA.lat() + posB.lat()) / 2, (posA.lng() + posB.lng()) / 2),
@@ -902,17 +904,17 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     }
 
     // 인접 핀 이동 시간 계산 (뱃지 생성은 applyExclusionSync에서)
-    const newTimesMap: Record<string, { walk: string | null; drive: string | null }> = {};
+    const newTimesMap: Record<string, { walk: string | null; drive: string | null; distance: string | null }> = {};
     if (positions.length >= 2) {
       for (let i = 0; i < positions.length - 1; i++) {
         if (renderVersionRef.current !== myVersion) return; // stale, 중단
         const { item: a, latlng: la } = positions[i];
         const { item: b, latlng: lb } = positions[i + 1];
-        const [walk, drive] = await Promise.all([
-          getRouteDuration(la, lb, window.google.maps.TravelMode.WALKING),
-          getRouteDuration(la, lb, window.google.maps.TravelMode.DRIVING),
+        const [walkInfo, driveInfo] = await Promise.all([
+          getRouteInfo(la, lb, window.google.maps.TravelMode.WALKING),
+          getRouteInfo(la, lb, window.google.maps.TravelMode.DRIVING),
         ]);
-        newTimesMap[`${a.id}:${b.id}`] = { walk, drive };
+        newTimesMap[`${a.id}:${b.id}`] = { walk: walkInfo.duration, drive: driveInfo.duration, distance: driveInfo.distance ?? walkInfo.distance };
       }
     }
     if (renderVersionRef.current !== myVersion) return; // stale, 중단
@@ -924,7 +926,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     } else {
       applyExclusionSync({});
     }
-  }, [clearMap, geocodeAddress, drawRoute, getRouteDuration, applyExclusionSync]);
+  }, [clearMap, geocodeAddress, drawRoute, getRouteInfo, applyExclusionSync]);
 
   useEffect(() => {
     geocacheRef.current.clear();
@@ -976,33 +978,25 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         const posA = positionsByIdRef.current.get(a.id);
         const posB = positionsByIdRef.current.get(b.id);
         if (!posA || !posB) continue;
-        const [walk, drive] = await Promise.all([
-          getRouteDuration(posA, posB, window.google.maps.TravelMode.WALKING),
-          getRouteDuration(posA, posB, window.google.maps.TravelMode.DRIVING),
+        const [walkInfo, driveInfo] = await Promise.all([
+          getRouteInfo(posA, posB, window.google.maps.TravelMode.WALKING),
+          getRouteInfo(posA, posB, window.google.maps.TravelMode.DRIVING),
         ]);
         if (excludedIdsRef.current !== capturedExcluded || optimisticVisitedIdsRef.current !== capturedOptV || !mapRef.current) return;
-        const times = { walk, drive };
+        const times = { walk: walkInfo.duration, drive: driveInfo.duration, distance: driveInfo.distance ?? walkInfo.distance };
         travelTimesMapRef.current[key] = times;
         setTravelTimesMap(prev => ({ ...prev, [key]: times }));
         applyExclusionSync({ ...travelTimesMapRef.current });
       }
     })();
-  }, [excludedIds, optimisticVisitedIds, mapReady, applyExclusionSync, getRouteDuration]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [excludedIds, optimisticVisitedIds, mapReady, applyExclusionSync, getRouteInfo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 지도에서 특정 핀으로 이동 ──
   const focusOnItem = useCallback((item: ItemType) => {
     const latlng = positionsByIdRef.current.get(item.id);
     if (!latlng || !mapRef.current) return;
-    // 열려있는 인포윈도우 모두 닫기
-    infoWindowsByIdRef.current.forEach(w => w.close());
+    // 지도 배율 변경/정보창 오픈 없이 해당 핀 위치로만 이동
     mapRef.current.panTo(latlng);
-    mapRef.current.setZoom(16);
-    // 해당 마커의 인포윈도우 열기
-    const marker = markersByIdRef.current.get(item.id);
-    const infoWindow = infoWindowsByIdRef.current.get(item.id);
-    if (marker && infoWindow) {
-      infoWindow.open({ anchor: marker, map: mapRef.current });
-    }
   }, []);
 
   // ── 다이얼로그 열기 ──
@@ -1413,7 +1407,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                               <div className="flex items-center gap-2 px-2 py-1">
                                 <div className="h-px flex-1 bg-border" />
                                 <span className="text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
-                                  <PersonStanding className="w-3 h-3" /><span>{times.walk ?? "—"}</span><span className="text-border">|</span><Car className="w-3 h-3" /><span>{times.drive ?? "—"}</span>
+                                  <PersonStanding className="w-3 h-3" /><span>{times.walk ?? "—"}</span><span className="text-border">|</span><Car className="w-3 h-3" /><span>{times.drive ?? "—"}</span><span className="text-border">|</span><span>{times.distance ?? "—"}</span>
                                 </span>
                                 <div className="h-px flex-1 bg-border" />
                               </div>
@@ -1474,7 +1468,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                         <div className="flex items-center gap-2 px-2 py-1">
                           <div className="h-px flex-1 bg-border" />
                           <span className="text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
-                            <PersonStanding className="w-3 h-3" /><span>{times.walk ?? "—"}</span><span className="text-border">|</span><Car className="w-3 h-3" /><span>{times.drive ?? "—"}</span>
+                            <PersonStanding className="w-3 h-3" /><span>{times.walk ?? "—"}</span><span className="text-border">|</span><Car className="w-3 h-3" /><span>{times.drive ?? "—"}</span><span className="text-border">|</span><span>{times.distance ?? "—"}</span>
                           </span>
                           <div className="h-px flex-1 bg-border" />
                         </div>
