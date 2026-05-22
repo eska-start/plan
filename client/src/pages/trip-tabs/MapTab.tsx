@@ -110,6 +110,7 @@ function buildInfoWindowEl(item: { placeName: string; category?: string | null; 
 
 type ItemType = {
   id: number;
+  date?: string | null;
   placeName: string;
   address?: string | null;
   visitTime?: string | null;
@@ -124,7 +125,7 @@ type ItemType = {
 
 type FormData = {
   date: string; placeName: string; address: string; visitTime: string;
-  duration: string; memo: string; category: string; lat: string; lng: string;
+  duration: string; memo: string; category: string; lat: string; lng: string; sourceType: "manual" | "pool";
 };
 
 type AiItem = {
@@ -153,7 +154,7 @@ async function resizeImageToBase64(file: File): Promise<string> {
 
 // 드래그 가능한 방문 순서 아이템
 function SortableVisitItem({
-  item, index, total, onEdit, onDelete, onToggleVisited, onFocusMap, isExcluded, onToggleExclude,
+  item, index, total, onEdit, onDelete, onToggleVisited, onFocusMap, isExcluded, onToggleExclude, onMoveToPool,
 }: {
   item: ItemType; index: number; total: number;
   onEdit: (item: ItemType) => void;
@@ -162,6 +163,7 @@ function SortableVisitItem({
   onFocusMap: (item: ItemType) => void;
   isExcluded: boolean;
   onToggleExclude: (id: number) => void;
+  onMoveToPool: (item: ItemType) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const dndStyle = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
@@ -329,6 +331,11 @@ function SortableVisitItem({
                 className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
+              <button onClick={() => onMoveToPool(item)}
+                className="p-1.5 rounded-lg hover:bg-amber-50 text-muted-foreground hover:text-amber-700 transition-colors"
+                title="보관함으로 이동">
+                <FolderOpen className="w-3.5 h-3.5" />
+              </button>
             </>
           )}
           {isAccommodation && (
@@ -408,7 +415,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [deleteTarget, setDeleteTarget] = useState<ItemType | null>(null);
   const [form, setForm] = useState<FormData>({
     date: tripStartDate, placeName: "", address: "", visitTime: "",
-    duration: "", memo: "", category: "place", lat: "", lng: "",
+    duration: "", memo: "", category: "place", lat: "", lng: "", sourceType: "manual",
   });
   const placeInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -418,6 +425,11 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [aiText, setAiText] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiItems, setAiItems] = useState<AiItem[]>([]);
+  const [nearbyItems, setNearbyItems] = useState<Array<{ placeName: string; address?: string; lat?: number; lng?: number }>>([]);
+  const [optimizingRoute, setOptimizingRoute] = useState(false);
+  const [mobilePulling, setMobilePulling] = useState(false);
+  const pullStartYRef = useRef<number | null>(null);
+  const pulledRef = useRef(false);
   const aiCameraRef = useRef<HTMLInputElement>(null);
   const aiPhotoRef = useRef<HTMLInputElement>(null);
 
@@ -429,18 +441,110 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const dialogAiPhotoRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
+  const refreshAll = useCallback(() => {
+    utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
+    utils.itinerary.listByTrip.invalidate({ tripId });
+    utils.itinerary.listPoolByTrip.invalidate({ tripId });
+  }, [utils, tripId, selectedDate]);
+
+  async function handleNearbyRecommend() {
+    if (!mapRef.current || !window.google?.maps?.places) return toast.error("지도가 준비되지 않았습니다.");
+    const service = new window.google.maps.places.PlacesService(mapRef.current);
+    const center = mapRef.current.getCenter();
+    if (!center) return;
+    await new Promise<void>((resolve) => {
+      service.nearbySearch(
+        { location: center, radius: 2000, type: "tourist_attraction" },
+        (results, status) => {
+          if (status !== window.google.maps.places.PlacesServiceStatus.OK || !results) {
+            toast.error("근처 추천을 가져오지 못했어요.");
+            resolve();
+            return;
+          }
+          setNearbyItems(results.slice(0, 8).map(r => ({
+            placeName: r.name ?? "추천 장소",
+            address: r.vicinity ?? undefined,
+            lat: r.geometry?.location?.lat(),
+            lng: r.geometry?.location?.lng(),
+          })));
+          resolve();
+        }
+      );
+    });
+  }
+
+  async function handleOptimizeRoute() {
+    if (optimizingRoute) return;
+    if (!window.google?.maps) return toast.error("지도가 아직 준비되지 않았어요.");
+    if (items.length < 3) return toast.info("최적화하려면 장소가 3개 이상 필요해요.");
+
+    const getDurationSec = (origin: google.maps.LatLng, destination: google.maps.LatLng) =>
+      new Promise<number>((resolve) => {
+        const svc = new window.google.maps.DirectionsService();
+        svc.route(
+          { origin, destination, travelMode: window.google.maps.TravelMode.DRIVING },
+          (result, status) => {
+            const sec = result?.routes?.[0]?.legs?.[0]?.duration?.value;
+            resolve(status === "OK" && typeof sec === "number" ? sec : Number.POSITIVE_INFINITY);
+          },
+        );
+      });
+
+    setOptimizingRoute(true);
+    try {
+      const withPos = items
+        .map(item => ({ item, pos: positionsByIdRef.current.get(item.id) }))
+        .filter((x): x is { item: ItemType; pos: google.maps.LatLng } => !!x.pos);
+      if (withPos.length < 3) return toast.info("좌표가 있는 장소가 3개 이상 필요해요.");
+
+      // 현재 순서의 첫 장소/마지막 장소를 각각 출발지/도착지로 고정
+      const start = withPos[0];
+      const end = withPos[withPos.length - 1];
+      const remain = [...withPos.slice(1, -1)];
+      const orderedMiddle: typeof remain = [];
+      let current = start;
+
+      // 중간 지점만 이동시간(초) 기준으로 탐욕 최적화
+      while (remain.length > 0) {
+        const scores = await Promise.all(
+          remain.map(async cand => ({
+            cand,
+            cost: await getDurationSec(current.pos, cand.pos),
+          })),
+        );
+        scores.sort((a, b) => a.cost - b.cost);
+        const next = scores[0]?.cand;
+        if (!next) break;
+        orderedMiddle.push(next);
+        current = next;
+        const idx = remain.findIndex(r => r.item.id === next.item.id);
+        if (idx >= 0) remain.splice(idx, 1);
+      }
+
+      const orderedIds = [start, ...orderedMiddle, end].map(x => x.item.id);
+      setLocalOrder(orderedIds);
+      reorderMutation.mutate(
+        { tripId, orderedIds },
+        { onSuccess: () => toast.success("출발지/도착지 고정 기준으로 이동시간 최적화 완료") },
+      );
+    } catch {
+      toast.error("동선 최적화에 실패했습니다.");
+    } finally {
+      setOptimizingRoute(false);
+    }
+  }
 
   const { data: serverItems, isLoading } = trpc.itinerary.listByDate.useQuery(
     { tripId, date: selectedDate },
     { refetchInterval: 3000 }
   );
+  const { data: poolItems } = trpc.itinerary.listPoolByTrip.useQuery({ tripId }, { refetchInterval: 3000 });
 
   const createMutation = trpc.itinerary.create.useMutation({
     onSuccess: () => {
-      utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
-      utils.itinerary.listByTrip.invalidate({ tripId });
+      refreshAll();
       setDialogOpen(false);
-      setForm(f => ({ ...f, placeName: "", address: "", visitTime: "", duration: "", memo: "", lat: "", lng: "" }));
+      setForm(f => ({ ...f, placeName: "", address: "", visitTime: "", duration: "", memo: "", lat: "", lng: "", sourceType: "manual" }));
       toast.success("장소가 추가됐습니다.");
     },
     onError: () => toast.error("장소 추가에 실패했습니다."),
@@ -448,8 +552,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   const updateMutation = trpc.itinerary.update.useMutation({
     onSuccess: () => {
-      utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
-      utils.itinerary.listByTrip.invalidate({ tripId });
+      refreshAll();
       setDialogOpen(false);
       setEditId(null);
       toast.success("수정됐습니다.");
@@ -459,8 +562,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   const deleteMutation = trpc.itinerary.delete.useMutation({
     onSuccess: () => {
-      utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
-      utils.itinerary.listByTrip.invalidate({ tripId });
+      refreshAll();
       setDeleteTarget(null);
       toast.success("일정이 삭제됐습니다.");
     },
@@ -469,8 +571,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   const toggleVisitedMutation = trpc.itinerary.update.useMutation({
     onSuccess: () => {
-      utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
-      utils.itinerary.listByTrip.invalidate({ tripId });
+      refreshAll();
     },
   });
 
@@ -788,6 +889,40 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   }, [clearMap, geocodeAddress, drawRoute, getRouteDuration, applyExclusionSync]);
 
   useEffect(() => {
+    const isMobile = () => window.matchMedia("(max-width: 1023px)").matches;
+    const onTouchStart = (e: TouchEvent) => {
+      if (!isMobile()) return;
+      if (window.scrollY <= 0) {
+        pullStartYRef.current = e.touches[0]?.clientY ?? null;
+        pulledRef.current = false;
+      }
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isMobile() || pullStartYRef.current === null) return;
+      const dy = (e.touches[0]?.clientY ?? 0) - pullStartYRef.current;
+      if (window.scrollY <= 0 && dy > 70) setMobilePulling(true);
+    };
+    const onTouchEnd = () => {
+      if (!isMobile()) return;
+      if (mobilePulling && !pulledRef.current) {
+        pulledRef.current = true;
+        toast.success("새로고침 중...");
+        refreshAll();
+      }
+      pullStartYRef.current = null;
+      setTimeout(() => setMobilePulling(false), 300);
+    };
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [mobilePulling, refreshAll]);
+
+  useEffect(() => {
     geocacheRef.current.clear();
     setLocalOrder(null);
     hasInitialFitRef.current = false;
@@ -869,7 +1004,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   // ── 다이얼로그 열기 ──
   function openDialog() {
     setEditId(null);
-    setForm({ date: selectedDate, placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "" });
+    setForm({ date: selectedDate, placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "", sourceType: "manual" });
     setDialogAiMode(null);
     setDialogAiText("");
     setDialogOpen(true);
@@ -878,7 +1013,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   function openEdit(item: ItemType) {
     setEditId(item.id);
     setForm({
-      date: selectedDate,
+      date: item.date ?? selectedDate,
       placeName: item.placeName,
       address: item.address ?? "",
       visitTime: item.visitTime ?? "",
@@ -887,6 +1022,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       category: item.category ?? "place",
       lat: item.lat ?? "",
       lng: item.lng ?? "",
+      sourceType: item.sourceType === "pool" ? "pool" : "manual",
     });
     setDialogAiMode(null);
     setDialogAiText("");
@@ -904,12 +1040,21 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       category: form.category,
       lat: form.lat || undefined,
       lng: form.lng || undefined,
+      sourceType: form.sourceType,
     };
     if (editId) {
-      updateMutation.mutate({ id: editId, ...data });
+      updateMutation.mutate({ id: editId, date: form.date, ...data });
     } else {
       createMutation.mutate({ tripId, date: form.date, order: (serverItems?.length ?? 0), ...data });
     }
+  }
+
+  function moveToPool(item: ItemType) {
+    updateMutation.mutate({ id: item.id, sourceType: "pool", date: selectedDate });
+  }
+
+  function moveFromPool(item: ItemType) {
+    updateMutation.mutate({ id: item.id, sourceType: "manual", date: selectedDate, order: items.length });
   }
 
   // ── 다이얼로그 내부 AI ──
@@ -996,14 +1141,14 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     } finally { setAiLoading(false); }
   }
 
-  async function handleAiSave() {
+  async function handleAiSave(sourceType: "manual" | "pool" = "manual") {
     const toSave = aiItems.filter(i => i.selected && i.placeName);
     for (const item of toSave) {
       await createMutation.mutateAsync({
         tripId, date: item.date ?? selectedDate,
         placeName: item.placeName, visitTime: item.visitTime ?? undefined,
         category: item.category, memo: item.memo ?? undefined,
-        address: item.address ?? undefined, order: 0,
+        address: item.address ?? undefined, order: 0, sourceType,
       });
     }
     toast.success(`${toSave.length}개 일정이 추가됐습니다.`);
@@ -1012,6 +1157,11 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   return (
     <div className="space-y-5">
+      {mobilePulling && (
+        <div className="fixed top-2 left-1/2 -translate-x-1/2 z-50 text-xs bg-card border rounded-full px-3 py-1 shadow">
+          아래로 당겨 새로고침
+        </div>
+      )}
       {/* 헤더 */}
       <div className="flex items-start justify-between">
         <div>
@@ -1019,6 +1169,11 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           <p className="text-sm text-muted-foreground mt-0.5">드래그해서 방문 순서를 변경하면 지도와 일정 탭에 즉시 반영됩니다.</p>
         </div>
         <div className="flex gap-2 shrink-0">
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={handleNearbyRecommend}>주변 추천</Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={handleOptimizeRoute} disabled={optimizingRoute}>
+            {optimizingRoute ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+            동선 최적화
+          </Button>
           <Button
             size="sm" variant="outline"
             className="gap-1.5"
@@ -1071,7 +1226,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
               ))}
               <div className="flex gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={() => setAiItems([])} className="flex-1">다시 입력</Button>
-                <Button size="sm" onClick={handleAiSave} disabled={!aiItems.some(i => i.selected) || createMutation.isPending} className="flex-1">저장</Button>
+                <Button size="sm" onClick={() => handleAiSave("manual")} disabled={!aiItems.some(i => i.selected) || createMutation.isPending} className="flex-1">일정 저장</Button>
+                <Button size="sm" variant="secondary" onClick={() => handleAiSave("pool")} disabled={!aiItems.some(i => i.selected) || createMutation.isPending} className="flex-1">보관함 저장</Button>
               </div>
             </div>
           ) : aiMode === "text" ? (
@@ -1104,6 +1260,53 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleAiImage(f); e.target.value = ""; }} />
             </>
           )}
+        </div>
+      )}
+      {!!poolItems?.length && (
+        <div className="rounded-2xl border bg-card p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">보관함 (날짜 미정)</h3>
+            <span className="text-xs text-muted-foreground">{poolItems.length}개</span>
+          </div>
+          <div className="space-y-1.5">
+            {(poolItems as ItemType[]).map((item) => (
+              <div key={item.id} className="flex items-center gap-2 bg-card border rounded-xl px-3 py-3">
+                <div className="w-7 h-7 rounded-full bg-slate-500 text-white text-xs font-bold flex items-center justify-center shrink-0">P</div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate text-foreground">{item.placeName}</p>
+                  {item.address && <p className="text-xs text-muted-foreground truncate flex items-center gap-1"><MapPin className="w-3 h-3" />{item.address}</p>}
+                </div>
+                <a
+                  href={item.lat && item.lng
+                    ? `https://maps.google.com/?q=${item.lat},${item.lng}`
+                    : `https://maps.google.com/?q=${encodeURIComponent([item.placeName, item.address].filter(Boolean).join(" "))}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-blue-500 transition-colors"
+                  title="구글 지도에서 보기"
+                >
+                  <MapIcon className="w-3.5 h-3.5" />
+                </a>
+                <Button size="sm" variant="outline" onClick={() => moveFromPool(item)}>오늘로</Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {!!nearbyItems.length && (
+        <div className="rounded-2xl border bg-card p-3 space-y-2">
+          <h3 className="text-sm font-semibold">주변 추천</h3>
+          {nearbyItems.map((n, idx) => (
+            <div key={`${n.placeName}-${idx}`} className="flex items-center justify-between rounded-xl border px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{n.placeName}</p>
+                {n.address && <p className="text-xs text-muted-foreground truncate">{n.address}</p>}
+              </div>
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" onClick={() => createMutation.mutate({ tripId, date: selectedDate, placeName: n.placeName, address: n.address, lat: n.lat?.toString(), lng: n.lng?.toString(), sourceType: "manual" })}>일정</Button>
+                <Button size="sm" variant="secondary" onClick={() => createMutation.mutate({ tripId, date: selectedDate, placeName: n.placeName, address: n.address, lat: n.lat?.toString(), lng: n.lng?.toString(), sourceType: "pool" })}>보관</Button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -1143,7 +1346,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                   </div>
                 </div>
               )}
-              <MapView className="w-full h-[340px] sm:h-[420px] lg:h-[600px]" initialCenter={{ lat: 35.6762, lng: 139.6503 }} initialZoom={13}
+              <MapView className="w-full h-[250px] sm:h-[420px] lg:h-[600px]" initialCenter={{ lat: 35.6762, lng: 139.6503 }} initialZoom={13}
                 onMapReady={(map) => { mapRef.current = map; setMapReady(true); }} />
             </div>
           </div>
@@ -1184,6 +1387,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                               onFocusMap={focusOnItem}
                             isExcluded={excludedIds.has(item.id)}
                             onToggleExclude={toggleExclude}
+                            onMoveToPool={moveToPool}
                             />
                             {times && (
                               <div className="flex items-center gap-2 px-2 py-1">
@@ -1244,6 +1448,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                         onFocusMap={focusOnItem}
                         isExcluded={excludedIds.has(item.id)}
                         onToggleExclude={toggleExclude}
+                        onMoveToPool={moveToPool}
                       />
                       {times && (
                         <div className="flex items-center gap-2 px-2 py-1">
@@ -1365,25 +1570,33 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
               )}
             </div>
 
-            {/* 날짜 — 추가 시에만 */}
-            {!editId && (
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">날짜</Label>
-                <Select value={form.date} onValueChange={v => setForm(f => ({ ...f, date: v }))}>
-                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {tripDays.map((day, idx) => {
-                      const dateStr = format(day, "yyyy-MM-dd");
-                      return (
-                        <SelectItem key={dateStr} value={dateStr}>
-                          {format(day, "M월 d일 (EEE)", { locale: ko })} · Day {idx + 1}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            {/* 날짜 — 여행 기간 내에서만 선택 가능 */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">날짜</Label>
+              <Select value={form.date} onValueChange={v => setForm(f => ({ ...f, date: v }))}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {tripDays.map((day, idx) => {
+                    const dateStr = format(day, "yyyy-MM-dd");
+                    return (
+                      <SelectItem key={dateStr} value={dateStr}>
+                        {format(day, "M월 d일 (EEE)", { locale: ko })} · Day {idx + 1}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">저장 위치</Label>
+              <Select value={form.sourceType} onValueChange={v => setForm(f => ({ ...f, sourceType: (v as "manual" | "pool") }))}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">일정에 바로 배치</SelectItem>
+                  <SelectItem value="pool">보관함(날짜 미정)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* 카테고리 */}
             <div className="space-y-1.5">

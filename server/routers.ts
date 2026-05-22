@@ -25,7 +25,7 @@ import {
   getRentalsByTrip, createRental, updateRental, deleteRental,
   getAccommodationsByTrip, createAccommodation, updateAccommodation, deleteAccommodation,
   getMemosByTrip, createMemo, updateMemo, deleteMemo,
-  getItineraryByDate, getItineraryByTrip, createItineraryItem, updateItineraryItem, deleteItineraryItem,
+  getItineraryByDate, getItineraryByTrip, getItineraryPoolByTrip, createItineraryItem, updateItineraryItem, deleteItineraryItem,
   reorderItineraryItems, deleteItineraryItemsBySource,
   getDiaryEntriesByTrip, getDiaryEntryByDate, upsertDiaryEntry, deleteDiaryEntry,
   createTripShare, getTripShareByToken, getTripSharesByTrip, deleteTripShare,
@@ -731,6 +731,10 @@ const itineraryRouter = router({
     .input(z.object({ tripId: z.number() }))
     .query(({ ctx, input }) => getItineraryByTrip(input.tripId, ctx.user.id)),
 
+  listPoolByTrip: protectedProcedure
+    .input(z.object({ tripId: z.number() }))
+    .query(({ ctx, input }) => getItineraryPoolByTrip(input.tripId, ctx.user.id)),
+
   create: protectedProcedure
     .input(z.object({
       tripId: z.number(),
@@ -745,12 +749,14 @@ const itineraryRouter = router({
       visited: z.boolean().optional(),
       memo: z.string().optional(),
       category: z.string().optional(),
+      sourceType: z.string().optional(),
     }))
     .mutation(({ ctx, input }) => createItineraryItem({ ...input, userId: ctx.user.id })),
 
   update: protectedProcedure
     .input(z.object({
       id: z.number(),
+      date: z.string().optional(),
       order: z.number().optional(),
       placeName: z.string().optional(),
       address: z.string().optional(),
@@ -761,6 +767,7 @@ const itineraryRouter = router({
       visited: z.boolean().optional(),
       memo: z.string().optional(),
       category: z.string().optional(),
+      sourceType: z.string().optional(),
     }))
     .mutation(({ ctx, input }) => {
       const { id, ...data } = input;
