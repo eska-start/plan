@@ -154,7 +154,7 @@ async function resizeImageToBase64(file: File): Promise<string> {
 
 // 드래그 가능한 방문 순서 아이템
 function SortableVisitItem({
-  item, index, total, onEdit, onDelete, onToggleVisited, onFocusMap, isExcluded, onToggleExclude,
+  item, index, total, onEdit, onDelete, onToggleVisited, onFocusMap, isExcluded, onToggleExclude, onMoveToPool,
 }: {
   item: ItemType; index: number; total: number;
   onEdit: (item: ItemType) => void;
@@ -163,6 +163,7 @@ function SortableVisitItem({
   onFocusMap: (item: ItemType) => void;
   isExcluded: boolean;
   onToggleExclude: (id: number) => void;
+  onMoveToPool: (item: ItemType) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const dndStyle = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
@@ -330,6 +331,11 @@ function SortableVisitItem({
                 className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
+              <button onClick={() => onMoveToPool(item)}
+                className="p-1.5 rounded-lg hover:bg-amber-50 text-muted-foreground hover:text-amber-700 transition-colors"
+                title="보관함으로 이동">
+                <FolderOpen className="w-3.5 h-3.5" />
+              </button>
             </>
           )}
           {isAccommodation && (
@@ -435,6 +441,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     { tripId, date: selectedDate },
     { refetchInterval: 3000 }
   );
+  const { data: poolItems } = trpc.itinerary.listPoolByTrip.useQuery({ tripId }, { refetchInterval: 3000 });
 
   const createMutation = trpc.itinerary.create.useMutation({
     onSuccess: () => {
@@ -913,6 +920,14 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     }
   }
 
+  function moveToPool(item: ItemType) {
+    updateMutation.mutate({ id: item.id, sourceType: "pool", date: selectedDate });
+  }
+
+  function moveFromPool(item: ItemType) {
+    updateMutation.mutate({ id: item.id, sourceType: "manual", date: selectedDate, order: items.length });
+  }
+
   // ── 다이얼로그 내부 AI ──
   async function handleDialogAiText() {
     if (!dialogAiText.trim()) return;
@@ -1107,6 +1122,25 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           )}
         </div>
       )}
+      {!!poolItems?.length && (
+        <div className="rounded-2xl border bg-card p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">보관함 (날짜 미정)</h3>
+            <span className="text-xs text-muted-foreground">{poolItems.length}개</span>
+          </div>
+          <div className="space-y-1.5">
+            {(poolItems as ItemType[]).map((item) => (
+              <div key={item.id} className="flex items-center justify-between rounded-xl border px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{item.placeName}</p>
+                  {item.address && <p className="text-xs text-muted-foreground truncate">{item.address}</p>}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => moveFromPool(item)}>오늘로 배치</Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── 세로 모드: 날짜 + 지도 상단 고정, 목록은 아래에서 스크롤
            ── 가로/데스크탑: static 복귀 후 map+list flex 배치 ── */}
@@ -1185,6 +1219,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                               onFocusMap={focusOnItem}
                             isExcluded={excludedIds.has(item.id)}
                             onToggleExclude={toggleExclude}
+                            onMoveToPool={moveToPool}
                             />
                             {times && (
                               <div className="flex items-center gap-2 px-2 py-1">
@@ -1245,6 +1280,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                         onFocusMap={focusOnItem}
                         isExcluded={excludedIds.has(item.id)}
                         onToggleExclude={toggleExclude}
+                        onMoveToPool={moveToPool}
                       />
                       {times && (
                         <div className="flex items-center gap-2 px-2 py-1">
