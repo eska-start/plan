@@ -236,3 +236,23 @@
   }
 }
 
+/* Map tab: keep date cards compact from the start without changing sticky/map/list behavior. */
+@media (max-width: 1023px) {
+  .sticky.top-0.z-30 > .flex.gap-2.overflow-x-auto > button {
+    gap: 0.125rem !important;
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+
+  .sticky.top-0.z-30 > .flex.gap-2.overflow-x-auto > button > span:nth-child(1) {
+    font-size: 11px !important;
+  }
+
+  .sticky.top-0.z-30 > .flex.gap-2.overflow-x-auto > button > span:nth-child(2) {
+    font-size: 0.875rem !important;
+  }
+
+  .sticky.top-0.z-30 > .flex.gap-2.overflow-x-auto > button > span:nth-child(n + 3) {
+    display: none !important;
+  }
+}
