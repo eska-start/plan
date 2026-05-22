@@ -1429,7 +1429,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       {/* 세로 모드 목록 — sticky 블록 아래에서 페이지와 함께 스크롤 */}
       {items && items.length > 0 && !isMobileLandscape && (
-        <div className="lg:hidden mt-1 space-y-2 min-h-[42vh]">
+        <div className={`lg:hidden mt-1 space-y-2 ${(items.length <= 5) ? "min-h-[70vh]" : ""}`}>
           <div className="flex items-center justify-between px-1">
             <h3 className="text-sm font-semibold text-foreground">
               {format(new Date(selectedDate + "T00:00:00"), "M월 d일", { locale: ko })} 방문 순서
@@ -1485,14 +1485,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       )}
 
       {!isMobileLandscape && (!items || items.length === 0) && (
-        <div className="lg:hidden mt-1 min-h-[42vh] rounded-2xl border border-dashed border-border bg-muted/20 flex items-center justify-center px-4">
+        <div className="lg:hidden mt-1 min-h-[70vh] rounded-2xl border border-dashed border-border bg-muted/20 flex items-center justify-center px-4">
           <p className="text-sm text-muted-foreground text-center">선택한 날짜에 등록된 일정이 없어요.</p>
         </div>
-      )}
-
-      {/* 일정이 매우 적을 때도 sticky/compact 동작이 가능하도록 스크롤 여유 공간 확보 */}
-      {!isMobileLandscape && (items?.length ?? 0) < 3 && (
-        <div className="lg:hidden h-[42vh]" aria-hidden="true" />
       )}
 
       {(!items || items.length === 0) && !isLoading && (
