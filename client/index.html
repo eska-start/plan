@@ -22,6 +22,68 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      (() => {
+        const resetActivePin = () => {
+          document.querySelectorAll('[data-planlog-active-pin="true"]').forEach((pin) => {
+            pin.style.border = pin.dataset.planlogBorder || '';
+            pin.style.boxShadow = pin.dataset.planlogBoxShadow || '';
+            pin.style.transform = pin.dataset.planlogTransform || '';
+            pin.style.zIndex = pin.dataset.planlogZIndex || '';
+            pin.removeAttribute('data-planlog-active-pin');
+            pin.parentElement?.style.removeProperty('z-index');
+          });
+        };
+
+        const findMapPinByNumber = (numberText) => {
+          const mapRoot = document.querySelector('.gm-style');
+          if (!mapRoot || !numberText) return null;
+
+          const candidates = Array.from(mapRoot.querySelectorAll('div'));
+          const inner = candidates.find((node) => {
+            const text = node.textContent?.trim();
+            const transform = node.style.transform || '';
+            return text === numberText && transform.includes('rotate(45deg)');
+          });
+
+          return inner?.parentElement || null;
+        };
+
+        const highlightPin = (pin) => {
+          resetActivePin();
+          if (!pin) return;
+
+          pin.dataset.planlogBorder = pin.style.border || '';
+          pin.dataset.planlogBoxShadow = pin.style.boxShadow || '';
+          pin.dataset.planlogTransform = pin.style.transform || '';
+          pin.dataset.planlogZIndex = pin.style.zIndex || '';
+          pin.setAttribute('data-planlog-active-pin', 'true');
+
+          pin.style.border = '4px solid #fff';
+          pin.style.boxShadow = '0 0 0 4px rgba(255,255,255,.98), 0 0 0 8px rgba(91,180,216,.85), 0 10px 24px rgba(20,32,51,.38)';
+          pin.style.transform = 'rotate(-45deg) scale(1.18)';
+          pin.style.zIndex = '999999';
+          pin.parentElement?.style.setProperty('z-index', '999999', 'important');
+        };
+
+        document.addEventListener('click', (event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLElement)) return;
+          if (target.closest('.gm-style')) return;
+
+          const card = target.closest('.relative.overflow-hidden.rounded-xl, .flex.items-center.gap-2.bg-card.border.rounded-xl');
+          if (!card) return;
+
+          const badge = card.querySelector('.w-7.h-7.rounded-full');
+          const numberText = badge?.textContent?.trim();
+          if (!/^\d+$/.test(numberText || '')) return;
+
+          requestAnimationFrame(() => {
+            highlightPin(findMapPinByNumber(numberText));
+          });
+        }, true);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 
