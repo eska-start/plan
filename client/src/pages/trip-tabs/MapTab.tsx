@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from "react";
 import { MapView, loadMapScript } from "@/components/Map";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -356,6 +356,36 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   const tripStartDate = tripDays[0] ? format(tripDays[0], "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
 
+  const pendingScrollRestoreRef = useRef<number | null>(null);
+
+  const handleSelectDate = useCallback((dateStr: string) => {
+    if (selectedDate === dateStr) return;
+    pendingScrollRestoreRef.current = window.scrollY;
+    setSelectedDate(dateStr);
+  }, [selectedDate]);
+
+  useLayoutEffect(() => {
+    if (pendingScrollRestoreRef.current === null) return;
+    const y = pendingScrollRestoreRef.current;
+
+    let raf1 = 0;
+    let raf2 = 0;
+    const tid = window.setTimeout(() => window.scrollTo({ top: y, behavior: "auto" }), 120);
+
+    raf1 = requestAnimationFrame(() => {
+      window.scrollTo({ top: y, behavior: "auto" });
+      raf2 = requestAnimationFrame(() => window.scrollTo({ top: y, behavior: "auto" }));
+    });
+
+    pendingScrollRestoreRef.current = null;
+
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      window.clearTimeout(tid);
+    };
+  }, [selectedDate]);
+
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const markersByIdRef = useRef<Map<number, google.maps.marker.AdvancedMarkerElement>>(new Map());
@@ -430,6 +460,32 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [compactDateSelector, setCompactDateSelector] = useState(false);
   const aiCameraRef = useRef<HTMLInputElement>(null);
   const aiPhotoRef = useRef<HTMLInputElement>(null);
+  const stickyHeaderRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.innerWidth >= 1024) {
+        setCompactDateSelector(false);
+        return;
+      }
+
+      const stickyEl = stickyHeaderRef.current;
+      if (!stickyEl) return;
+
+      const stickyTop = stickyEl.getBoundingClientRect().top;
+      const stuckTop = parseFloat(window.getComputedStyle(stickyEl).top || "0") || 0;
+      setCompactDateSelector(stickyTop <= stuckTop + 1);
+    };
+
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
 
   // ── 다이얼로그 내부 AI ──
   const [dialogAiMode, setDialogAiMode] = useState<"text" | "image" | null>(null);
@@ -1155,9 +1211,19 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
               </div>
             </SheetContent>
           </Sheet>
-          <Button size="sm" variant="outline" className="gap-1.5 whitespace-nowrap" onClick={handleOptimizeRoute} disabled={optimizingRoute}>
-            <Loader2 className={`w-3.5 h-3.5 ${optimizingRoute ? "animate-spin opacity-100" : "opacity-0"}`} />
-            동선 최적화
+          <Button
+            size="sm"
+            variant="outline"
+            className="relative whitespace-nowrap overflow-hidden"
+            onClick={handleOptimizeRoute}
+            disabled={optimizingRoute}
+          >
+            <span className={optimizingRoute ? "opacity-60" : "opacity-100"}>동선 최적화</span>
+            {optimizingRoute && (
+              <span className="absolute inset-0 flex items-center justify-center bg-background/30">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              </span>
+            )}
           </Button>
           <Button
             size="sm" variant="outline"
@@ -1251,7 +1317,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       {/* ── 세로 모드: 날짜 + 지도 상단 고정, 목록은 아래에서 스크롤
            ── 가로/데스크탑: static 복귀 후 map+list flex 배치 ── */}
-      <div className={`sticky top-0 z-10 bg-background -mx-4 sm:-mx-6 px-4 sm:px-6 lg:static lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent space-y-3 transition-all ${compactDateSelector ? "pb-1" : "pb-3"}`}>
+      <div ref={stickyHeaderRef} className={`sticky top-0 z-10 bg-background -mx-4 sm:-mx-6 px-4 sm:px-6 lg:static lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent space-y-3 transition-all ${compactDateSelector ? "pb-1" : "pb-3"}`}>
 
         {/* 날짜 선택 */}
         <div className={`flex gap-2 overflow-x-auto scrollbar-thin transition-all ${compactDateSelector ? "pt-1 pb-0.5" : "pt-2 pb-1"}`}>
@@ -1259,11 +1325,14 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
             const dateStr = format(day, "yyyy-MM-dd");
             const isSelected = selectedDate === dateStr;
             return (
-              <button key={dateStr} onClick={() => setSelectedDate(dateStr)}
-                className={`flex items-center justify-center rounded-xl border transition-all shrink-0 ${compactDateSelector ? "px-3 py-1.5 min-w-[64px]" : "flex-col gap-0.5 px-3 py-2.5"} ${isSelected ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"}`}
+              <button type="button" key={dateStr} onClick={() => handleSelectDate(dateStr)}
+                className={`flex items-center justify-center rounded-xl border transition-all shrink-0 ${compactDateSelector ? "flex-col gap-0.5 px-2.5 py-1 min-w-[58px]" : "flex-col gap-0.5 px-3 py-2.5"} ${isSelected ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"}`}
               >
                 {compactDateSelector ? (
-                  <span className="text-sm font-semibold leading-none">{format(day, "M.d")}</span>
+                  <>
+                    <span className="text-[11px] font-medium leading-none">{format(day, "EEE", { locale: ko })}</span>
+                    <span className="text-sm font-semibold leading-none">{format(day, "M.d")}</span>
+                  </>
                 ) : (
                   <>
                     <span className="text-xs font-medium">{format(day, "EEE", { locale: ko })}</span>
@@ -1604,19 +1673,3 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     </div>
   );
 }
-  useEffect(() => {
-    const onScroll = () => {
-      if (window.innerWidth >= 1024) {
-        setCompactDateSelector(false);
-        return;
-      }
-      setCompactDateSelector(window.scrollY > 40);
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, []);
