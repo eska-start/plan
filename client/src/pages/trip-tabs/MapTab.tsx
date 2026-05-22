@@ -262,7 +262,7 @@ function SortableVisitItem({
         style={{ transform: `translateX(${swipeX}px)`, transition: swipeX === 0 ? "transform 0.2s ease" : "none" }}
       >
         {/* 드래그 핸들 */}
-        <button {...attributes} {...listeners}
+        <button type="button" {...attributes} {...listeners}
           data-dnd-handle="true"
           className="text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none p-0.5 shrink-0"
           aria-label="순서 변경"
@@ -272,6 +272,7 @@ function SortableVisitItem({
 
         {/* 방문 완료 토글 — 즉시 피드백 */}
         <button
+          type="button"
           onClick={handleToggle}
           className="shrink-0 transition-transform active:scale-125"
         >
@@ -290,6 +291,7 @@ function SortableVisitItem({
         <button
           type="button"
           className="flex-1 min-w-0 text-left hover:text-primary transition-colors"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => onFocusMap(item)}
         >
           <div className="flex items-center gap-1.5 min-w-0">
@@ -324,15 +326,15 @@ function SortableVisitItem({
           </a>
           {!isAccommodation && (
             <>
-              <button onClick={() => onEdit(item)}
+              <button type="button" onClick={() => onEdit(item)}
                 className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
                 <Pencil className="w-3.5 h-3.5" />
               </button>
-              <button onClick={() => onDelete(item)}
+              <button type="button" onClick={() => onDelete(item)}
                 className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
-              <button onClick={() => onMoveToPool(item)}
+              <button type="button" onClick={() => onMoveToPool(item)}
                 className="p-1.5 rounded-lg hover:bg-amber-50 text-muted-foreground hover:text-amber-700 transition-colors"
                 title="보관함으로 이동">
                 <FolderOpen className="w-3.5 h-3.5" />
@@ -494,12 +496,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   }, [isMobileLandscape]);
 
   useEffect(() => {
-    if (isMobileLandscape) return;
-    const becameCompact = !prevCompactRef.current && compactDateSelector;
     prevCompactRef.current = compactDateSelector;
-    if (!becameCompact) return;
-    mobileListTopRef.current?.scrollIntoView({ block: "start", behavior: "auto" });
-  }, [compactDateSelector, isMobileLandscape]);
+  }, [compactDateSelector]);
 
   // ── 다이얼로그 내부 AI ──
   const [dialogAiMode, setDialogAiMode] = useState<"text" | "image" | null>(null);
@@ -838,25 +836,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       .filter((p): p is google.maps.LatLng => !!p);
     if (visiblePositions.length >= 2) drawRoute(visiblePositions);
 
-    // 이동시간 뱃지: 기존 제거 후 보이는 인접 쌍만 재생성
+    // 지도 위 이동시간 뱃지는 제거 (목록 사이 구분선에서만 표시)
     badgeMarkersRef.current.forEach(m => { m.map = null; });
     badgeMarkersRef.current.clear();
-    for (let i = 0; i < visibleItems.length - 1; i++) {
-      const a = visibleItems[i];
-      const b = visibleItems[i + 1];
-      const key = `${a.id}:${b.id}`;
-      const times = timesMap[key];
-      const posA = positionsByIdRef.current.get(a.id);
-      const posB = positionsByIdRef.current.get(b.id);
-      if (!posA || !posB || !times || !mapRef.current) continue;
-      const badge = document.createElement("div");
-      badge.style.cssText = "background:rgba(255,255,255,0.72);border:1px solid rgba(226,232,240,0.7);border-radius:8px;padding:2px 6px;font-size:9px;font-family:Inter,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,0.08);white-space:nowrap;display:flex;gap:4px;align-items:center;pointer-events:none;backdrop-filter:blur(4px);";
-      badge.innerHTML = `<span style="color:#94a3b8;font-weight:500;">도보 ${times.walk ?? "—"}</span><span style="color:#e2e8f0">|</span><span style="color:#94a3b8;font-weight:500;">차 ${times.drive ?? "—"}</span><span style="color:#e2e8f0">|</span><span style="color:#94a3b8;font-weight:500;">${times.distance ?? "—"}</span>`;
-      badgeMarkersRef.current.set(key, new window.google.maps.marker.AdvancedMarkerElement({
-        map, content: badge, zIndex: 0,
-        position: new window.google.maps.LatLng((posA.lat() + posB.lat()) / 2, (posA.lng() + posB.lng()) / 2),
-      }));
-    }
   }, [drawRoute]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderOnMap = useCallback(async () => {
@@ -1332,7 +1314,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       {/* ── 세로 모드: 날짜 + 지도 상단 고정, 목록은 아래에서 스크롤
            ── 가로/데스크탑: static 복귀 후 map+list flex 배치 ── */}
-      <div ref={stickyHeaderRef} className={`sticky top-0 z-10 bg-background -mx-4 sm:-mx-6 px-4 sm:px-6 lg:static lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent space-y-3 transition-all ${compactDateSelector ? "pb-1" : "pb-3"}`}>
+      <div ref={stickyHeaderRef} className={`sticky top-0 z-30 bg-background -mx-4 sm:-mx-6 px-4 sm:px-6 lg:static lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent space-y-3 transition-all ${compactDateSelector ? "pb-1" : "pb-3"}`}>
 
         {/* 날짜 선택 */}
         <div className={`flex gap-2 overflow-x-auto scrollbar-thin transition-all ${compactDateSelector ? "pt-1 pb-0.5" : "pt-2 pb-1"}`}>
