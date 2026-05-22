@@ -1328,7 +1328,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       {/* ── 세로 모드: 날짜 + 지도 상단 고정, 목록은 아래에서 스크롤
            ── 가로/데스크탑: static 복귀 후 map+list flex 배치 ── */}
-      <div ref={stickyHeaderRef} className={`${isMobileLandscape ? "relative" : "sticky"} top-0 z-10 bg-background -mx-4 sm:-mx-6 px-4 sm:px-6 lg:static lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent space-y-3 transition-all ${compactDateSelector ? "pb-1" : "pb-3"}`}>
+      <div ref={stickyHeaderRef} className={`sticky top-0 z-10 bg-background -mx-4 sm:-mx-6 px-4 sm:px-6 lg:static lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent space-y-3 transition-all ${compactDateSelector ? "pb-1" : "pb-3"}`}>
 
         {/* 날짜 선택 */}
         <div className={`flex gap-2 overflow-x-auto scrollbar-thin transition-all ${compactDateSelector ? "pt-1 pb-0.5" : "pt-2 pb-1"}`}>
@@ -1353,10 +1353,10 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         </div>
 
         {/* 지도 + 데스크탑 사이드바 */}
-        <div className="lg:flex lg:gap-4 lg:items-start">
+        <div className={`${isMobileLandscape ? "flex gap-3 items-start" : "lg:flex lg:gap-4 lg:items-start"}`}>
 
           {/* 지도 */}
-          <div className="lg:flex-1 min-w-0">
+          <div className={`${isMobileLandscape ? "flex-1 min-w-0" : "lg:flex-1 min-w-0"}`}>
             <div className="rounded-2xl overflow-hidden border border-border shadow-sm relative">
               {(geocoding || isLoading) && (
                 <div className="absolute inset-0 bg-background/60 backdrop-blur-sm z-10 flex items-center justify-center">
@@ -1366,15 +1366,15 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                   </div>
                 </div>
               )}
-              <MapView className={`w-full ${isMobileLandscape ? "h-[56vh]" : "h-[250px] sm:h-[420px]"} lg:h-[600px]`} initialCenter={{ lat: 35.6762, lng: 139.6503 }} initialZoom={13}
+              <MapView className={`w-full ${isMobileLandscape ? "h-[64vh]" : "h-[250px] sm:h-[420px]"} lg:h-[600px]`} initialCenter={{ lat: 35.6762, lng: 139.6503 }} initialZoom={13}
                 onMapReady={(map) => { mapRef.current = map; setMapReady(true); }} />
             </div>
           </div>
 
           {/* 데스크탑 사이드바 목록 (lg 이상에서만 표시) */}
           {items && items.length > 0 && (
-            <div className="hidden lg:block lg:w-96 xl:w-[26rem] lg:shrink-0">
-              <div className="border border-border rounded-2xl bg-card p-3 lg:max-h-[600px] lg:overflow-y-auto space-y-2">
+            <div className={`${isMobileLandscape ? "block w-[44vw] max-w-[26rem] shrink-0" : "hidden lg:block lg:w-96 xl:w-[26rem] lg:shrink-0"}`}>
+              <div className={`border border-border rounded-2xl bg-card p-3 space-y-2 ${isMobileLandscape ? "max-h-[64vh] overflow-y-auto" : "lg:max-h-[600px] lg:overflow-y-auto"}`}>
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground">
                     {format(new Date(selectedDate + "T00:00:00"), "M월 d일", { locale: ko })} 방문 순서
@@ -1434,8 +1434,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       </div>
 
       {/* 세로 모드 목록 — sticky 블록 아래에서 페이지와 함께 스크롤 */}
-      {items && items.length > 0 && (
-        <div className="lg:hidden mt-1 space-y-2 min-h-[32vh]">
+      {items && items.length > 0 && !isMobileLandscape && (
+        <div className="lg:hidden mt-1 space-y-2">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-sm font-semibold text-foreground">
               {format(new Date(selectedDate + "T00:00:00"), "M월 d일", { locale: ko })} 방문 순서
