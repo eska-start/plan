@@ -18,9 +18,47 @@
     <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.svg?v=planlog-2" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <style>
+      #planlog-pull-refresh {
+        position: fixed;
+        top: max(10px, env(safe-area-inset-top));
+        left: 50%;
+        z-index: 2147483647;
+        width: 34px;
+        height: 34px;
+        margin-left: -17px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 8px 22px rgba(20, 32, 51, 0.16);
+        display: grid;
+        place-items: center;
+        opacity: 0;
+        transform: translateY(-44px) scale(0.82);
+        pointer-events: none;
+        transition: opacity 0.16s ease, transform 0.16s ease;
+      }
+      #planlog-pull-refresh[data-visible="true"] {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      #planlog-pull-refresh::before {
+        content: "";
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        border: 2.5px solid rgba(91, 180, 216, 0.24);
+        border-top-color: #5BB4D8;
+        transform: rotate(var(--planlog-pull-spin, 0deg));
+      }
+      #planlog-pull-refresh[data-loading="true"]::before {
+        animation: planlog-spin 0.72s linear infinite;
+      }
+      @keyframes planlog-spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
 
   <body>
+    <div id="planlog-pull-refresh" aria-hidden="true"></div>
     <div id="root"></div>
     <script>
       (() => {
@@ -59,9 +97,9 @@
           pin.dataset.planlogZIndex = pin.style.zIndex || '';
           pin.setAttribute('data-planlog-active-pin', 'true');
 
-          pin.style.border = '4px solid #fff';
-          pin.style.boxShadow = '0 0 0 4px rgba(255,255,255,.98), 0 0 0 8px rgba(91,180,216,.85), 0 10px 24px rgba(20,32,51,.38)';
-          pin.style.transform = 'rotate(-45deg) scale(1.18)';
+          pin.style.border = '3px solid #fff';
+          pin.style.boxShadow = '0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px rgba(91,180,216,.82)';
+          pin.style.transform = 'rotate(-45deg) scale(1.14)';
           pin.style.zIndex = '999999';
           pin.parentElement?.style.setProperty('z-index', '999999', 'important');
         };
@@ -82,6 +120,55 @@
             highlightPin(findMapPinByNumber(numberText));
           });
         }, true);
+      })();
+
+      (() => {
+        const indicator = document.getElementById('planlog-pull-refresh');
+        if (!indicator) return;
+
+        let startY = 0;
+        let pulling = false;
+        let distance = 0;
+        let loading = false;
+        const threshold = 74;
+
+        const canRefresh = () => window.scrollY <= 0 && !loading && !document.querySelector('.gm-style:hover');
+        const setVisible = (visible) => indicator.dataset.visible = visible ? 'true' : 'false';
+
+        document.addEventListener('touchstart', (event) => {
+          if (!canRefresh() || event.touches.length !== 1) return;
+          startY = event.touches[0].clientY;
+          pulling = true;
+          distance = 0;
+        }, { passive: true });
+
+        document.addEventListener('touchmove', (event) => {
+          if (!pulling || loading || event.touches.length !== 1) return;
+          distance = Math.max(0, event.touches[0].clientY - startY);
+          if (distance <= 4) return;
+          if (window.scrollY <= 0) event.preventDefault();
+
+          const progress = Math.min(distance / threshold, 1);
+          indicator.style.setProperty('--planlog-pull-spin', `${Math.round(progress * 270)}deg`);
+          setVisible(true);
+        }, { passive: false });
+
+        document.addEventListener('touchend', () => {
+          if (!pulling) return;
+          pulling = false;
+
+          if (distance >= threshold) {
+            loading = true;
+            indicator.dataset.loading = 'true';
+            setVisible(true);
+            window.location.reload();
+            return;
+          }
+
+          setVisible(false);
+          indicator.dataset.loading = 'false';
+          distance = 0;
+        }, { passive: true });
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>
