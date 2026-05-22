@@ -111,7 +111,7 @@ export function MapView({
 
     const toggleBtn = document.createElement('button');
     toggleBtn.type = 'button';
-    toggleBtn.textContent = '🛰';
+    toggleBtn.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7.5 12 4l8 3.5-8 3.5-8-3.5Z" stroke="#111827" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 12.5 12 16l8-3.5" stroke="#111827" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17.5 12 21l8-3.5" stroke="#111827" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     toggleBtn.setAttribute('aria-label', '지도 타입');
     toggleBtn.style.cssText = `
       width:34px;
@@ -120,9 +120,9 @@ export function MapView({
       border-radius:999px;
       background:rgba(255,255,255,.96);
       box-shadow:0 4px 14px rgba(20,32,51,.14);
-      font-size:15px;
       cursor:pointer;
-      color:#334155;
+      display:grid;
+      place-items:center;
       backdrop-filter:blur(10px);
     `;
 
@@ -162,7 +162,7 @@ export function MapView({
           el.style.background = 'transparent';
           el.style.color = '#334155';
         });
-        btn.style.background = '#5BB4D8';
+        btn.style.background = '#111827';
         btn.style.color = '#fff';
       };
 
@@ -172,7 +172,7 @@ export function MapView({
     const roadmapBtn = createTypeBtn('지도', google.maps.MapTypeId.ROADMAP);
     const satelliteBtn = createTypeBtn('위성', google.maps.MapTypeId.SATELLITE);
 
-    roadmapBtn.style.background = '#5BB4D8';
+    roadmapBtn.style.background = '#111827';
     roadmapBtn.style.color = '#fff';
 
     panel.appendChild(roadmapBtn);
@@ -189,7 +189,7 @@ export function MapView({
     controlWrap.appendChild(toggleBtn);
     controlWrap.appendChild(panel);
 
-    map.current.controls[window.google.maps.ControlPosition.TOP_RIGHT].push(controlWrap);
+    map.current.controls[window.google.maps.ControlPosition.TOP_LEFT].push(controlWrap);
 
     if (onMapReady) {
       onMapReady(map.current);
