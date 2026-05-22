@@ -14,64 +14,6 @@
  * </MapView>
  *
  * ======
- * Available Libraries and Core Features:
- * -------------------------------
- * 📍 MARKER (from `marker` library)
- * - Attaches to map using { map, position }
- * new google.maps.marker.AdvancedMarkerElement({
- *   map,
- *   position: { lat: 37.7749, lng: -122.4194 },
- *   title: "San Francisco",
- * });
- *
- * -------------------------------
- * 🏢 PLACES (from `places` library)
- * - Does not attach directly to map; use data with your map manually.
- * const place = new google.maps.places.Place({ id: PLACE_ID });
- * await place.fetchFields({ fields: ["displayName", "location"] });
- * map.setCenter(place.location);
- * new google.maps.marker.AdvancedMarkerElement({ map, position: place.location });
- *
- * -------------------------------
- * 🧭 GEOCODER (from `geocoding` library)
- * - Standalone service; manually apply results to map.
- * const geocoder = new google.maps.Geocoder();
- * geocoder.geocode({ address: "New York" }, (results, status) => {
- *   if (status === "OK" && results[0]) {
- *     map.setCenter(results[0].geometry.location);
- *     new google.maps.marker.AdvancedMarkerElement({
- *       map,
- *       position: results[0].geometry.location,
- *     });
- *   }
- * });
- *
- * -------------------------------
- * 📐 GEOMETRY (from `geometry` library)
- * - Pure utility functions; not attached to map.
- * const dist = google.maps.geometry.spherical.computeDistanceBetween(p1, p2);
- *
- * -------------------------------
- * 🛣️ ROUTES (from `routes` library)
- * - Combines DirectionsService (standalone) + DirectionsRenderer (map-attached)
- * const directionsService = new google.maps.DirectionsService();
- * const directionsRenderer = new google.maps.DirectionsRenderer({ map });
- * directionsService.route(
- *   { origin, destination, travelMode: "DRIVING" },
- *   (res, status) => status === "OK" && directionsRenderer.setDirections(res)
- * );
- *
- * -------------------------------
- * 🌦️ MAP LAYERS (attach directly to map)
- * - new google.maps.TrafficLayer().setMap(map);
- * - new google.maps.TransitLayer().setMap(map);
- * - new google.maps.BicyclingLayer().setMap(map);
- *
- * -------------------------------
- * ✅ SUMMARY
- * - “map-attached” → AdvancedMarkerElement, DirectionsRenderer, Layers.
- * - “standalone” → Geocoder, DirectionsService, DistanceMatrixService, ElevationService.
- * - “data-only” → Place, Geometry utilities.
  */
 
 /// <reference types="@types/google.maps" />
@@ -117,7 +59,7 @@ export function loadMapScript() {
     script.crossOrigin = "anonymous";
     script.onload = () => {
       resolve(null);
-      script.remove(); // Clean up immediately
+      script.remove();
     };
     script.onerror = () => {
       console.error("Failed to load Google Maps script");
@@ -153,15 +95,102 @@ export function MapView({
       console.error("Google Maps is unavailable. Check API key and billing settings.");
       return;
     }
+
     map.current = new window.google.maps.Map(mapContainer.current, {
       zoom: initialZoom,
       center: initialCenter,
-      mapTypeControl: true,
+      mapTypeControl: false,
       fullscreenControl: true,
       zoomControl: true,
-      streetViewControl: true,
+      streetViewControl: false,
       mapId: "DEMO_MAP_ID",
     });
+
+    const controlWrap = document.createElement('div');
+    controlWrap.style.cssText = 'display:flex;align-items:center;gap:6px;margin:10px;';
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.textContent = '🛰';
+    toggleBtn.setAttribute('aria-label', '지도 타입');
+    toggleBtn.style.cssText = `
+      width:34px;
+      height:34px;
+      border:none;
+      border-radius:999px;
+      background:rgba(255,255,255,.96);
+      box-shadow:0 4px 14px rgba(20,32,51,.14);
+      font-size:15px;
+      cursor:pointer;
+      color:#334155;
+      backdrop-filter:blur(10px);
+    `;
+
+    const panel = document.createElement('div');
+    panel.style.cssText = `
+      display:flex;
+      align-items:center;
+      gap:4px;
+      padding:4px;
+      border-radius:999px;
+      background:rgba(255,255,255,.96);
+      box-shadow:0 4px 14px rgba(20,32,51,.14);
+      opacity:0;
+      transform:translateX(-6px);
+      pointer-events:none;
+      transition:all .18s ease;
+    `;
+
+    const createTypeBtn = (label: string, type: google.maps.MapTypeId) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = label;
+      btn.style.cssText = `
+        border:none;
+        border-radius:999px;
+        background:transparent;
+        padding:6px 10px;
+        font-size:12px;
+        font-weight:600;
+        color:#334155;
+        cursor:pointer;
+      `;
+
+      btn.onclick = () => {
+        map.current?.setMapTypeId(type);
+        [...panel.querySelectorAll('button')].forEach(el => {
+          el.style.background = 'transparent';
+          el.style.color = '#334155';
+        });
+        btn.style.background = '#5BB4D8';
+        btn.style.color = '#fff';
+      };
+
+      return btn;
+    };
+
+    const roadmapBtn = createTypeBtn('지도', google.maps.MapTypeId.ROADMAP);
+    const satelliteBtn = createTypeBtn('위성', google.maps.MapTypeId.SATELLITE);
+
+    roadmapBtn.style.background = '#5BB4D8';
+    roadmapBtn.style.color = '#fff';
+
+    panel.appendChild(roadmapBtn);
+    panel.appendChild(satelliteBtn);
+
+    let opened = false;
+    toggleBtn.onclick = () => {
+      opened = !opened;
+      panel.style.opacity = opened ? '1' : '0';
+      panel.style.transform = opened ? 'translateX(0)' : 'translateX(-6px)';
+      panel.style.pointerEvents = opened ? 'auto' : 'none';
+    };
+
+    controlWrap.appendChild(toggleBtn);
+    controlWrap.appendChild(panel);
+
+    map.current.controls[window.google.maps.ControlPosition.TOP_RIGHT].push(controlWrap);
+
     if (onMapReady) {
       onMapReady(map.current);
     }
