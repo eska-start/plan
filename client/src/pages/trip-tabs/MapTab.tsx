@@ -372,55 +372,53 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         </p>
       </div>
 
-      <div className="sticky top-0 z-30 -mx-4 space-y-3 bg-background px-4 pb-3 pt-1 sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:bg-transparent lg:px-0">
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
-          {tripDays.map((day, idx) => {
-            const dateStr = format(day, "yyyy-MM-dd");
-            const isSelected = selectedDate === dateStr;
-            return (
-              <button
-                key={dateStr}
-                onClick={() => setSelectedDate(dateStr)}
-                className={`flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-xl border transition-all shrink-0 ${
-                  isSelected
-                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                    : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"
-                }`}
-              >
-                <span className="text-xs font-medium">{format(day, "EEE", { locale: ko })}</span>
-                <span className="text-lg font-bold leading-none">{format(day, "d")}</span>
-                <span className="text-xs opacity-70">{format(day, "M.d")}</span>
-                <span className={`text-xs mt-0.5 ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                  Day {idx + 1}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+        {tripDays.map((day, idx) => {
+          const dateStr = format(day, "yyyy-MM-dd");
+          const isSelected = selectedDate === dateStr;
+          return (
+            <button
+              key={dateStr}
+              onClick={() => setSelectedDate(dateStr)}
+              className={`flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-xl border transition-all shrink-0 ${
+                isSelected
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"
+              }`}
+            >
+              <span className="text-xs font-medium">{format(day, "EEE", { locale: ko })}</span>
+              <span className="text-lg font-bold leading-none">{format(day, "d")}</span>
+              <span className="text-xs opacity-70">{format(day, "M.d")}</span>
+              <span className={`text-xs mt-0.5 ${isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                Day {idx + 1}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
-        <div className="rounded-2xl overflow-hidden border border-border shadow-sm relative">
-          {(geocoding || isLoading) && (
-            <div className="absolute inset-0 bg-background/60 backdrop-blur-sm z-10 flex items-center justify-center">
-              <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-4 py-2.5 shadow-sm">
-                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">지도 로딩 중...</span>
-              </div>
+      <div className="rounded-2xl overflow-hidden border border-border shadow-sm relative">
+        {(geocoding || isLoading) && (
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm z-10 flex items-center justify-center">
+            <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-4 py-2.5 shadow-sm">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">지도 로딩 중...</span>
             </div>
-          )}
-          <MapView
-            className="w-full h-[400px] sm:h-[480px]"
-            initialCenter={{ lat: 35.6762, lng: 139.6503 }}
-            initialZoom={13}
-            onMapReady={(map) => {
-              mapRef.current = map;
-              setMapReady(true);
-            }}
-          />
-        </div>
+          </div>
+        )}
+        <MapView
+          className="w-full h-[400px] sm:h-[480px]"
+          initialCenter={{ lat: 35.6762, lng: 139.6503 }}
+          initialZoom={13}
+          onMapReady={(map) => {
+            mapRef.current = map;
+            setMapReady(true);
+          }}
+        />
       </div>
 
       {items && items.length > 0 && (
-        <div className={`space-y-2 ${items.length <= 5 ? "min-h-[70vh]" : ""}`}>
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">
               {format(new Date(selectedDate + "T00:00:00"), "M월 d일", { locale: ko })} 방문 순서
@@ -460,7 +458,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       )}
 
       {(!items || items.length === 0) && !isLoading && (
-        <div className="flex min-h-[70vh] flex-col items-center justify-center py-10 gap-3 rounded-2xl border border-dashed border-border bg-muted/30">
+        <div className="flex flex-col items-center justify-center py-10 gap-3 rounded-2xl border border-dashed border-border bg-muted/30">
           <MapPin className="w-8 h-8 text-muted-foreground" />
           <div className="text-center">
             <p className="text-sm font-medium text-foreground">이 날의 방문 장소가 없습니다</p>
