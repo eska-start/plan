@@ -6,7 +6,7 @@ import { ko } from "date-fns/locale";
 import {
   MapPin, Navigation, Loader2, CheckCircle2, GripVertical,
   Plus, Sparkles, FileText, Camera, FolderOpen, X, Pencil, Trash2, Circle, Map as MapIcon,
-  EyeOff, RotateCcw, Clock, StickyNote, Car, PersonStanding, Hotel,
+  EyeOff, RotateCcw, Clock, StickyNote, Car, PersonStanding, Hotel, Archive, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -1102,7 +1102,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         <div className="flex gap-2 shrink-0">
           <Sheet>
             <SheetTrigger asChild>
-              <Button size="sm" variant="outline" className="gap-1.5">보관함</Button>
+              <Button size="sm" variant="outline" className="gap-1.5"><Archive className="w-3.5 h-3.5" />보관함</Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-[360px] sm:w-[420px]">
               <SheetHeader>
@@ -1111,16 +1111,40 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
               <div className="mt-4 space-y-2">
                 {(poolItems as ItemType[] | undefined)?.length ? (
                   (poolItems as ItemType[]).map((item) => (
-                    <div key={item.id} className="flex items-center justify-between rounded-xl border px-3 py-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{item.placeName}</p>
-                        {item.address && <p className="text-xs text-muted-foreground truncate">{item.address}</p>}
+                    <div key={item.id} className="rounded-xl border bg-card px-3 py-2.5 shadow-sm">
+                      <div className="flex items-start gap-2">
+                        <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                          <Archive className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{item.placeName}</p>
+                          {item.address && (
+                            <p className="text-xs text-muted-foreground truncate mt-0.5 flex items-center gap-1">
+                              <MapPin className="w-3 h-3 shrink-0" /><span className="truncate">{item.address}</span>
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => moveFromPool(item)}>오늘로 배치</Button>
+                      <div className="mt-2.5 flex items-center gap-2 pl-9">
+                        <a
+                          href={item.lat && item.lng
+                            ? `https://maps.google.com/?q=${item.lat},${item.lng}`
+                            : `https://maps.google.com/?q=${encodeURIComponent([item.placeName, item.address].filter(Boolean).join(" "))}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-blue-500 hover:bg-muted transition-colors"
+                          title="구글 지도에서 보기"
+                        >
+                          <MapIcon className="w-3.5 h-3.5" />구글지도
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <Button size="sm" variant="outline" onClick={() => moveFromPool(item)} className="h-7 px-2.5 text-xs">오늘로 배치</Button>
+                      </div>
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-muted-foreground">보관함에 저장된 장소가 없어요.</p>
+                  <div className="pl-2">
+                    <p className="text-sm text-muted-foreground">보관함에 저장된 장소가 없어요.</p>
+                  </div>
                 )}
               </div>
             </SheetContent>
@@ -1255,7 +1279,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
                   </div>
                 </div>
               )}
-              <MapView className="w-full h-[340px] sm:h-[420px] lg:h-[600px]" initialCenter={{ lat: 35.6762, lng: 139.6503 }} initialZoom={13}
+              <MapView className="w-full h-[250px] sm:h-[420px] lg:h-[600px]" initialCenter={{ lat: 35.6762, lng: 139.6503 }} initialZoom={13}
                 onMapReady={(map) => { mapRef.current = map; setMapReady(true); }} />
             </div>
           </div>
