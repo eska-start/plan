@@ -995,8 +995,14 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const focusOnItem = useCallback((item: ItemType) => {
     const latlng = positionsByIdRef.current.get(item.id);
     if (!latlng || !mapRef.current) return;
-    // 지도 배율 변경/정보창 오픈 없이 해당 핀 위치로만 이동
+    // 지도 배율 변경/정보창 오픈 없이 이동하되,
+    // 선택 핀이 화면 상단 쪽(가림이 적은 위치)에 오도록 약간 위로 배치
     mapRef.current.panTo(latlng);
+    const map = mapRef.current;
+    window.google.maps.event.addListenerOnce(map, "idle", () => {
+      const h = map.getDiv().clientHeight || 0;
+      if (h > 0) map.panBy(0, h * 0.28);
+    });
   }, []);
 
   // ── 다이얼로그 열기 ──
