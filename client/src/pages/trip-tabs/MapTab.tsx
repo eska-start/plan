@@ -1604,19 +1604,3 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     </div>
   );
 }
-  useEffect(() => {
-    const onScroll = () => {
-      if (window.innerWidth >= 1024) {
-        setCompactDateSelector(false);
-        return;
-      }
-      setCompactDateSelector(window.scrollY > 40);
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, []);
