@@ -1496,6 +1496,11 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         </div>
       )}
 
+      {/* 일정이 매우 적을 때도 sticky/compact 동작이 가능하도록 스크롤 여유 공간 확보 */}
+      {!isMobileLandscape && (items?.length ?? 0) < 3 && (
+        <div className="lg:hidden h-[42vh]" aria-hidden="true" />
+      )}
+
       {(!items || items.length === 0) && !isLoading && (
         <div className="flex flex-col items-center justify-center py-10 gap-3 rounded-2xl border border-dashed border-border bg-muted/30">
           <MapPin className="w-8 h-8 text-muted-foreground" />
