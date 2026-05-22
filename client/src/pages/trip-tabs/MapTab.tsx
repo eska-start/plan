@@ -465,7 +465,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   useEffect(() => {
     const onScroll = () => {
-      if (window.innerWidth >= 1024) {
+      if (window.innerWidth >= 1024 || isMobileLandscape) {
         setCompactDateSelector(false);
         return;
       }
@@ -489,7 +489,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, []);
+  }, [isMobileLandscape]);
 
   // ── 다이얼로그 내부 AI ──
   const [dialogAiMode, setDialogAiMode] = useState<"text" | "image" | null>(null);
