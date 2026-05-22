@@ -431,6 +431,25 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const aiCameraRef = useRef<HTMLInputElement>(null);
   const aiPhotoRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.innerWidth >= 1024) {
+        setCompactDateSelector(false);
+        return;
+      }
+      setCompactDateSelector(window.scrollY > 40);
+    };
+
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+
   // ── 다이얼로그 내부 AI ──
   const [dialogAiMode, setDialogAiMode] = useState<"text" | "image" | null>(null);
   const [dialogAiText, setDialogAiText] = useState("");
@@ -1155,9 +1174,19 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
               </div>
             </SheetContent>
           </Sheet>
-          <Button size="sm" variant="outline" className="gap-1.5 whitespace-nowrap" onClick={handleOptimizeRoute} disabled={optimizingRoute}>
-            <Loader2 className={`w-3.5 h-3.5 ${optimizingRoute ? "animate-spin opacity-100" : "opacity-0"}`} />
-            동선 최적화
+          <Button
+            size="sm"
+            variant="outline"
+            className="relative whitespace-nowrap overflow-hidden"
+            onClick={handleOptimizeRoute}
+            disabled={optimizingRoute}
+          >
+            <span className={optimizingRoute ? "opacity-60" : "opacity-100"}>동선 최적화</span>
+            {optimizingRoute && (
+              <span className="absolute inset-0 flex items-center justify-center bg-background/30">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              </span>
+            )}
           </Button>
           <Button
             size="sm" variant="outline"
@@ -1260,10 +1289,13 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
             const isSelected = selectedDate === dateStr;
             return (
               <button key={dateStr} onClick={() => setSelectedDate(dateStr)}
-                className={`flex items-center justify-center rounded-xl border transition-all shrink-0 ${compactDateSelector ? "px-3 py-1.5 min-w-[64px]" : "flex-col gap-0.5 px-3 py-2.5"} ${isSelected ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"}`}
+                className={`flex items-center justify-center rounded-xl border transition-all shrink-0 ${compactDateSelector ? "flex-col gap-0.5 px-2.5 py-1 min-w-[58px]" : "flex-col gap-0.5 px-3 py-2.5"} ${isSelected ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border hover:border-primary/30 hover:bg-muted/50"}`}
               >
                 {compactDateSelector ? (
-                  <span className="text-sm font-semibold leading-none">{format(day, "M.d")}</span>
+                  <>
+                    <span className="text-[11px] font-medium leading-none">{format(day, "EEE", { locale: ko })}</span>
+                    <span className="text-sm font-semibold leading-none">{format(day, "M.d")}</span>
+                  </>
                 ) : (
                   <>
                     <span className="text-xs font-medium">{format(day, "EEE", { locale: ko })}</span>
@@ -1604,19 +1636,3 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     </div>
   );
 }
-  useEffect(() => {
-    const onScroll = () => {
-      if (window.innerWidth >= 1024) {
-        setCompactDateSelector(false);
-        return;
-      }
-      setCompactDateSelector(window.scrollY > 40);
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, []);
