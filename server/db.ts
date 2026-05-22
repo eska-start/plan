@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import {
@@ -410,7 +410,11 @@ export async function getItineraryByDate(tripId: number, userId: number, date: s
   const trip = await getTripById(tripId, userId);
   if (!trip) return [];
   return db.select().from(itineraryItems)
-    .where(and(eq(itineraryItems.tripId, tripId), eq(itineraryItems.date, date)))
+    .where(and(
+      eq(itineraryItems.tripId, tripId),
+      eq(itineraryItems.date, date),
+      ne(itineraryItems.sourceType, "pool"),
+    ))
     .orderBy(asc(itineraryItems.order), asc(itineraryItems.visitTime));
 }
 
@@ -420,8 +424,18 @@ export async function getItineraryByTrip(tripId: number, userId: number) {
   const trip = await getTripById(tripId, userId);
   if (!trip) return [];
   return db.select().from(itineraryItems)
-    .where(eq(itineraryItems.tripId, tripId))
+    .where(and(eq(itineraryItems.tripId, tripId), ne(itineraryItems.sourceType, "pool")))
     .orderBy(asc(itineraryItems.date), asc(itineraryItems.order));
+}
+
+export async function getItineraryPoolByTrip(tripId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const trip = await getTripById(tripId, userId);
+  if (!trip) return [];
+  return db.select().from(itineraryItems)
+    .where(and(eq(itineraryItems.tripId, tripId), eq(itineraryItems.sourceType, "pool")))
+    .orderBy(desc(itineraryItems.updatedAt));
 }
 
 export async function createItineraryItem(data: InsertItineraryItem) {

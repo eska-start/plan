@@ -44,7 +44,7 @@ type ItineraryItem = {
 };
 
 type FormData = {
-  placeName: string; address: string; visitTime: string;
+  date: string; placeName: string; address: string; visitTime: string;
   duration: string; memo: string; category: string; lat: string; lng: string;
 };
 
@@ -141,7 +141,7 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
   const [editId, setEditId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>({
-    placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "",
+    date: tripStartDate, placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "",
   });
 
   // Dialog AI state
@@ -159,7 +159,7 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
     { enabled: !!selectedDate }
   );
   const createMutation = trpc.itinerary.create.useMutation({
-    onSuccess: () => { utils.itinerary.listByDate.invalidate(); utils.itinerary.listByTrip.invalidate(); setDialogOpen(false); setForm({ placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "" }); toast.success("추가됐습니다."); },
+    onSuccess: () => { utils.itinerary.listByDate.invalidate(); utils.itinerary.listByTrip.invalidate(); setDialogOpen(false); setForm({ date: selectedDate, placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "" }); toast.success("추가됐습니다."); },
     onError: () => toast.error("추가에 실패했습니다."),
   });
   const updateMutation = trpc.itinerary.update.useMutation({
@@ -200,14 +200,14 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
 
   function openCreate() {
     setEditId(null);
-    setForm({ placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "" });
+    setForm({ date: selectedDate, placeName: "", address: "", visitTime: "", duration: "", memo: "", category: "place", lat: "", lng: "" });
     setDialogAiMode(null);
     setDialogAiText("");
     setDialogOpen(true);
   }
   function openEdit(item: ItineraryItem) {
     setEditId(item.id);
-    setForm({ placeName: item.placeName, address: item.address ?? "", visitTime: item.visitTime ?? "", duration: item.duration?.toString() ?? "", memo: item.memo ?? "", category: item.category ?? "place", lat: item.lat ?? "", lng: item.lng ?? "" });
+    setForm({ date: item.date, placeName: item.placeName, address: item.address ?? "", visitTime: item.visitTime ?? "", duration: item.duration?.toString() ?? "", memo: item.memo ?? "", category: item.category ?? "place", lat: item.lat ?? "", lng: item.lng ?? "" });
     setDialogAiMode(null);
     setDialogAiText("");
     setDialogOpen(true);
@@ -215,8 +215,8 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
   function handleSubmit() {
     if (!form.placeName) { toast.error("장소명을 입력하세요."); return; }
     const data = { placeName: form.placeName, address: form.address || undefined, visitTime: form.visitTime || undefined, duration: form.duration ? parseInt(form.duration) : undefined, memo: form.memo || undefined, category: form.category, lat: form.lat || undefined, lng: form.lng || undefined };
-    if (editId) updateMutation.mutate({ id: editId, ...data });
-    else createMutation.mutate({ tripId, date: selectedDate, order: sortedItems.length, ...data });
+    if (editId) updateMutation.mutate({ id: editId, date: form.date, ...data });
+    else createMutation.mutate({ tripId, date: form.date, order: sortedItems.length, ...data });
   }
 
   async function resizeImageToBase64(file: File): Promise<string> {
@@ -456,6 +456,23 @@ export default function ScheduleTab({ tripId, tripDays }: { tripId: number; trip
                   )}
                 </div>
               )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">날짜</Label>
+              <Select value={form.date} onValueChange={v => setForm(f => ({ ...f, date: v }))}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {tripDays.map((day, idx) => {
+                    const dateStr = format(day, "yyyy-MM-dd");
+                    return (
+                      <SelectItem key={dateStr} value={dateStr}>
+                        {format(day, "M월 d일 (EEE)", { locale: ko })} · Day {idx + 1}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">
