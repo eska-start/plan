@@ -1100,7 +1100,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           <h2 className="text-lg sm:text-xl font-semibold text-foreground tracking-tight">동선 지도</h2>
           <p className="text-sm text-muted-foreground mt-0.5 break-keep">드래그해서 방문 순서를 변경하면 지도와 일정 탭에 즉시 반영됩니다.</p>
         </div>
-        <div className="flex gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+        <div className="flex gap-2 shrink-0 flex-wrap">
           <Sheet>
             <SheetTrigger asChild>
               <Button size="sm" variant="outline" className="gap-1.5">보관함</Button>
