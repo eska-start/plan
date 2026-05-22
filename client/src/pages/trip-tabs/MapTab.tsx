@@ -430,6 +430,28 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [compactDateSelector, setCompactDateSelector] = useState(false);
   const aiCameraRef = useRef<HTMLInputElement>(null);
   const aiPhotoRef = useRef<HTMLInputElement>(null);
+  const stickyHeaderRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.innerWidth >= 1024) {
+        setCompactDateSelector(false);
+        return;
+      }
+
+      const stickyTop = stickyHeaderRef.current?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY;
+      setCompactDateSelector(stickyTop <= 0);
+    };
+
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
 
   useEffect(() => {
     const onScroll = () => {
@@ -1280,7 +1302,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
       {/* ── 세로 모드: 날짜 + 지도 상단 고정, 목록은 아래에서 스크롤
            ── 가로/데스크탑: static 복귀 후 map+list flex 배치 ── */}
-      <div className={`sticky top-0 z-10 bg-background -mx-4 sm:-mx-6 px-4 sm:px-6 lg:static lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent space-y-3 transition-all ${compactDateSelector ? "pb-1" : "pb-3"}`}>
+      <div ref={stickyHeaderRef} className={`sticky top-0 z-10 bg-background -mx-4 sm:-mx-6 px-4 sm:px-6 lg:static lg:mx-0 lg:px-0 lg:pb-0 lg:bg-transparent space-y-3 transition-all ${compactDateSelector ? "pb-1" : "pb-3"}`}>
 
         {/* 날짜 선택 */}
         <div className={`flex gap-2 overflow-x-auto scrollbar-thin transition-all ${compactDateSelector ? "pt-1 pb-0.5" : "pt-2 pb-1"}`}>
