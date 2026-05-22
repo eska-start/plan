@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
@@ -24,6 +25,8 @@ function Router() {
 function App() {
   const touchStartY = useRef<number | null>(null);
   const pullDistance = useRef(0);
+  const [pullProgress, setPullProgress] = useState(0);
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
 
   useEffect(() => {
     const MOBILE_WIDTH = 1024;
@@ -34,22 +37,28 @@ function App() {
       if (window.innerWidth >= MOBILE_WIDTH || window.scrollY > 0) return;
       touchStartY.current = e.touches[0]?.clientY ?? null;
       pullDistance.current = 0;
+      setPullProgress(0);
     };
 
     const onTouchMove = (e: TouchEvent) => {
       if (touchStartY.current === null || window.scrollY > 0) return;
       const currentY = e.touches[0]?.clientY ?? touchStartY.current;
       pullDistance.current = Math.max(0, currentY - touchStartY.current);
+      const progress = Math.min(1, pullDistance.current / THRESHOLD_PX);
+      setPullProgress(progress);
     };
 
     const onTouchEnd = () => {
       if (window.innerWidth >= MOBILE_WIDTH || refreshing) return;
       if (window.scrollY <= 0 && pullDistance.current >= THRESHOLD_PX) {
         refreshing = true;
+        setIsPullRefreshing(true);
+        setPullProgress(1);
         window.location.reload();
       }
       touchStartY.current = null;
       pullDistance.current = 0;
+      if (!refreshing) setPullProgress(0);
     };
 
     window.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -66,6 +75,16 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
+          {(pullProgress > 0 || isPullRefreshing) && (
+            <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
+              <div className="rounded-full border bg-background/95 shadow-sm px-3 py-1.5 flex items-center gap-2">
+                <Loader2 className={`w-4 h-4 text-muted-foreground ${isPullRefreshing || pullProgress >= 0.08 ? "animate-spin" : ""}`} />
+                <span className="text-xs text-muted-foreground">
+                  {pullProgress >= 1 || isPullRefreshing ? "새로고침 중..." : "당겨서 새로고침"}
+                </span>
+              </div>
+            </div>
+          )}
           <Toaster />
           <Router />
         </TooltipProvider>
