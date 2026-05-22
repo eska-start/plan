@@ -426,6 +426,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [aiLoading, setAiLoading] = useState(false);
   const [aiItems, setAiItems] = useState<AiItem[]>([]);
   const [nearbyItems, setNearbyItems] = useState<Array<{ placeName: string; address?: string; lat?: number; lng?: number }>>([]);
+  const [optimizingRoute, setOptimizingRoute] = useState(false);
   const aiCameraRef = useRef<HTMLInputElement>(null);
   const aiPhotoRef = useRef<HTMLInputElement>(null);
 
@@ -464,11 +465,65 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     });
   }
 
-  function handleOptimizeRoute() {
-    const sortable = [...items].sort((a, b) => (a.visitTime ?? "99:99").localeCompare(b.visitTime ?? "99:99"));
-    const orderedIds = sortable.map(i => i.id);
-    setLocalOrder(orderedIds);
-    reorderMutation.mutate({ tripId, orderedIds }, { onSuccess: () => toast.success("동선을 자동 정렬했습니다.") });
+  async function handleOptimizeRoute() {
+    if (optimizingRoute) return;
+    if (!window.google?.maps) return toast.error("지도가 아직 준비되지 않았어요.");
+    if (items.length < 3) return toast.info("최적화하려면 장소가 3개 이상 필요해요.");
+
+    const getDurationSec = (origin: google.maps.LatLng, destination: google.maps.LatLng) =>
+      new Promise<number>((resolve) => {
+        const svc = new window.google.maps.DirectionsService();
+        svc.route(
+          { origin, destination, travelMode: window.google.maps.TravelMode.DRIVING },
+          (result, status) => {
+            const sec = result?.routes?.[0]?.legs?.[0]?.duration?.value;
+            resolve(status === "OK" && typeof sec === "number" ? sec : Number.POSITIVE_INFINITY);
+          },
+        );
+      });
+
+    setOptimizingRoute(true);
+    try {
+      const withPos = items
+        .map(item => ({ item, pos: positionsByIdRef.current.get(item.id) }))
+        .filter((x): x is { item: ItemType; pos: google.maps.LatLng } => !!x.pos);
+      if (withPos.length < 3) return toast.info("좌표가 있는 장소가 3개 이상 필요해요.");
+
+      // 현재 순서의 첫 장소/마지막 장소를 각각 출발지/도착지로 고정
+      const start = withPos[0];
+      const end = withPos[withPos.length - 1];
+      const remain = [...withPos.slice(1, -1)];
+      const orderedMiddle: typeof remain = [];
+      let current = start;
+
+      // 중간 지점만 이동시간(초) 기준으로 탐욕 최적화
+      while (remain.length > 0) {
+        const scores = await Promise.all(
+          remain.map(async cand => ({
+            cand,
+            cost: await getDurationSec(current.pos, cand.pos),
+          })),
+        );
+        scores.sort((a, b) => a.cost - b.cost);
+        const next = scores[0]?.cand;
+        if (!next) break;
+        orderedMiddle.push(next);
+        current = next;
+        const idx = remain.findIndex(r => r.item.id === next.item.id);
+        if (idx >= 0) remain.splice(idx, 1);
+      }
+
+      const orderedIds = [start, ...orderedMiddle, end].map(x => x.item.id);
+      setLocalOrder(orderedIds);
+      reorderMutation.mutate(
+        { tripId, orderedIds },
+        { onSuccess: () => toast.success("출발지/도착지 고정 기준으로 이동시간 최적화 완료") },
+      );
+    } catch {
+      toast.error("동선 최적화에 실패했습니다.");
+    } finally {
+      setOptimizingRoute(false);
+    }
   }
 
   const { data: serverItems, isLoading } = trpc.itinerary.listByDate.useQuery(
@@ -1072,7 +1127,10 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         </div>
         <div className="flex gap-2 shrink-0">
           <Button size="sm" variant="outline" className="gap-1.5" onClick={handleNearbyRecommend}>주변 추천</Button>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={handleOptimizeRoute}>동선 최적화</Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={handleOptimizeRoute} disabled={optimizingRoute}>
+            {optimizingRoute ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+            동선 최적화
+          </Button>
           <Button
             size="sm" variant="outline"
             className="gap-1.5"
