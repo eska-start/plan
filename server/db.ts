@@ -24,14 +24,13 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      // Strip ssl-mode query param (not supported by mysql2) and enable SSL explicitly
       const uri = process.env.DATABASE_URL.replace(/[?&]ssl-mode=[^&]*/i, "").replace(/\?$/, "");
       const pool = mysql.createPool({
         uri,
         ssl: { rejectUnauthorized: false },
         waitForConnections: true,
         connectionLimit: 5,
-        connectTimeout: 5000,   // 5초 안에 연결 못 하면 즉시 실패
+        connectTimeout: 5000,
       });
       _db = drizzle(pool) as unknown as typeof _db;
     }
@@ -40,13 +39,7 @@ export async function getDb() {
   return _db;
 }
 
-// MySQL error codes that mean "already applied / already exists"
-const IDEMPOTENT_ERRORS = new Set([
-  1050, // ER_TABLE_EXISTS_ERROR
-  1060, // ER_DUP_FIELDNAME
-  1061, // ER_DUP_KEYNAME
-  1091, // ER_CANT_DROP_FIELD_OR_KEY
-]);
+const IDEMPOTENT_ERRORS = new Set([1050, 1060, 1061, 1091]);
 
 export async function runPendingMigrations() {
   if (!process.env.DATABASE_URL) return;
@@ -66,22 +59,16 @@ export async function runPendingMigrations() {
     const applied = new Set(rows.map(r => r.name));
 
     const migrationsDir = join(__dirname, "../../drizzle");
-    const files = readdirSync(migrationsDir)
-      .filter(f => f.endsWith(".sql"))
-      .sort();
+    const files = readdirSync(migrationsDir).filter(f => f.endsWith(".sql")).sort();
 
     for (const file of files) {
       if (applied.has(file)) continue;
       const sqlText = readFileSync(join(migrationsDir, file), "utf-8");
-      const statements = sqlText
-        .split("--> statement-breakpoint")
-        .map(s => s.trim())
-        .filter(Boolean);
+      const statements = sqlText.split("--> statement-breakpoint").map(s => s.trim()).filter(Boolean);
 
       for (const stmt of statements) {
-        try {
-          await conn.execute(stmt);
-        } catch (err: any) {
+        try { await conn.execute(stmt); }
+        catch (err: any) {
           if (IDEMPOTENT_ERRORS.has(err.errno)) continue;
           throw err;
         }
@@ -137,7 +124,6 @@ export async function getUserByEmail(email: string) {
   return r[0];
 }
 
-
 export async function updateUserName(userId: number, name: string) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
@@ -154,14 +140,11 @@ export async function setUserPasswordHash(openId: string, passwordHash: string) 
 export async function getTripsByUser(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  // 내가 만든 여행 + 공유 멤버로 참여한 여행
   const ownTrips = await db.select().from(trips).where(eq(trips.userId, userId));
   const memberRows = await db.select().from(tripMembers).where(eq(tripMembers.userId, userId));
   const sharedTripIds = memberRows.map(m => m.tripId).filter(id => !ownTrips.find(t => t.id === id));
   let sharedTrips: typeof ownTrips = [];
-  if (sharedTripIds.length > 0) {
-    sharedTrips = await db.select().from(trips).where(inArray(trips.id, sharedTripIds));
-  }
+  if (sharedTripIds.length > 0) sharedTrips = await db.select().from(trips).where(inArray(trips.id, sharedTripIds));
   const all = [...ownTrips, ...sharedTrips];
   all.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   return all;
@@ -170,12 +153,10 @@ export async function getTripsByUser(userId: number) {
 export async function getTripById(id: number, userId: number) {
   const db = await getDb();
   if (!db) return undefined;
-  // owner 또는 member이면 접근 가능
   const r = await db.select().from(trips).where(eq(trips.id, id)).limit(1);
   if (!r[0]) return undefined;
   if (r[0].userId === userId) return r[0];
-  const mem = await db.select().from(tripMembers)
-    .where(and(eq(tripMembers.tripId, id), eq(tripMembers.userId, userId))).limit(1);
+  const mem = await db.select().from(tripMembers).where(and(eq(tripMembers.tripId, id), eq(tripMembers.userId, userId))).limit(1);
   if (mem[0]) return r[0];
   return undefined;
 }
@@ -189,7 +170,6 @@ export async function createTrip(data: InsertTrip) {
 export async function updateTrip(id: number, userId: number, data: Partial<InsertTrip>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  // owner or member can update
   const trip = await getTripById(id, userId);
   if (!trip) throw new Error("Trip not found or no access");
   await db.update(trips).set(data).where(eq(trips.id, id));
@@ -231,7 +211,6 @@ export async function getTripMembers(tripId: number) {
   const db = await getDb();
   if (!db) return [];
   const members = await db.select().from(tripMembers).where(eq(tripMembers.tripId, tripId));
-  // Enrich with user info
   const enriched = await Promise.all(members.map(async m => {
     const u = await getUserById(m.userId);
     return { ...m, userName: u?.name ?? "알 수 없음", userEmail: u?.email ?? "" };
@@ -242,17 +221,14 @@ export async function getTripMembers(tripId: number) {
 export async function addTripMember(data: InsertTripMember) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  // Prevent duplicate
-  const existing = await db.select().from(tripMembers)
-    .where(and(eq(tripMembers.tripId, data.tripId), eq(tripMembers.userId, data.userId))).limit(1);
-  if (existing[0]) return; // already member
+  const existing = await db.select().from(tripMembers).where(and(eq(tripMembers.tripId, data.tripId), eq(tripMembers.userId, data.userId))).limit(1);
+  if (existing[0]) return;
   await db.insert(tripMembers).values(data);
 }
 
 export async function removeTripMember(tripId: number, userId: number, requesterId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  // Only owner can remove, or member removes themselves
   const trip = await db.select().from(trips).where(eq(trips.id, tripId)).limit(1);
   if (!trip[0]) throw new Error("Trip not found");
   if (trip[0].userId !== requesterId && userId !== requesterId) throw new Error("No permission");
@@ -277,7 +253,6 @@ export async function createFlight(data: InsertFlight) {
 export async function updateFlight(id: number, userId: number, data: Partial<InsertFlight>) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  // Allow owner or trip member to update
   const row = await db.select().from(flights).where(eq(flights.id, id)).limit(1);
   if (!row[0]) throw new Error("Not found");
   const trip = await getTripById(row[0].tripId, userId);
@@ -343,9 +318,7 @@ export async function createAccommodation(data: InsertAccommodation) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const r = await db.insert(accommodations).values(data);
-  // insertId from mysql2
-  const insertId = (r[0] as any).insertId as number;
-  return insertId;
+  return (r[0] as any).insertId as number;
 }
 
 export async function updateAccommodation(id: number, userId: number, data: Partial<InsertAccommodation>) {
@@ -410,11 +383,7 @@ export async function getItineraryByDate(tripId: number, userId: number, date: s
   const trip = await getTripById(tripId, userId);
   if (!trip) return [];
   return db.select().from(itineraryItems)
-    .where(and(
-      eq(itineraryItems.tripId, tripId),
-      eq(itineraryItems.date, date),
-      ne(itineraryItems.sourceType, "pool"),
-    ))
+    .where(and(eq(itineraryItems.tripId, tripId), eq(itineraryItems.date, date), ne(itineraryItems.sourceType, "pool")))
     .orderBy(asc(itineraryItems.order), asc(itineraryItems.visitTime));
 }
 
@@ -464,28 +433,35 @@ export async function deleteItineraryItem(id: number, userId: number) {
   await db.delete(itineraryItems).where(eq(itineraryItems.id, id));
 }
 
-/** 일정 항목 순서 일괄 업데이트 */
+/** 일정 항목 순서 일괄 업데이트 + 기존 시간 슬롯을 새 순서에 맞춰 재배분 */
 export async function reorderItineraryItems(tripId: number, userId: number, orderedIds: number[]) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const trip = await getTripById(tripId, userId);
   if (!trip) throw new Error("No access");
-  // 각 항목의 order를 배열 인덱스 값으로 업데이트
+  if (orderedIds.length === 0) return;
+
+  const rows = await db.select().from(itineraryItems)
+    .where(and(eq(itineraryItems.tripId, tripId), inArray(itineraryItems.id, orderedIds)));
+
+  const timeSlots = rows
+    .map(item => item.visitTime)
+    .filter((time): time is string => Boolean(time))
+    .sort();
+
   await Promise.all(
     orderedIds.map((id, index) =>
       db.update(itineraryItems)
-        .set({ order: index })
+        .set({ order: index, visitTime: timeSlots[index] ?? null })
         .where(and(eq(itineraryItems.id, id), eq(itineraryItems.tripId, tripId)))
     )
   );
 }
 
-/** 숙박 연동: sourceId로 묶인 일정 항목 전체 삭제 */
 export async function deleteItineraryItemsBySource(tripId: number, sourceId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.delete(itineraryItems)
-    .where(and(eq(itineraryItems.tripId, tripId), eq(itineraryItems.sourceId, sourceId)));
+  await db.delete(itineraryItems).where(and(eq(itineraryItems.tripId, tripId), eq(itineraryItems.sourceId, sourceId)));
 }
 
 // ─── Diary Entries ────────────────────────────────────────────────────────────
@@ -494,9 +470,7 @@ export async function getDiaryEntriesByTrip(tripId: number, userId: number) {
   if (!db) return [];
   const trip = await getTripById(tripId, userId);
   if (!trip) return [];
-  return db.select().from(diaryEntries)
-    .where(eq(diaryEntries.tripId, tripId))
-    .orderBy(asc(diaryEntries.date));
+  return db.select().from(diaryEntries).where(eq(diaryEntries.tripId, tripId)).orderBy(asc(diaryEntries.date));
 }
 
 export async function getDiaryEntryByDate(tripId: number, userId: number, date: string) {
@@ -504,18 +478,14 @@ export async function getDiaryEntryByDate(tripId: number, userId: number, date: 
   if (!db) return undefined;
   const trip = await getTripById(tripId, userId);
   if (!trip) return undefined;
-  const r = await db.select().from(diaryEntries)
-    .where(and(eq(diaryEntries.tripId, tripId), eq(diaryEntries.date, date)))
-    .limit(1);
+  const r = await db.select().from(diaryEntries).where(and(eq(diaryEntries.tripId, tripId), eq(diaryEntries.date, date))).limit(1);
   return r[0];
 }
 
 export async function upsertDiaryEntry(data: InsertDiaryEntry) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.insert(diaryEntries).values(data).onDuplicateKeyUpdate({
-    set: { title: data.title, content: data.content, mood: data.mood, weather: data.weather },
-  });
+  await db.insert(diaryEntries).values(data).onDuplicateKeyUpdate({ set: { title: data.title, content: data.content, mood: data.mood, weather: data.weather } });
 }
 
 export async function deleteDiaryEntry(id: number, userId: number) {
@@ -530,9 +500,7 @@ export async function getExpensesByTrip(tripId: number, userId: number) {
   if (!db) return [];
   const trip = await getTripById(tripId, userId);
   if (!trip) return [];
-  return db.select().from(expenses)
-    .where(eq(expenses.tripId, tripId))
-    .orderBy(desc(expenses.date), desc(expenses.createdAt));
+  return db.select().from(expenses).where(eq(expenses.tripId, tripId)).orderBy(desc(expenses.date), desc(expenses.createdAt));
 }
 
 export async function createExpense(data: InsertExpense) {
@@ -568,9 +536,7 @@ export async function getChecklistByTrip(tripId: number, userId: number) {
   if (!db) return [];
   const trip = await getTripById(tripId, userId);
   if (!trip) return [];
-  return db.select().from(checklistItems)
-    .where(eq(checklistItems.tripId, tripId))
-    .orderBy(asc(checklistItems.group), asc(checklistItems.order), asc(checklistItems.id));
+  return db.select().from(checklistItems).where(eq(checklistItems.tripId, tripId)).orderBy(asc(checklistItems.group), asc(checklistItems.order), asc(checklistItems.id));
 }
 
 export async function createChecklistItem(data: InsertChecklistItem) {
