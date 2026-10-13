@@ -394,6 +394,29 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const roadRenderVersionRef = useRef(0); // Ignore stale async road geometries
   const itemsHashRef = useRef('');    // 내용 변경 시에만 renderOnMap 실행
   const [mapReady, setMapReady] = useState(false);
+  const [roadStatsOpen, setRoadStatsOpen] = useState(false);
+  const [roadStats, setRoadStats] = useState<null | {
+    dayUtc: string; upstreamToday: number; dailyLimit: number;
+    cacheHitsSinceStart: number; rejectedSinceStart: number;
+    upstreamFailuresSinceStart: number; upstreamSinceStart: number;
+    cacheEntries: number; cacheDays: number; serverStartedAt: string;
+  }>(null);
+  const [roadStatsError, setRoadStatsError] = useState(false);
+  const loadRoadStats = useCallback(async () => {
+    try {
+      const response = await fetch("/api/road-routing/stats", { credentials: "same-origin", cache: "no-store" });
+      if (!response.ok) throw new Error("stats unavailable");
+      const data = await response.json();
+      setRoadStats(data);
+      setRoadStatsError(false);
+    } catch {
+      setRoadStatsError(true);
+    }
+  }, []);
+  useEffect(() => {
+    if (roadStatsOpen) void loadRoadStats();
+  }, [roadStatsOpen, loadRoadStats]);
+
   const [geocoding, setGeocoding] = useState(false);
 
   // 로컬 순서 상태 (드래그 즉시 반영)
@@ -1141,6 +1164,23 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   return (
     <div className="space-y-5">
+      {roadStatsOpen && (
+        <div className="rounded-xl border bg-card px-3 py-3 text-sm shadow-sm space-y-2">
+          <div className="flex justify-between items-center gap-3">
+            <p className="font-semibold text-foreground">도로계산 API 사용량</p>
+            <Button size="sm" variant="outline" onClick={() => void loadRoadStats()}>새로고침</Button>
+          </div>
+          {roadStats ? (
+            <div className="space-y-1 text-muted-foreground">
+              <p>오늘 외부 경로 요청: <strong className="text-foreground">{roadStats.upstreamToday} / {roadStats.dailyLimit}회</strong> (UTC 기준)</p>
+              <p>서버 캐시 재사용: {roadStats.cacheHitsSinceStart}회 · 외부 요청 누적: {roadStats.upstreamSinceStart}회</p>
+              <p>차단: {roadStats.rejectedSinceStart}회 · 실패: {roadStats.upstreamFailuresSinceStart}회 · 보관된 경로: {roadStats.cacheEntries}개</p>
+              <p className="text-xs">브라우저·서버 경로 캐시 최대 7일. 서버 통계는 마지막 재시작({new Date(roadStats.serverStartedAt).toLocaleString("ko-KR")}) 이후 기준이며 재시작 시 초기화됩니다.</p>
+              <p className="text-xs">Google 지도·장소 검색·주소 변환 API 사용량은 포함되지 않습니다.</p>
+            </div>
+          ) : <p className="text-muted-foreground">{roadStatsError ? "사용량 정보를 불러오지 못했습니다." : "사용량을 불러오는 중..."}</p>}
+        </div>
+      )}
       {/* 헤더 */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
@@ -1148,6 +1188,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           <p className="text-sm text-muted-foreground mt-0.5 break-keep">드래그해서 방문 순서를 변경하면 지도와 일정 탭에 즉시 반영됩니다.</p>
         </div>
         <div className="flex gap-2 shrink-0 flex-wrap">
+          <Button size="sm" variant="outline" onClick={() => setRoadStatsOpen(v => !v)}>
+            경로 API 사용량
+          </Button>
           <Sheet>
             <SheetTrigger asChild>
               <Button size="sm" variant="outline" className="gap-1.5">보관함</Button>
