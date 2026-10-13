@@ -393,6 +393,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const renderVersionRef = useRef(0); // 동시 renderOnMap 실행 방지
   const roadRenderVersionRef = useRef(0); // Ignore stale async road geometries
   const routingPausedRef = useRef(false); // Avoid OSRM requests for each manual reorder
+  const routeNetworkApprovedRef = useRef(false); // Only explicit refresh may use OSRM quota
   const [routingPaused, setRoutingPaused] = useState(false);
   const pauseRouting = () => { routingPausedRef.current = true; setRoutingPaused(true); };
   const itemsHashRef = useRef('');    // 내용 변경 시에만 renderOnMap 실행
@@ -799,7 +800,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       icons: [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 0.7, scale: 4 }, offset: "0", repeat: "16px" }],
     });
     if (routingPausedRef.current) return;
-    void requestRoadRoute(coords, "foot").then(route => {
+    void requestRoadRoute(coords, "foot", !routeNetworkApprovedRef.current).then(route => {
       if (!route || version !== roadRenderVersionRef.current || !mapRef.current) return;
       polylineRef.current?.setMap(null);
       polylineRef.current = new window.google.maps.Polyline({
@@ -816,6 +817,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     const route = await requestRoadRoute(
       [{ lat: origin.lat(), lng: origin.lng() }, { lat: dest.lat(), lng: dest.lng() }],
       mode === window.google.maps.TravelMode.WALKING ? "foot" : "car",
+      true, // skipped-stop labels: cached results only, never hidden API calls
     );
     if (!route) return { duration: null, distance: null };
     return { duration: readableDuration(route.duration), distance: readableDistance(route.distance) };
@@ -922,8 +924,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     if (positions.length >= 2) {
       const coords = positions.map(p => ({ lat: p.latlng.lat(), lng: p.latlng.lng() }));
       const [walking, driving] = await Promise.all([
-        requestRoadRoute(coords, "foot"),
-        requestRoadRoute(coords, "car"),
+        requestRoadRoute(coords, "foot", !routeNetworkApprovedRef.current),
+        requestRoadRoute(coords, "car", !routeNetworkApprovedRef.current),
       ]);
       if (renderVersionRef.current !== myVersion) return;
       for (let i = 0; i < positions.length - 1; i++) {
@@ -951,6 +953,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   useEffect(() => {
     geocacheRef.current.clear();
     routingPausedRef.current = false;
+    routeNetworkApprovedRef.current = false;
     setRoutingPaused(false);
     setLocalOrder(null);
     hasInitialFitRef.current = false;
@@ -1211,11 +1214,12 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
             onClick={() => {
               routingPausedRef.current = false;
               setRoutingPaused(false);
+              routeNetworkApprovedRef.current = true;
               itemsHashRef.current = "";
-              void renderOnMap();
+              void renderOnMap().finally(() => { routeNetworkApprovedRef.current = false; });
             }}
             disabled={geocoding || !mapReady}
-            className="gap-1.5">{routingPaused ? "경로 갱신 · 계산 필요" : "경로 다시 계산"}</Button>
+            className="gap-1.5">{routingPaused ? "경로 갱신 · 계산 필요" : "경로 갱신"}</Button>
           <Button size="sm" variant="outline" onClick={() => setRoadStatsOpen(v => !v)}>
             경로 API 사용량
           </Button>
