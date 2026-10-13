@@ -1349,6 +1349,12 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
               <MapView className={`w-full ${isMobileLandscape ? "h-[64vh]" : "h-[250px] sm:h-[420px]"} lg:h-[600px]`} initialCenter={{ lat: 35.6762, lng: 139.6503 }} initialZoom={13}
                 onMapReady={(map) => { mapRef.current = map; setMapReady(true); }} />
             </div>
+            <p className="mt-1 px-1 text-[10px] text-muted-foreground">
+              도로 경로: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener noreferrer" className="underline">OSRM/FOSSGIS</a> ·
+              도로 데이터 © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="underline">OpenStreetMap contributors</a> (ODbL) ·
+              점선은 도로 경로를 찾지 못한 임시 직선 표시입니다.
+              <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener noreferrer" className="ml-1 underline">지도 오류 신고</a>
+            </p>
           </div>
 
           {/* 데스크탑 사이드바 목록 (lg 이상에서만 표시) */}
