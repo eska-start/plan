@@ -25,7 +25,7 @@ export function optimizeRoute(points: RoutePoint[], costs?: number[][]): number[
     return states.sort((a, b) => a.cost - b.cost)[0].path.map(i => points[i].id);
   }
   const path = [0], remaining = new Set(points.map((_, i) => i).slice(1));
-  while (remaining.size) { const last = path[path.length - 1]; const next = [...remaining].sort((a,b) => m[last][a] - m[last][b])[0]; path.push(next); remaining.delete(next); }
+  while (remaining.size) { const last = path[path.length - 1]; const next = Array.from(remaining).sort((a,b) => m[last][a] - m[last][b])[0]; path.push(next); remaining.delete(next); }
   const cost = (p: number[]) => p.slice(1).reduce((s, index, i) => s + m[p[i]][index], 0);
   let improved = true;
   while (improved) { improved = false; for (let i = 1; i < n - 1; i++) for (let j = i + 1; j < n; j++) {
@@ -34,3 +34,4 @@ export function optimizeRoute(points: RoutePoint[], costs?: number[][]): number[
   } }
   return path.map(i => points[i].id);
 }
+
