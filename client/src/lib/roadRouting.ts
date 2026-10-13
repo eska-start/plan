@@ -54,7 +54,7 @@ async function submit(kind: "route" | "matrix", points: RoadPoint[], mode: RoadM
   finally { clearTimeout(timer); }
 }
 
-export function requestRoadRoute(points: RoadPoint[], mode: RoadMode): Promise<RoadRoute | null> {
+export function requestRoadRoute(points: RoadPoint[], mode: RoadMode, cacheOnly = false): Promise<RoadRoute | null> {
   if (!valid(points)) return Promise.resolve(null);
   const key = keyOf(points, mode);
   const existing = memo.get(key);
@@ -62,6 +62,8 @@ export function requestRoadRoute(points: RoadPoint[], mode: RoadMode): Promise<R
   const stored = readStored<RoadRoute>("route:" + key);
   if (stored && Array.isArray(stored.path) && stored.legs?.length === points.length - 1)
     return Promise.resolve(stored);
+  // Reading a trip or returning from another tab must never spend routing quota.
+  if (cacheOnly) return Promise.resolve(null);
   const task = submit("route", points, mode).then((body): RoadRoute | null => {
     if (!body || !Array.isArray(body.path) || !Array.isArray(body.legs) ||
       body.legs.length !== points.length - 1 || !Number.isFinite(body.duration) ||
