@@ -3,12 +3,12 @@ import type { Express, Request, Response } from "express";
 /**
  * Small-volume, best-effort OpenStreetMap road routing for PlanLog.
  * Requests are globally throttled within the single Render instance.
+ * No arbitrary daily quota; public FOSSGIS rate/fair-use policy still applies.
  * Not a replacement for a dedicated production routing SLA.
  */
 const UPSTREAM = "https://routing.openstreetmap.de";
 const MIN_INTERVAL_MS = 1250;
 const MAX_QUEUE = 8;
-const DAILY_LIMIT = 240;
 const PER_IP_WINDOW_MS = 15 * 60 * 1000;
 const PER_IP_LIMIT = 16;
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -43,7 +43,7 @@ export function registerRoadRoutingProxy(app: Express) {
   app.get("/api/road-routing/stats", (_req, res) => {
     if (dailyBucket !== utcDay()) { dailyBucket = utcDay(); dailyCount = 0; }
     res.setHeader("Cache-Control", "no-store");
-    res.json({ dayUtc: dailyBucket, upstreamToday: dailyCount, dailyLimit: DAILY_LIMIT,
+    res.json({ dayUtc: dailyBucket, upstreamToday: dailyCount, dailyLimit: null,
       cacheHitsSinceStart: cacheHits, rejectedSinceStart: rejectedRequests,
       upstreamFailuresSinceStart: failedUpstream, upstreamSinceStart: totalUpstream,
       cacheEntries: cache.size, cacheDays: 7, serverStartedAt,
@@ -76,11 +76,6 @@ export function registerRoadRoutingProxy(app: Express) {
     }
     const today = new Date().toISOString().slice(0, 10);
     if (dailyBucket !== today) { dailyBucket = today; dailyCount = 0; }
-    if (dailyCount >= DAILY_LIMIT) {
-      rejectedRequests++;
-      res.setHeader("Retry-After", "3600");
-      return res.status(429).json({ error: "DAILY_LIMIT_REACHED" });
-    }
     recent.push(now);
     ipHits.set(ip, recent);
     if (ipHits.size > 500) {
@@ -100,7 +95,6 @@ export function registerRoadRoutingProxy(app: Express) {
       nextStart = Date.now() + MIN_INTERVAL_MS;
       const currentDay = new Date().toISOString().slice(0, 10);
       if (dailyBucket !== currentDay) { dailyBucket = currentDay; dailyCount = 0; }
-      if (dailyCount >= DAILY_LIMIT) { rejectedRequests++; return res.status(429).json({ error: "DAILY_LIMIT_REACHED" }); }
       ++dailyCount;
       ++totalUpstream;
       release();
