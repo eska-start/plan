@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { ArrowDown, ArrowDownUp, ArrowUp, Car, Footprints, GripVertical, MapPin, Navigation, RotateCcw, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { requestRoadRoute, requestDriveTimeMatrix, readableDistance, readableDuration, type RoadPoint, type RoadRoute } from "@/lib/roadRouting";
 
 type Point = RoadPoint & { name: string };
@@ -75,9 +77,15 @@ export default function RoadDemo() {
   useEffect(() => {
     if (!ready || !map.current || !window.L) return;
     pinLayers.current.forEach((pin) => pin.remove());
-    pinLayers.current = points.map((p, i) =>
-      window.L.marker([p.lat, p.lng]).addTo(map.current).bindPopup((i + 1) + ". " + p.name)
-    );
+    pinLayers.current = points.map((p, i) => {
+      const icon = window.L.divIcon({
+        className: "",
+        html: '<span style="display:flex;width:34px;height:34px;align-items:center;justify-content:center;background:#6366f1;border:2px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 3px 10px #0003"><b style="transform:rotate(45deg);font-size:12px;color:white">' + (i + 1) + '</b></span>',
+        iconSize: [36, 36],
+        iconAnchor: [12, 34],
+      });
+      return window.L.marker([p.lat, p.lng], { icon }).addTo(map.current).bindPopup((i + 1) + ". " + p.name);
+    });
     if (points.length > 1) map.current.fitBounds(window.L.latLngBounds(points.map(p => [p.lat,p.lng])), { padding: [25,25] });
   }, [points, ready]);
 
@@ -153,72 +161,105 @@ export default function RoadDemo() {
     setNotice("방문 순서를 직접 변경했습니다. '도로 경로 계산'을 누르시면 새 순서대로 계산합니다.");
   };
   return (
-    <main className="mx-auto max-w-5xl px-4 py-6 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="text-2xl font-bold">플랜로그 · 도로경로 테스트</h1>
-          <p className="text-sm text-muted-foreground mt-1">로그인·DB·Google API 키 불필요 · 독립 테스트 페이지</p></div>
-        <a href="/" className="underline text-sm">일반 로그인 화면</a>
+    <main className="mx-auto max-w-6xl px-3 sm:px-6 py-5 space-y-5">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-xl font-semibold text-foreground tracking-tight">동선 지도 <span className="text-xs font-medium text-primary ml-1">TEST</span></h1>
+          <p className="text-sm text-muted-foreground mt-0.5 break-keep">방문 순서를 변경하면 지도와 도로 경로에 반영됩니다. 로그인 없이 시험할 수 있어요.</p>
+        </div>
+        <div className="flex gap-2 flex-wrap items-center">
+          <Button size="sm" variant="outline" onClick={reset} className="gap-1.5"><RotateCcw className="h-3.5 w-3.5" /> 초기화</Button>
+          <Button size="sm" variant="outline" disabled={busy || points.length < 3} onClick={optimize} className="gap-1.5">
+            <ArrowDownUp className="h-3.5 w-3.5" /> 동선 최적화
+          </Button>
+        </div>
+      </header>
+
+      <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-xs sm:text-sm text-muted-foreground break-keep" role="status">
+        {busy ? "도로 경로 계산 중… " : ""}{notice}
       </div>
-      <p className="border rounded-lg px-3 py-2 text-sm bg-muted/50" role="status">{notice}</p>
-      <div className="flex flex-wrap gap-2 items-center">
-        <select aria-label="교통수단" value={mode} onChange={e=>{setMode(e.target.value as "car"|"foot");changed();}}
-          className="border rounded-lg px-3 py-2 bg-background">
-          <option value="car">자동차</option><option value="foot">도보</option>
-        </select>
-        <button type="button" disabled={!ready || busy || points.length<2}
-          onClick={calculate} className="bg-indigo-600 disabled:opacity-40 text-white px-4 py-2 rounded-lg font-semibold">도로 경로 계산</button>
-        <button type="button" disabled={busy || points.length<3} onClick={optimize}
-          className="bg-slate-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg">방문 순서 최적화</button>
-        <button type="button" onClick={reset} className="border rounded-lg px-4 py-2">초기화</button>
-        {busy && <span className="text-sm">계산 중...</span>}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-lg border bg-card p-0.5 gap-0.5">
+          <button type="button" onClick={() => {setMode("car");changed();}} aria-pressed={mode==="car"}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${mode==="car"?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted"}`}>
+            <Car className="w-3.5 h-3.5" /> 자동차
+          </button>
+          <button type="button" onClick={() => {setMode("foot");changed();}} aria-pressed={mode==="foot"}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${mode==="foot"?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted"}`}>
+            <Footprints className="w-3.5 h-3.5" /> 도보
+          </button>
+        </div>
+        <Button size="sm" disabled={!ready || busy || points.length < 2} onClick={calculate} className="gap-1.5">
+          <Navigation className="w-3.5 h-3.5" /> 도로 경로 계산
+        </Button>
+        {result && <span className="rounded-lg border bg-card px-3 py-1.5 text-xs sm:text-sm font-semibold text-foreground">
+          총 {readableDistance(result.distance)} · {readableDuration(result.duration)}
+        </span>}
       </div>
-      <div ref={container} className="w-full h-[55vh] min-h-[340px] rounded-xl border overflow-hidden" />
-      {result && <p className="font-semibold">전체 도로 이동거리 {readableDistance(result.distance)} · 총 예상 이동시간 {readableDuration(result.duration)}</p>}
-      <div className="border rounded-xl p-3 space-y-2">
-        <p className="font-semibold">방문 지점 (최대 8개 · 지도 클릭으로 추가)</p>
-        <p className="text-xs text-muted-foreground">PC에서는 목록을 드래그해 옮기거나, 휴대폰에서는 위·아래 버튼으로 순서를 자유롭게 바꾸실 수 있습니다. 자동 최적화 후에도 수동으로 다시 변경 가능합니다.</p>
-        {points.map((point, i) => (
-          <div key={point.name + ":" + point.lat + ":" + point.lng} className="space-y-1">
-            <div
-              draggable={!busy}
-              onDragStart={e => { if (busy) { e.preventDefault(); return; } dragFromIndex.current = i; e.dataTransfer.effectAllowed = "move"; }}
-              onDragOver={e => { if (!busy) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }}
-              onDrop={e => { e.preventDefault(); const from = dragFromIndex.current; dragFromIndex.current = null; if (from !== null) movePoint(from, i); }}
-              onDragEnd={() => { dragFromIndex.current = null; }}
-              className="flex justify-between items-center gap-3 text-sm rounded-lg border px-2 py-2 hover:bg-muted/50"
-            >
-              <span className="flex items-center gap-2 min-w-0">
-                <span className="cursor-grab text-muted-foreground select-none" title="드래그로 순서 변경">☰</span>
-                <span className="font-semibold shrink-0">{i + 1}.</span>
-                <span className="truncate">{point.name}</span>
-              </span>
-              <span className="flex gap-1 shrink-0">
-                <button type="button" aria-label={point.name + " 위로 이동"} title="위로 이동" disabled={busy || i === 0}
-                  onClick={() => movePoint(i, i - 1)} className="border rounded px-3 py-1 disabled:opacity-30">↑</button>
-                <button type="button" aria-label={point.name + " 아래로 이동"} title="아래로 이동" disabled={busy || i === points.length - 1}
-                  onClick={() => movePoint(i, i + 1)} className="border rounded px-3 py-1 disabled:opacity-30">↓</button>
-                <button type="button" disabled={busy} className="text-red-600 border rounded px-2 disabled:opacity-30"
-                  onClick={() => { changed(); setPoints(v => v.filter((_, j) => j !== i)); }}>삭제</button>
-              </span>
+
+      <div className="flex flex-col lg:flex-row lg:gap-4 gap-3 lg:items-start">
+        <div className="lg:flex-1 min-w-0">
+          <div className="relative rounded-2xl overflow-hidden border border-border shadow-sm bg-muted">
+            <div ref={container} className="w-full h-[290px] sm:h-[420px] lg:h-[600px]" />
+            <div className="absolute top-3 right-3 z-[500] rounded-lg bg-background/90 px-2.5 py-1.5 text-[11px] text-foreground shadow-sm pointer-events-none">
+              <MapPin className="inline w-3 h-3 mr-0.5" /> 지도를 눌러 장소 추가
             </div>
-            {i < points.length - 1 && (
-              <div className="flex items-center justify-between gap-2 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/30 px-3 py-2 text-xs sm:text-sm text-indigo-800 dark:text-indigo-200" aria-label={`${i + 1}번에서 ${i + 2}번으로 이동`}>
-                <span className="shrink-0">↓ {i + 1} → {i + 2} 이동 · {mode === "car" ? "자동차" : "도보"}</span>
-                {result?.legs?.[i] && result.legs.length === points.length - 1 ? (
-                  <span className="font-semibold tabular-nums text-right">
-                    {readableDistance(result.legs[i]!.distance)} · {readableDuration(result.legs[i]!.duration)}
-                  </span>
-                ) : (
-                  <span className="text-right text-muted-foreground">경로 계산을 누르면 표시</span>
+          </div>
+        </div>
+
+        <section className="lg:w-[390px] xl:w-[420px] w-full shrink-0 border border-border rounded-2xl bg-card p-3 sm:p-4 space-y-3 shadow-sm lg:max-h-[600px] lg:overflow-y-auto">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-foreground">방문 순서</h2>
+            <span className="text-[11px] text-muted-foreground">{points.length}개 장소</span>
+          </div>
+          <p className="text-xs text-muted-foreground break-keep">드래그하거나 ↑ ↓ 버튼으로 자유롭게 이동하세요. 자동 최적화 후에도 변경할 수 있습니다.</p>
+          <div className="space-y-1">
+            {points.map((point, i) => (
+              <div key={point.name + ":" + point.lat + ":" + point.lng} className="space-y-1">
+                <div
+                  draggable={!busy}
+                  onDragStart={e => { if (busy) { e.preventDefault(); return; } dragFromIndex.current = i; e.dataTransfer.effectAllowed = "move"; }}
+                  onDragOver={e => { if (!busy) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }}
+                  onDrop={e => { e.preventDefault(); const from = dragFromIndex.current; dragFromIndex.current = null; if (from !== null) movePoint(from, i); }}
+                  onDragEnd={() => { dragFromIndex.current = null; }}
+                  className="flex items-center gap-2 rounded-xl border border-border bg-card px-2.5 py-3 text-sm hover:bg-muted/30 transition-colors"
+                >
+                  <GripVertical className="w-4 h-4 shrink-0 cursor-grab text-muted-foreground/50" />
+                  <span className="w-7 h-7 rounded-full bg-primary text-primary-foreground shrink-0 flex items-center justify-center text-xs font-semibold">{i + 1}</span>
+                  <span className="font-medium text-foreground truncate min-w-0 flex-1" title={point.name}>{point.name}</span>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button type="button" aria-label={point.name + " 위로 이동"} disabled={busy || i === 0} onClick={() => movePoint(i, i - 1)}
+                      className="w-7 h-7 rounded-md border border-border flex items-center justify-center hover:bg-muted disabled:opacity-25"><ArrowUp className="w-3.5 h-3.5" /></button>
+                    <button type="button" aria-label={point.name + " 아래로 이동"} disabled={busy || i === points.length - 1} onClick={() => movePoint(i, i + 1)}
+                      className="w-7 h-7 rounded-md border border-border flex items-center justify-center hover:bg-muted disabled:opacity-25"><ArrowDown className="w-3.5 h-3.5" /></button>
+                    <button type="button" aria-label={point.name + " 삭제"} disabled={busy} onClick={() => { changed(); setPoints(v => v.filter((_, j) => j !== i)); }}
+                      className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+                {i < points.length - 1 && (
+                  <div className="flex items-center gap-2 px-2 py-2.5 text-xs text-muted-foreground" aria-label={`${i + 1}번에서 ${i + 2}번으로 이동`}>
+                    <div className="w-7 flex justify-center shrink-0"><ArrowDown className="w-3 h-3 text-primary/60" /></div>
+                    <span className="shrink-0">{i + 1} → {i + 2} · {mode === "car" ? "차량" : "도보"}</span>
+                    <span className="flex-1 border-t border-dashed border-border min-w-2" />
+                    {result?.legs?.[i] && result.legs.length === points.length - 1 ? (
+                      <span className="font-semibold tabular-nums text-foreground whitespace-nowrap">
+                        {readableDistance(result.legs[i]!.distance)} · {readableDuration(result.legs[i]!.duration)}
+                      </span>
+                    ) : <span className="text-[11px] text-muted-foreground whitespace-nowrap">계산 전</span>}
+                  </div>
                 )}
               </div>
-            )}
+            ))}
           </div>
-        ))}
+          <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+            전체 {result ? `${readableDistance(result.distance)} · ${readableDuration(result.duration)}` : "경로 계산 전"}
+          </div>
+        </section>
       </div>
-      <p className="text-xs text-muted-foreground">
-        도로 계산은 OSRM/FOSSGIS 공개 시험 서버를 사용합니다. 지도 배경은 테스트 서버에 Google 키가 없어 OpenStreetMap으로 표시합니다.
-        운영 웹버전의 구글 지도는 변경되지 않습니다. 대량 사용·상업 운영은 이 공개 서버에서 지원되지 않습니다.
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        이 화면은 독립 테스트용입니다. OpenStreetMap 지도와 OSRM/FOSSGIS 도로 경로 서버를 사용하며, Google Directions API는 호출하지 않습니다.
+        기존 플랜로그 웹 지도와 APK는 변경하지 않았습니다.
       </p>
     </main>
   );
