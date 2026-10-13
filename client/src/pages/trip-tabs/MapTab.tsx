@@ -513,17 +513,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     if (!window.google?.maps) return toast.error("지도가 아직 준비되지 않았어요.");
     if (items.length < 3) return toast.info("최적화하려면 장소가 3개 이상 필요해요.");
 
+    // No Google Directions calls: use a deterministic local distance heuristic.
     const getDurationSec = (origin: google.maps.LatLng, destination: google.maps.LatLng) =>
-      new Promise<number>((resolve) => {
-        const svc = new window.google.maps.DirectionsService();
-        svc.route(
-          { origin, destination, travelMode: window.google.maps.TravelMode.DRIVING },
-          (result, status) => {
-            const sec = result?.routes?.[0]?.legs?.[0]?.duration?.value;
-            resolve(status === "OK" && typeof sec === "number" ? sec : Number.POSITIVE_INFINITY);
-          },
-        );
-      });
+      getApproxDistanceKm(origin, destination);
 
     setOptimizingRoute(true);
     try {
@@ -544,7 +536,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         const scores = await Promise.all(
           remain.map(async cand => ({
             cand,
-            cost: await getDurationSec(current.pos, cand.pos),
+            cost: getDurationSec(current.pos, cand.pos),
           })),
         );
         scores.sort((a, b) => a.cost - b.cost);
@@ -560,7 +552,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       setLocalOrder(orderedIds);
       reorderMutation.mutate(
         { tripId, orderedIds },
-        { onSuccess: () => toast.success("출발지/도착지 고정 기준으로 이동시간 최적화 완료") },
+        { onSuccess: () => toast.success("출발지/도착지 고정 기준으로 근접 동선 정렬 완료 (직선거리 기준)") },
       );
     } catch {
       toast.error("동선 최적화에 실패했습니다.");
@@ -752,55 +744,44 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     });
   }, []);
 
+  // Local great-circle distance; 1.25x is an approximate road detour factor, not real travel routing.
+  const getApproxDistanceKm = (a: google.maps.LatLng, b: google.maps.LatLng): number => {
+    const rad = Math.PI / 180;
+    const dLat = (b.lat() - a.lat()) * rad;
+    const dLng = (b.lng() - a.lng()) * rad;
+    const h = Math.sin(dLat / 2) ** 2 +
+      Math.cos(a.lat() * rad) * Math.cos(b.lat() * rad) * Math.sin(dLng / 2) ** 2;
+    return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
+  };
+
+  // No billed Directions API calls; Google map/pins stay unchanged.
   const drawRoute = useCallback((positions: google.maps.LatLng[]) => {
     if (routeRendererRef.current) { routeRendererRef.current.setMap(null); routeRendererRef.current = null; }
     if (polylineRef.current) { polylineRef.current.setMap(null); polylineRef.current = null; }
     if (positions.length < 2 || !mapRef.current) return;
-
-    const directionsService = new window.google.maps.DirectionsService();
-    const renderer = new window.google.maps.DirectionsRenderer({
+    polylineRef.current = new window.google.maps.Polyline({
+      path: positions,
       map: mapRef.current,
-      suppressMarkers: true,
-      preserveViewport: true,
-      polylineOptions: { strokeColor: "#6366f1", strokeWeight: 3, strokeOpacity: 0.7 },
+      strokeColor: "#6366f1",
+      strokeWeight: 3,
+      strokeOpacity: 0.7,
+      geodesic: true,
+      icons: [{ icon: { path: window.google.maps.SymbolPath.FORWARD_OPEN_ARROW, scale: 3 }, offset: "50%" }],
     });
-    routeRendererRef.current = renderer;
-
-    const waypoints = positions.slice(1, -1).map(latlng => ({ location: latlng, stopover: false }));
-    directionsService.route(
-      { origin: positions[0], destination: positions[positions.length - 1], waypoints, travelMode: window.google.maps.TravelMode.WALKING, optimizeWaypoints: false },
-      (result, status) => {
-        if (status === "OK" && result) {
-          renderer.setDirections(result);
-        } else {
-          renderer.setMap(null); routeRendererRef.current = null;
-          const polyline = new window.google.maps.Polyline({
-            path: positions, map: mapRef.current!, strokeColor: "#6366f1", strokeWeight: 2, strokeOpacity: 0.6,
-            icons: [{ icon: { path: window.google.maps.SymbolPath.FORWARD_OPEN_ARROW, scale: 3 }, offset: "50%" }],
-          });
-          polylineRef.current = polyline;
-        }
-      }
-    );
   }, []);
 
-  // 두 지점 간 이동 시간 (Directions API)
+  // Approximate travel times only; never billed or presented as measured road times.
   const getRouteInfo = useCallback((
     origin: google.maps.LatLng,
     dest: google.maps.LatLng,
     mode: google.maps.TravelMode,
   ): Promise<{ duration: string | null; distance: string | null }> => {
-    return new Promise(resolve => {
-      const svc = new window.google.maps.DirectionsService();
-      svc.route(
-        { origin, destination: dest, travelMode: mode },
-        (result, status) => {
-          const leg = result?.routes?.[0]?.legs?.[0];
-          const duration = leg?.duration?.text ?? null;
-          const distance = leg?.distance?.text ?? null;
-          resolve(status === "OK" ? { duration, distance } : { duration: null, distance: null });
-        },
-      );
+    const km = getApproxDistanceKm(origin, dest) * 1.25;
+    const speedKmh = mode === window.google.maps.TravelMode.WALKING ? 4.5 : 35;
+    const minutes = Math.max(1, Math.round(km / speedKmh * 60));
+    return Promise.resolve({
+      duration: `약 ${minutes}분(추정)`,
+      distance: `약 ${km < 1 ? Math.round(km * 1000) + "m" : km.toFixed(1) + "km"}(추정)`,
     });
   }, []);
 
@@ -895,7 +876,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       mapRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 60, left: 40 });
     }
 
-    // 인접 핀 이동 시간 계산 (뱃지 생성은 applyExclusionSync에서)
+    // 인접 핀 이동 시간 추정 (외부 경로 API 요청 없음)
     const newTimesMap: Record<string, { walk: string | null; drive: string | null; distance: string | null }> = {};
     if (positions.length >= 2) {
       for (let i = 0; i < positions.length - 1; i++) {
