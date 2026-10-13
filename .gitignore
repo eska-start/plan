@@ -109,5 +109,12 @@ temp/
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
 
+# Capacitor native projects (generated)
+android/
+ios/
+
+# Local JDK toolchain for APK builds
+.jdk21/
+
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json

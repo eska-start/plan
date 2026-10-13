@@ -44,7 +44,10 @@
 - 개인정보 마스킹/로그 최소화/임시이미지 정리는 후속 (현재 rawLocalText 4000자 반환 — 실서비스 전 제거/마스킹 필요)
 
 ## APK 산출물
-- 없음 (스캐폴드만). 빌드 절차: `pnpm i` → `pnpm build` → `npx cap add android` → `npx cap sync` → Android Studio 서명 빌드
+- `android/app/build/outputs/apk/debug/app-debug.apk` (4.2MB, debug 서명)
+- 빌드 환경: Capacitor 8.5.3 + JDK 21 (`.jdk21/`, Microsoft OpenJDK 21.0.12.1) + `C:\Android\Sdk` (platform 35/36, build-tools 36.0.0)
+- `android/`, `.jdk21/`은 `.gitignore` 처리 (생성물/툴체인)
+- 주의: debug APK는 번들된 웹 UI까지만 동작. `/api/*` (업로드, tRPC) 호출은 배포된 PLAN 서버 URL을 `capacitor.config.ts`의 `server.url`에 설정해야 사용 가능. 미설정 시 로컬 화면 확인용
 
 ## 후속 개선
 1. `pnpm i && pnpm test && pnpm check` 통과
