@@ -12,6 +12,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { runPendingMigrations } from "../db";
+import { registerRoadRoutingProxy } from "../roadRoutingProxy";
 
 async function startServer() {
   await runPendingMigrations();
@@ -26,6 +27,7 @@ async function startServer() {
   registerExportRoutes(app);
   registerUploadRoutes(app);
   registerFxRoutes(app);
+  registerRoadRoutingProxy(app);
   // tRPC API
   app.use(
     "/api/trpc",
