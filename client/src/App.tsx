@@ -9,10 +9,12 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import TripDetail from "./pages/TripDetail";
 import JoinTrip from "./pages/JoinTrip";
+import RoadDemo from "./pages/RoadDemo";
 
 function Router() {
   return (
     <Switch>
+      <Route path="/road-demo" component={RoadDemo} />
       <Route path="/" component={Home} />
       <Route path="/trips/:id/:tab?" component={TripDetail} />
       <Route path="/join/:token" component={JoinTrip} />
