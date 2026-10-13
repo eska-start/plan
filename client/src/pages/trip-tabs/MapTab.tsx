@@ -391,6 +391,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const geocacheRef = useRef<Map<string, google.maps.LatLng>>(new Map());
   const hasInitialFitRef = useRef(false);
   const renderVersionRef = useRef(0); // 동시 renderOnMap 실행 방지
+  const roadRenderVersionRef = useRef(0); // Ignore stale async road geometries
   const itemsHashRef = useRef('');    // 내용 변경 시에만 renderOnMap 실행
   const [mapReady, setMapReady] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
@@ -718,6 +719,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   // ── 지도 렌더링 ──
   const clearMap = useCallback(() => {
+    ++roadRenderVersionRef.current;
     markersRef.current.forEach(m => { m.map = null; });
     markersRef.current = [];
     markersByIdRef.current.clear();
@@ -754,8 +756,6 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       Math.cos(a.lat() * rad) * Math.cos(b.lat() * rad) * Math.sin(dLng / 2) ** 2;
     return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
   };
-
-  const roadRenderVersionRef = useRef(0);
 
   // Road geometry on Google Maps, no Google Directions billing.
   const drawRoute = useCallback((positions: google.maps.LatLng[]) => {
