@@ -78,7 +78,8 @@ export async function requestDriveTimeMatrix(points: RoadPoint[]): Promise<numbe
   if (!valid(points) || points.length < 3) return null;
   const matrixKey = "matrix:" + keyOf(points, "car");
   const stored = readStored<number[][]>(matrixKey);
-  if (stored && stored.length === points.length && stored.every(row => row.length === points.length)) return stored;
+  if (stored && stored.length === points.length && stored.every(row => row.length === points.length && row.every(v => v === null || typeof v === "number")))
+    return stored.map(row => row.map(v => v === null ? Infinity : v));
   const body = await submit("matrix", points, "car");
   if (!Array.isArray(body?.durations) || body.durations.length !== points.length ||
     !body.durations.every((row: unknown) => Array.isArray(row) && row.length === points.length)) return null;
