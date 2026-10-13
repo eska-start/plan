@@ -173,7 +173,7 @@ export default function RoadDemo() {
         {busy && <span className="text-sm">계산 중...</span>}
       </div>
       <div ref={container} className="w-full h-[55vh] min-h-[340px] rounded-xl border overflow-hidden" />
-      {result && <p className="font-semibold">도로 이동거리 {readableDistance(result.distance)} · 예상 이동시간 {readableDuration(result.duration)}</p>}
+      {result && <p className="font-semibold">전체 도로 이동거리 {readableDistance(result.distance)} · 총 예상 이동시간 {readableDuration(result.duration)}</p>}
       <div className="border rounded-xl p-3 space-y-2">
         <p className="font-semibold">방문 지점 (최대 8개 · 지도 클릭으로 추가)</p>
         <p className="text-xs text-muted-foreground">PC에서는 목록을 드래그해 옮기거나, 휴대폰에서는 위·아래 버튼으로 순서를 자유롭게 바꾸실 수 있습니다. 자동 최적화 후에도 수동으로 다시 변경 가능합니다.</p>
@@ -194,6 +194,17 @@ export default function RoadDemo() {
               onClick={()=>{changed();setPoints(v=>v.filter((_,j)=>j!==i));}}>삭제</button>
           </span>
         </div>)}
+        {result && result.legs.length === points.length - 1 && (
+          <div className="mt-3 space-y-2 border-t pt-3">
+            <p className="font-semibold text-sm">구간별 이동시간 · {mode === "car" ? "자동차" : "도보"}</p>
+            {result.legs.map((leg, i) => (
+              <div key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
+                <span>{i + 1}. {points[i]?.name} → {i + 2}. {points[i + 1]?.name}</span>
+                <span className="font-semibold tabular-nums">{readableDuration(leg.duration)} · {readableDistance(leg.distance)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <p className="text-xs text-muted-foreground">
         도로 계산은 OSRM/FOSSGIS 공개 시험 서버를 사용합니다. 지도 배경은 테스트 서버에 Google 키가 없어 OpenStreetMap으로 표시합니다.
