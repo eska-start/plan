@@ -1,11 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import type { AnalysisMode, DocumentType, FieldVerification } from "@shared/vision";
+import { verifyFields } from "@shared/vision";
+import { localDocFromText } from "@shared/localDoc";
+import {
+  captureImage,
+  getAnalysisMode,
+  getCloudConsent,
+  getCloudKey,
+  isNativeApp,
+  ocrImage,
+  setAnalysisMode,
+  setCloudConsent,
+  setCloudKey,
+} from "@/lib/capBridge";
+import { analyzeWithUserKey } from "@/lib/cloudVision";
+import { Filesystem } from "@capacitor/filesystem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, MinusCircle, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Camera, CheckCircle2, FolderOpen, MinusCircle, ShieldAlert } from "lucide-react";
 
 type AnalyzeResult = {
   docType: DocumentType;
@@ -27,11 +42,13 @@ const STATUS_STYLE: Record<string, string> = {
   confirmed: "border-blue-300 bg-blue-50",
 };
 
+const NATIVE = isNativeApp();
+
 /**
  * AI 분석 결과 확인 UI (11항).
- * - 상단: 원본 미리보기 + 문서종류 + 분석상태
- * - 중앙: 필드별 검증상태, 충돌 강조, 누락 안내
- * - 하단: 다시분석/직접수정/일정등록 (확인 전까지 임시 데이터, 확인 후에만 저장)
+ * - 웹: 서버 vision.analyze (OCR.space + 클라우드 프록시)
+ * - 네이티브: ML Kit 온디바이스 OCR + 구조분석, 정밀모드는 사용자 키로 클라우드 직통
+ * - 확인 전까지 임시 데이터, 확인 후에만 일정에 등록
  */
 export function VisionReview({
   docType,
@@ -42,13 +59,23 @@ export function VisionReview({
 }) {
   const [imageUrl, setImageUrl] = useState<string>("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [mode, setMode] = useState<AnalysisMode>(
-    () => (localStorage.getItem("plan-analysis-mode") as AnalysisMode) || "smart",
-  );
-  const [cloudConsent, setCloudConsent] = useState(false);
+  const [localPath, setLocalPath] = useState<string>("");
+  const [mode, setMode] = useState<AnalysisMode>("smart");
+  const [cloudConsent, setConsent] = useState(false);
+  const [cloudKey, setKey] = useState("");
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [attempts, setAttempts] = useState(0);
+  const [working, setWorking] = useState(false);
+
+  // 네이티브 설정 로드
+  useEffect(() => {
+    if (NATIVE) {
+      getAnalysisMode().then(setMode).catch(() => {});
+      getCloudConsent().then(setConsent).catch(() => {});
+      getCloudKey().then(setKey).catch(() => {});
+    }
+  }, []);
 
   const analyze = trpc.vision.analyze.useMutation({
     onSuccess: (r) => {
@@ -58,22 +85,94 @@ export function VisionReview({
     onError: () => toast.error("분석 실패. 로컬 OCR만으로 직접 입력해주세요."),
   });
 
-  const run = () => {
-    if (!imageUrl) {
+  const pickNative = async (source: "camera" | "gallery") => {
+    const img = await captureImage(source);
+    if (!img) return;
+    setLocalPath(img.path);
+    setPreviewUrl(img.previewUrl);
+    setImageUrl("");
+    setResult(null);
+  };
+
+  const runNative = async () => {
+    if (!localPath) {
       toast.error("먼저 예약 이미지를 선택해주세요.");
-      return;
-    }
-    if (attempts >= 2 && mode === "precise") {
-      toast.error("재분석은 2회까지만 가능합니다.");
       return;
     }
     if ((mode === "smart" || mode === "precise") && !cloudConsent) {
       toast.error("클라우드 분석은 외부 전송 동의가 필요합니다.");
       return;
     }
+    if (attempts >= 2 && mode === "precise") {
+      toast.error("재분석은 2회까지만 가능합니다.");
+      return;
+    }
+    setWorking(true);
+    try {
+      await setAnalysisMode(mode);
+      const { text } = await ocrImage(localPath);
+      const local = localDocFromText(text, docType);
+      const filled = Object.values(local).filter((v) => v != null).length;
+      const needCloud = mode === "precise" || (mode === "smart" && filled <= 2);
+      let cloud: Record<string, string | null> | null = null;
+      let cloudSkipped: string | null = "not-needed";
+      let cloudEngine: string | null = null;
+      if (needCloud) {
+        if (!cloudKey) {
+          cloudSkipped = "no-key";
+        } else {
+          try {
+            const file = await Filesystem.readFile({ path: localPath });
+            const data = typeof file.data === "string" ? file.data : "";
+            cloud = await analyzeWithUserKey(data, "image/jpeg", docType, cloudKey);
+            cloudEngine = "cloud-vision(user-key)";
+            cloudSkipped = null;
+          } catch {
+            cloudSkipped = "cloud-failed";
+          }
+        }
+      }
+      const fields = verifyFields(docType, local, cloud);
+      setResult({
+        docType,
+        mode,
+        localEngine: "mlkit-ocr",
+        localNote: "온디바이스 ML Kit OCR + 구조분석",
+        cloudEngine,
+        cloudSkipped,
+        fields,
+        conflictCount: fields.filter((f) => f.status === "conflict").length,
+      });
+      setAttempts((a) => a + 1);
+    } catch {
+      toast.error("온디바이스 분석 실패. 직접 입력해주세요.");
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const run = () => {
+    if (NATIVE) {
+      void runNative();
+      return;
+    }
+    if (!imageUrl) {
+      toast.error("먼저 예약 이미지를 선택해주세요.");
+      return;
+    }
+    if ((mode === "smart" || mode === "precise") && !cloudConsent) {
+      toast.error("클라우드 분석은 외부 전송 동의가 필요합니다.");
+      return;
+    }
+    if (attempts >= 2 && mode === "precise") {
+      toast.error("재분석은 2회까지만 가능합니다.");
+      return;
+    }
     localStorage.setItem("plan-analysis-mode", mode);
     analyze.mutate({ imageUrl, docType, mode, cloudConsent });
   };
+
+  const busy = working || analyze.isPending;
 
   const valueOf = (f: FieldVerification) =>
     edits[f.field] ?? f.finalValue ?? f.localValue ?? f.cloudValue ?? "";
@@ -84,7 +183,6 @@ export function VisionReview({
     for (const f of result.fields) {
       const v = valueOf(f).trim();
       if (!v) continue;
-      // 고위험 충돌 미확인 등록 방지
       if (f.status === "conflict" || f.status === "invalid" || f.status === "missing") {
         if (!edits[f.field]) {
           toast.error(`"${f.field}" 확인 필요 — 직접 수정 후 등록해주세요.`);
@@ -98,7 +196,26 @@ export function VisionReview({
 
   return (
     <div className="rounded-xl border border-border p-3 space-y-3 bg-card">
-      <div className="flex items-center gap-2">
+      {NATIVE ? (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => void pickNative("camera")}
+            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 text-sm font-medium text-primary"
+          >
+            <Camera className="w-4 h-4 shrink-0" />
+            <span>카메라 촬영</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void pickNative("gallery")}
+            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 text-sm font-medium text-indigo-600"
+          >
+            <FolderOpen className="w-4 h-4 shrink-0" />
+            <span>갤러리</span>
+          </button>
+        </div>
+      ) : (
         <Input
           type="file"
           accept="image/*,image/heic,image/heif,application/pdf"
@@ -120,7 +237,7 @@ export function VisionReview({
             e.target.value = "";
           }}
         />
-      </div>
+      )}
       {previewUrl && (
         <img src={previewUrl} alt="원본 예약 스크린샷" className="h-28 w-auto rounded-lg border object-cover" />
       )}
@@ -141,15 +258,43 @@ export function VisionReview({
             <input
               type="checkbox"
               checked={cloudConsent}
-              onChange={(e) => setCloudConsent(e.target.checked)}
+              onChange={(e) => {
+                setConsent(e.target.checked);
+                if (NATIVE) void setCloudConsent(e.target.checked);
+              }}
             />
             클라우드 전송 동의
           </label>
         )}
-        <Button size="sm" onClick={run} disabled={analyze.isPending}>
-          {analyze.isPending ? "분석 중..." : result ? "다시 분석" : "AI 분석"}
+        <Button size="sm" onClick={run} disabled={busy}>
+          {busy ? "분석 중..." : result ? "다시 분석" : "AI 분석"}
         </Button>
       </div>
+
+      {NATIVE && mode !== "local" && (
+        <div className="space-y-1">
+          <Label className="text-[11px]">클라우드 API 키 (본인 키, 기기 내 저장)</Label>
+          <div className="flex gap-2">
+            <Input
+              className="h-8 text-xs"
+              type="password"
+              placeholder="Gemini API 키 (정밀 분석 시만 사용)"
+              value={cloudKey}
+              onChange={(e) => setKey(e.target.value)}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void setCloudKey(cloudKey);
+                toast.success("키를 기기에 저장했습니다.");
+              }}
+            >
+              저장
+            </Button>
+          </div>
+        </div>
+      )}
 
       {result && (
         <div className="text-xs text-muted-foreground">

@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useItineraryByDate, useReorderItinerary } from "@/lib/entities";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { MapView } from "@/components/Map";
 import { format } from "date-fns";
@@ -145,8 +146,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   const utils = trpc.useUtils();
 
-  const { data: serverItems, isLoading } = trpc.itinerary.listByDate.useQuery(
-    { tripId, date: selectedDate },
+  const { data: serverItems, isLoading } = useItineraryByDate(
+    tripId, selectedDate, true,
     { refetchInterval: 3000 }
   );
 
@@ -163,7 +164,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     return localOrder.map(id => map.get(id)).filter((x): x is ItemType => x !== undefined);
   }, [serverItems, localOrder]);
 
-  const reorderMutation = trpc.itinerary.reorder.useMutation({
+  const reorderMutation = useReorderItinerary({
     onSuccess: () => {
       utils.itinerary.listByDate.invalidate({ tripId, date: selectedDate });
     },

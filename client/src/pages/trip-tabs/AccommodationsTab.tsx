@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useAccommodationsList, useCreateAccommodation, useDeleteAccommodation, useUpdateAccommodation } from "@/lib/entities";
 import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { VisionReview } from "@/components/VisionReview";
 import { useState } from "react";
@@ -49,9 +50,9 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
   const [form, setForm] = useState<FormData>(defaultForm);
   const utils = trpc.useUtils();
 
-  const { data: accommodations, isLoading } = trpc.accommodations.list.useQuery({ tripId });
+  const { data: accommodations, isLoading } = useAccommodationsList(tripId);
 
-  const createMutation = trpc.accommodations.create.useMutation({
+  const createMutation = useCreateAccommodation({
     onSuccess: () => {
       utils.accommodations.list.invalidate();
       setDialogOpen(false);
@@ -64,7 +65,7 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
     },
   });
 
-  const updateMutation = trpc.accommodations.update.useMutation({
+  const updateMutation = useUpdateAccommodation({
     onSuccess: () => {
       utils.accommodations.list.invalidate();
       setDialogOpen(false);
@@ -75,7 +76,7 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
     onError: () => toast.error("숙박 수정에 실패했습니다."),
   });
 
-  const deleteMutation = trpc.accommodations.delete.useMutation({
+  const deleteMutation = useDeleteAccommodation({
     onSuccess: () => { utils.accommodations.list.invalidate(); toast.success("숙박이 삭제되었습니다."); },
     onError: () => toast.error("숙박 삭제에 실패했습니다."),
   });

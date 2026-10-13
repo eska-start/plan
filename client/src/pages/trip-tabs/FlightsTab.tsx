@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useCreateFlight, useDeleteFlight, useFlightsList, useUpdateFlight } from "@/lib/entities";
 import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { VisionReview } from "@/components/VisionReview";
 import { useState } from "react";
@@ -66,19 +67,19 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
   const [form, setForm] = useState<FormData>(defaultForm);
   const utils = trpc.useUtils();
 
-  const { data: flights, isLoading } = trpc.flights.list.useQuery({ tripId });
+  const { data: flights, isLoading } = useFlightsList(tripId);
 
-  const createMutation = trpc.flights.create.useMutation({
+  const createMutation = useCreateFlight({
     onSuccess: () => { utils.flights.list.invalidate(); setDialogOpen(false); setForm(defaultForm); toast.success("항공편이 추가되었습니다."); },
     onError: () => toast.error("항공편 추가에 실패했습니다."),
   });
 
-  const updateMutation = trpc.flights.update.useMutation({
+  const updateMutation = useUpdateFlight({
     onSuccess: () => { utils.flights.list.invalidate(); setDialogOpen(false); setEditId(null); setForm(defaultForm); toast.success("항공편이 수정되었습니다."); },
     onError: () => toast.error("항공편 수정에 실패했습니다."),
   });
 
-  const deleteMutation = trpc.flights.delete.useMutation({
+  const deleteMutation = useDeleteFlight({
     onSuccess: () => { utils.flights.list.invalidate(); toast.success("항공편이 삭제되었습니다."); },
     onError: () => toast.error("항공편 삭제에 실패했습니다."),
   });

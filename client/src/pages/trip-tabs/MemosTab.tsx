@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useCreateMemo, useDeleteMemo, useMemosList, useUpdateMemo } from "@/lib/entities";
 import { useState } from "react";
 import { toast } from "sonner";
 import { StickyNote, Loader2, Pin, PinOff } from "lucide-react";
@@ -20,19 +21,19 @@ export default function MemosTab({ tripId }: { tripId: number }) {
   const [form, setForm] = useState<FormData>(defaultForm);
   const utils = trpc.useUtils();
 
-  const { data: memos, isLoading } = trpc.memos.list.useQuery({ tripId });
+  const { data: memos, isLoading } = useMemosList(tripId);
 
-  const createMutation = trpc.memos.create.useMutation({
+  const createMutation = useCreateMemo({
     onSuccess: () => { utils.memos.list.invalidate(); setDialogOpen(false); setForm(defaultForm); toast.success("메모가 추가되었습니다."); },
     onError: () => toast.error("메모 추가에 실패했습니다."),
   });
 
-  const updateMutation = trpc.memos.update.useMutation({
+  const updateMutation = useUpdateMemo({
     onSuccess: () => { utils.memos.list.invalidate(); setDialogOpen(false); setEditId(null); setForm(defaultForm); toast.success("메모가 수정되었습니다."); },
     onError: () => toast.error("메모 수정에 실패했습니다."),
   });
 
-  const deleteMutation = trpc.memos.delete.useMutation({
+  const deleteMutation = useDeleteMemo({
     onSuccess: () => { utils.memos.list.invalidate(); toast.success("메모가 삭제되었습니다."); },
     onError: () => toast.error("메모 삭제에 실패했습니다."),
   });

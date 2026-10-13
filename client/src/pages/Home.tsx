@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useCreateTrip, useDeleteTrip, useTripsList, useUpdateTrip } from "@/lib/entities";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -43,19 +44,19 @@ export default function Home() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
-  const { data: trips, isLoading } = trpc.trips.list.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: trips, isLoading } = useTripsList(isAuthenticated);
 
-  const createMutation = trpc.trips.create.useMutation({
+  const createMutation = useCreateTrip({
     onSuccess: () => { utils.trips.list.invalidate(); setDialogOpen(false); setForm(defaultForm); toast.success("여행이 생성되었습니다!"); },
     onError: () => toast.error("여행 생성에 실패했습니다."),
   });
 
-  const updateMutation = trpc.trips.update.useMutation({
+  const updateMutation = useUpdateTrip({
     onSuccess: () => { utils.trips.list.invalidate(); setDialogOpen(false); setEditTrip(null); setForm(defaultForm); toast.success("여행이 수정되었습니다!"); },
     onError: () => toast.error("여행 수정에 실패했습니다."),
   });
 
-  const deleteMutation = trpc.trips.delete.useMutation({
+  const deleteMutation = useDeleteTrip({
     onSuccess: () => { utils.trips.list.invalidate(); setDeleteConfirm(null); toast.success("여행이 삭제되었습니다."); },
     onError: () => toast.error("여행 삭제에 실패했습니다."),
   });

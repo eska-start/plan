@@ -1,4 +1,5 @@
-import { trpc } from "@/lib/trpc";
+import { useTrip } from "@/lib/entities";
+import { isNativeApp } from "@/lib/capBridge";
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { Loader2, ArrowLeft, Plane, Car, Hotel, StickyNote, CalendarDays, BookOpen, Map, Users } from "lucide-react";
@@ -31,7 +32,7 @@ export default function TripDetail() {
   const tripId = parseInt(params.id);
   const activeTab = params.tab || "flights";
 
-  const { data: trip, isLoading } = trpc.trips.get.useQuery({ id: tripId });
+  const { data: trip, isLoading } = useTrip(tripId);
 
   if (isLoading) {
     return (
@@ -76,7 +77,8 @@ export default function TripDetail() {
               <ArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
               <span>내 여행</span>
             </button>
-            {/* 공유 버튼 */}
+            {/* 공유 버튼 (온라인 전용 — 네이티브 오프라인에서는 숨김) */}
+            {!isNativeApp() && (
             <button
               onClick={() => setShareOpen(true)}
               className="inline-flex items-center gap-1.5 text-white/55 hover:text-white/90 transition-colors text-xs mb-3 group"
@@ -84,6 +86,7 @@ export default function TripDetail() {
               <Users className="w-3.5 h-3.5" />
               <span>공유</span>
             </button>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -151,13 +154,15 @@ export default function TripDetail() {
         {activeTab === "map" && <MapTab tripId={tripId} tripDays={tripDays} />}
       </div>
 
-      {/* ── Share Dialog ── */}
+      {/* ── Share Dialog (온라인 전용) ── */}
+      {!isNativeApp() && (
       <ShareDialog
         tripId={tripId}
         tripName={trip.name}
         open={shareOpen}
         onOpenChange={setShareOpen}
       />
+      )}
     </div>
   );
 }

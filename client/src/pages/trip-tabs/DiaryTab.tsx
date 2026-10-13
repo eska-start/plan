@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useDeleteDiary, useDiaryByDate, useUpsertDiary } from "@/lib/entities";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { BookOpen, Loader2, Sun, Cloud, CloudRain, Snowflake, Wind, Smile, Heart, Meh, Frown, Battery } from "lucide-react";
@@ -37,7 +38,7 @@ export default function DiaryTab({ tripId, tripDays }: { tripId: number; tripDay
   const [form, setForm] = useState({ title: "", content: "", mood: "happy" as Mood, weather: "sunny" as Weather });
   const utils = trpc.useUtils();
 
-  const { data: entry, isLoading } = trpc.diary.getByDate.useQuery({ tripId, date: selectedDate });
+  const { data: entry, isLoading } = useDiaryByDate(tripId, selectedDate);
 
   useEffect(() => {
     if (entry && !isEditing) {
@@ -50,7 +51,7 @@ export default function DiaryTab({ tripId, tripDays }: { tripId: number; tripDay
     }
   }, [entry, isEditing]);
 
-  const upsertMutation = trpc.diary.upsert.useMutation({
+  const upsertMutation = useUpsertDiary({
     onSuccess: () => {
       utils.diary.getByDate.invalidate();
       utils.diary.listByTrip.invalidate();
@@ -60,7 +61,7 @@ export default function DiaryTab({ tripId, tripDays }: { tripId: number; tripDay
     onError: () => toast.error("일기 저장에 실패했습니다."),
   });
 
-  const deleteMutation = trpc.diary.delete.useMutation({
+  const deleteMutation = useDeleteDiary({
     onSuccess: () => {
       utils.diary.getByDate.invalidate();
       utils.diary.listByTrip.invalidate();

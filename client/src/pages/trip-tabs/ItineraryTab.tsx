@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useCreateItineraryItem, useDeleteItineraryItem, useItineraryByDate, useReorderItinerary, useUpdateItineraryItem } from "@/lib/entities";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -200,8 +201,8 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
   const [localOrder, setLocalOrder] = useState<number[] | null>(null);
   const utils = trpc.useUtils();
 
-  const { data: items, isLoading } = trpc.itinerary.listByDate.useQuery(
-    { tripId, date: selectedDate },
+  const { data: items, isLoading } = useItineraryByDate(
+    tripId, selectedDate, true,
     { refetchInterval: 3000 } // 3초마다 갱신 - 지도 탭에서 순서 변경 시 일정 탭에도 즉시 반영
   );
 
@@ -213,7 +214,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
     return localOrder.map(id => map.get(id)).filter((x): x is ItineraryItem => x !== undefined);
   })();
 
-  const createMutation = trpc.itinerary.create.useMutation({
+  const createMutation = useCreateItineraryItem({
     onSuccess: () => {
       utils.itinerary.listByDate.invalidate();
       setDialogOpen(false);
@@ -223,7 +224,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
     onError: () => toast.error("장소 추가에 실패했습니다."),
   });
 
-  const updateMutation = trpc.itinerary.update.useMutation({
+  const updateMutation = useUpdateItineraryItem({
     onSuccess: () => {
       utils.itinerary.listByDate.invalidate();
       setDialogOpen(false);
@@ -234,7 +235,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
     onError: () => toast.error("장소 수정에 실패했습니다."),
   });
 
-  const deleteMutation = trpc.itinerary.delete.useMutation({
+  const deleteMutation = useDeleteItineraryItem({
     onSuccess: () => {
       utils.itinerary.listByDate.invalidate();
       toast.success("장소가 삭제되었습니다.");
@@ -242,7 +243,7 @@ export default function ItineraryTab({ tripId, tripDays }: { tripId: number; tri
     onError: () => toast.error("장소 삭제에 실패했습니다."),
   });
 
-  const reorderMutation = trpc.itinerary.reorder.useMutation({
+  const reorderMutation = useReorderItinerary({
     onSuccess: () => utils.itinerary.listByDate.invalidate(),
     onError: () => {
       toast.error("순서 저장에 실패했습니다.");

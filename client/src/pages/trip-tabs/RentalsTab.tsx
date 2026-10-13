@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useCreateRental, useDeleteRental, useRentalsList, useUpdateRental } from "@/lib/entities";
 import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { VisionReview } from "@/components/VisionReview";
 import { useState } from "react";
@@ -43,19 +44,19 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
   const [form, setForm] = useState<FormData>(defaultForm);
   const utils = trpc.useUtils();
 
-  const { data: rentals, isLoading } = trpc.rentals.list.useQuery({ tripId });
+  const { data: rentals, isLoading } = useRentalsList(tripId);
 
-  const createMutation = trpc.rentals.create.useMutation({
+  const createMutation = useCreateRental({
     onSuccess: () => { utils.rentals.list.invalidate(); setDialogOpen(false); setForm(defaultForm); toast.success("렌트카가 추가되었습니다."); },
     onError: () => toast.error("렌트카 추가에 실패했습니다."),
   });
 
-  const updateMutation = trpc.rentals.update.useMutation({
+  const updateMutation = useUpdateRental({
     onSuccess: () => { utils.rentals.list.invalidate(); setDialogOpen(false); setEditId(null); setForm(defaultForm); toast.success("렌트카가 수정되었습니다."); },
     onError: () => toast.error("렌트카 수정에 실패했습니다."),
   });
 
-  const deleteMutation = trpc.rentals.delete.useMutation({
+  const deleteMutation = useDeleteRental({
     onSuccess: () => { utils.rentals.list.invalidate(); toast.success("렌트카가 삭제되었습니다."); },
     onError: () => toast.error("렌트카 삭제에 실패했습니다."),
   });

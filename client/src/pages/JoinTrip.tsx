@@ -6,7 +6,20 @@ import { getLoginUrl } from "@/const";
 import { Loader2, Plane, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+import { isNativeApp } from "@/lib/capBridge";
+
 export default function JoinTrip() {
+  if (isNativeApp()) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-4">
+        <p className="text-sm text-muted-foreground text-center">초대 참여는 온라인(웹사이트)에서 지원됩니다.<br />앱은 오프라인 로컬 전용입니다.</p>
+      </div>
+    );
+  }
+  return <JoinTripInner />;
+}
+
+function JoinTripInner() {
   const { token } = useParams<{ token: string }>();
   const [, setLocation] = useLocation();
   const { isAuthenticated, loading: authLoading } = useAuth();

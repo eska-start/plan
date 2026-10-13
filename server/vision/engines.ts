@@ -1,11 +1,7 @@
 import { invokeLLM, type Message } from "../_core/llm";
 import { ENV } from "../_core/env";
-import {
-  extractTextWithFreeOcr,
-  parseAccommodationFromText,
-  parseFlightFromText,
-  parseRentalFromText,
-} from "../_core/freeOcr";
+import { extractTextWithFreeOcr } from "../_core/freeOcr";
+import { localDocFromText } from "@shared/localDoc";
 import type { DocumentType } from "@shared/vision";
 
 export type EngineName = "local-ocr" | "local-vlm" | "cloud-vision";
@@ -96,69 +92,27 @@ export async function localAnalyze(
 ): Promise<EngineResult> {
   const text = await extractTextWithFreeOcr(imageUrl);
   if (docType === "flight") {
-    const p = parseFlightFromText(text);
     return {
       engine: "local-ocr",
       rawText: text,
       note: "OCR+구조분석 (온디바이스 VLM 아님과 구별 표시)",
-      data: {
-        documentType: "flight",
-        bookingStatus: null,
-        airline: p.airline,
-        flightNumber: p.flightNumber,
-        departureAirport: p.departureAirport,
-        departureAirportCode: p.departureAirport,
-        arrivalAirport: p.arrivalAirport,
-        arrivalAirportCode: p.arrivalAirport,
-        departureDateTime: p.departureTime,
-        arrivalDateTime: p.arrivalTime,
-        departureTimezone: null,
-        arrivalTimezone: null,
-        bookingReference: p.bookingRef,
-        seatNumber: p.seatNumber,
-        flightType: p.type,
-        passengerName: null,
-      },
+      data: localDocFromText(text, docType),
     };
   }
   if (docType === "rental") {
-    const p = parseRentalFromText(text);
     return {
       engine: "local-ocr",
       rawText: text,
       note: "OCR+구조분석 (온디바이스 VLM 아님과 구별 표시)",
-      data: {
-        company: p.company,
-        carModel: p.carModel,
-        pickupLocation: p.pickupLocation,
-        dropoffLocation: p.dropoffLocation,
-        pickupDateTime: p.pickupTime,
-        dropoffDateTime: p.dropoffTime,
-        bookingRef: p.bookingRef,
-        price: p.price,
-        currency: p.currency,
-      },
+      data: localDocFromText(text, docType),
     };
   }
   if (docType === "accommodation") {
-    const p = parseAccommodationFromText(text);
     return {
       engine: "local-ocr",
       rawText: text,
       note: "OCR+구조분석 (온디바이스 VLM 아님과 구별 표시)",
-      data: {
-        name: p.name,
-        address: p.address,
-        checkIn: p.checkIn,
-        checkOut: p.checkOut,
-        checkInTime: null,
-        checkOutTime: null,
-        roomType: null,
-        bookingRef: p.bookingRef,
-        price: p.price,
-        currency: p.currency,
-        bookingStatus: null,
-      },
+      data: localDocFromText(text, docType),
     };
   }
   return { engine: "local-ocr", rawText: text, data: {}, note: "itinerary 로컬 구조분석 미지원 — 클라우드 필요" };
