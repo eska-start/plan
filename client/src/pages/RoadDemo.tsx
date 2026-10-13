@@ -42,6 +42,7 @@ export default function RoadDemo() {
   const pinLayers = useRef<any[]>([]);
   const routeLayer = useRef<any>(null);
   const requestVersion = useRef(0);
+  const dragFromIndex = useRef<number | null>(null);
   const [points, setPoints] = useState<Point[]>(SAMPLE);
   const [mode, setMode] = useState<"car" | "foot">("car");
   const [ready, setReady] = useState(false);
@@ -140,6 +141,17 @@ export default function RoadDemo() {
     setNotice("샘플 장소를 복구했습니다.");
   };
   const changed = () => { ++requestVersion.current;setResult(null);routeLayer.current?.remove();routeLayer.current=null; };
+  const movePoint = (from: number, to: number) => {
+    if (busy || from === to || from < 0 || to < 0 || from >= points.length || to >= points.length) return;
+    changed();
+    setPoints(current => {
+      const next = [...current];
+      const [picked] = next.splice(from, 1);
+      next.splice(to, 0, picked!);
+      return next;
+    });
+    setNotice("방문 순서를 직접 변경했습니다. '도로 경로 계산'을 누르시면 새 순서대로 계산합니다.");
+  };
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -164,8 +176,23 @@ export default function RoadDemo() {
       {result && <p className="font-semibold">도로 이동거리 {readableDistance(result.distance)} · 예상 이동시간 {readableDuration(result.duration)}</p>}
       <div className="border rounded-xl p-3 space-y-2">
         <p className="font-semibold">방문 지점 (최대 8개 · 지도 클릭으로 추가)</p>
-        {points.map((point, i)=><div key={i} className="flex justify-between items-center gap-3 text-sm border-b py-1">
-          <span>{i+1}. {point.name}</span><button type="button" className="text-red-600" onClick={()=>{changed();setPoints(v=>v.filter((_,j)=>j!==i));}}>삭제</button>
+        <p className="text-xs text-muted-foreground">PC에서는 목록을 드래그해 옮기거나, 휴대폰에서는 위·아래 버튼으로 순서를 자유롭게 바꾸실 수 있습니다. 자동 최적화 후에도 수동으로 다시 변경 가능합니다.</p>
+        {points.map((point, i)=><div key={point.name + ":" + point.lat + ":" + point.lng}
+          draggable={!busy} onDragStart={e => { if (busy) {e.preventDefault();return;} dragFromIndex.current = i; e.dataTransfer.effectAllowed="move"; }}
+          onDragOver={e => {if (!busy) {e.preventDefault();e.dataTransfer.dropEffect="move";}}}
+          onDrop={e => {e.preventDefault();const from=dragFromIndex.current;dragFromIndex.current=null;if(from!==null)movePoint(from,i);}}
+          onDragEnd={()=>{dragFromIndex.current=null;}}
+          className="flex justify-between items-center gap-3 text-sm border-b py-2 rounded-lg px-2 hover:bg-muted/50">
+          <span className="flex items-center gap-2 min-w-0"><span className="cursor-grab text-muted-foreground select-none" title="드래그로 순서 변경">☰</span>
+            <span className="font-semibold shrink-0">{i+1}.</span><span className="truncate">{point.name}</span></span>
+          <span className="flex gap-1 shrink-0">
+            <button type="button" aria-label={point.name+" 위로 이동"} title="위로 이동" disabled={busy||i===0} onClick={()=>movePoint(i,i-1)}
+              className="border rounded px-3 py-1 disabled:opacity-30">↑</button>
+            <button type="button" aria-label={point.name+" 아래로 이동"} title="아래로 이동" disabled={busy||i===points.length-1} onClick={()=>movePoint(i,i+1)}
+              className="border rounded px-3 py-1 disabled:opacity-30">↓</button>
+            <button type="button" disabled={busy} className="text-red-600 border rounded px-2 disabled:opacity-30"
+              onClick={()=>{changed();setPoints(v=>v.filter((_,j)=>j!==i));}}>삭제</button>
+          </span>
         </div>)}
       </div>
       <p className="text-xs text-muted-foreground">
