@@ -177,34 +177,44 @@ export default function RoadDemo() {
       <div className="border rounded-xl p-3 space-y-2">
         <p className="font-semibold">방문 지점 (최대 8개 · 지도 클릭으로 추가)</p>
         <p className="text-xs text-muted-foreground">PC에서는 목록을 드래그해 옮기거나, 휴대폰에서는 위·아래 버튼으로 순서를 자유롭게 바꾸실 수 있습니다. 자동 최적화 후에도 수동으로 다시 변경 가능합니다.</p>
-        {points.map((point, i)=><div key={point.name + ":" + point.lat + ":" + point.lng}
-          draggable={!busy} onDragStart={e => { if (busy) {e.preventDefault();return;} dragFromIndex.current = i; e.dataTransfer.effectAllowed="move"; }}
-          onDragOver={e => {if (!busy) {e.preventDefault();e.dataTransfer.dropEffect="move";}}}
-          onDrop={e => {e.preventDefault();const from=dragFromIndex.current;dragFromIndex.current=null;if(from!==null)movePoint(from,i);}}
-          onDragEnd={()=>{dragFromIndex.current=null;}}
-          className="flex justify-between items-center gap-3 text-sm border-b py-2 rounded-lg px-2 hover:bg-muted/50">
-          <span className="flex items-center gap-2 min-w-0"><span className="cursor-grab text-muted-foreground select-none" title="드래그로 순서 변경">☰</span>
-            <span className="font-semibold shrink-0">{i+1}.</span><span className="truncate">{point.name}</span></span>
-          <span className="flex gap-1 shrink-0">
-            <button type="button" aria-label={point.name+" 위로 이동"} title="위로 이동" disabled={busy||i===0} onClick={()=>movePoint(i,i-1)}
-              className="border rounded px-3 py-1 disabled:opacity-30">↑</button>
-            <button type="button" aria-label={point.name+" 아래로 이동"} title="아래로 이동" disabled={busy||i===points.length-1} onClick={()=>movePoint(i,i+1)}
-              className="border rounded px-3 py-1 disabled:opacity-30">↓</button>
-            <button type="button" disabled={busy} className="text-red-600 border rounded px-2 disabled:opacity-30"
-              onClick={()=>{changed();setPoints(v=>v.filter((_,j)=>j!==i));}}>삭제</button>
-          </span>
-        </div>)}
-        {result && result.legs.length === points.length - 1 && (
-          <div className="mt-3 space-y-2 border-t pt-3">
-            <p className="font-semibold text-sm">구간별 이동시간 · {mode === "car" ? "자동차" : "도보"}</p>
-            {result.legs.map((leg, i) => (
-              <div key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
-                <span>{i + 1}. {points[i]?.name} → {i + 2}. {points[i + 1]?.name}</span>
-                <span className="font-semibold tabular-nums">{readableDuration(leg.duration)} · {readableDistance(leg.distance)}</span>
+        {points.map((point, i) => (
+          <div key={point.name + ":" + point.lat + ":" + point.lng} className="space-y-1">
+            <div
+              draggable={!busy}
+              onDragStart={e => { if (busy) { e.preventDefault(); return; } dragFromIndex.current = i; e.dataTransfer.effectAllowed = "move"; }}
+              onDragOver={e => { if (!busy) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }}
+              onDrop={e => { e.preventDefault(); const from = dragFromIndex.current; dragFromIndex.current = null; if (from !== null) movePoint(from, i); }}
+              onDragEnd={() => { dragFromIndex.current = null; }}
+              className="flex justify-between items-center gap-3 text-sm rounded-lg border px-2 py-2 hover:bg-muted/50"
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <span className="cursor-grab text-muted-foreground select-none" title="드래그로 순서 변경">☰</span>
+                <span className="font-semibold shrink-0">{i + 1}.</span>
+                <span className="truncate">{point.name}</span>
+              </span>
+              <span className="flex gap-1 shrink-0">
+                <button type="button" aria-label={point.name + " 위로 이동"} title="위로 이동" disabled={busy || i === 0}
+                  onClick={() => movePoint(i, i - 1)} className="border rounded px-3 py-1 disabled:opacity-30">↑</button>
+                <button type="button" aria-label={point.name + " 아래로 이동"} title="아래로 이동" disabled={busy || i === points.length - 1}
+                  onClick={() => movePoint(i, i + 1)} className="border rounded px-3 py-1 disabled:opacity-30">↓</button>
+                <button type="button" disabled={busy} className="text-red-600 border rounded px-2 disabled:opacity-30"
+                  onClick={() => { changed(); setPoints(v => v.filter((_, j) => j !== i)); }}>삭제</button>
+              </span>
+            </div>
+            {i < points.length - 1 && (
+              <div className="flex items-center justify-between gap-2 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/30 px-3 py-2 text-xs sm:text-sm text-indigo-800 dark:text-indigo-200" aria-label={`${i + 1}번에서 ${i + 2}번으로 이동`}>
+                <span className="shrink-0">↓ {i + 1} → {i + 2} 이동 · {mode === "car" ? "자동차" : "도보"}</span>
+                {result?.legs?.[i] && result.legs.length === points.length - 1 ? (
+                  <span className="font-semibold tabular-nums text-right">
+                    {readableDistance(result.legs[i]!.distance)} · {readableDuration(result.legs[i]!.duration)}
+                  </span>
+                ) : (
+                  <span className="text-right text-muted-foreground">경로 계산을 누르면 표시</span>
+                )}
               </div>
-            ))}
+            )}
           </div>
-        )}
+        ))}
       </div>
       <p className="text-xs text-muted-foreground">
         도로 계산은 OSRM/FOSSGIS 공개 시험 서버를 사용합니다. 지도 배경은 테스트 서버에 Google 키가 없어 OpenStreetMap으로 표시합니다.
