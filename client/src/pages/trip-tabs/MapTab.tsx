@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from "react";
 import { MapView, loadMapScript } from "@/components/Map";
-import { requestRoadRoute, readableDuration, readableDistance } from "@/lib/roadRouting";
+import { requestRoadRoute, requestDriveTimeMatrix, readableDuration, readableDistance } from "@/lib/roadRouting";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
@@ -514,10 +514,6 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     if (!window.google?.maps) return toast.error("지도가 아직 준비되지 않았어요.");
     if (items.length < 3) return toast.info("최적화하려면 장소가 3개 이상 필요해요.");
 
-    // No Google Directions calls: use a deterministic local distance heuristic.
-    const getDurationSec = (origin: google.maps.LatLng, destination: google.maps.LatLng) =>
-      getApproxDistanceKm(origin, destination);
-
     setOptimizingRoute(true);
     try {
       const withPos = items
@@ -525,35 +521,39 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
         .filter((x): x is { item: ItemType; pos: google.maps.LatLng } => !!x.pos);
       if (withPos.length < 3) return toast.info("좌표가 있는 장소가 3개 이상 필요해요.");
 
-      // 현재 순서의 첫 장소/마지막 장소를 각각 출발지/도착지로 고정
-      const start = withPos[0];
-      const end = withPos[withPos.length - 1];
-      const remain = [...withPos.slice(1, -1)];
-      const orderedMiddle: typeof remain = [];
-      let current = start;
-
-      // 중간 지점만 이동시간(초) 기준으로 탐욕 최적화
-      while (remain.length > 0) {
-        const scores = await Promise.all(
-          remain.map(async cand => ({
-            cand,
-            cost: getDurationSec(current.pos, cand.pos),
-          })),
-        );
-        scores.sort((a, b) => a.cost - b.cost);
-        const next = scores[0]?.cand;
-        if (!next) break;
-        orderedMiddle.push(next);
-        current = next;
-        const idx = remain.findIndex(r => r.item.id === next.item.id);
-        if (idx >= 0) remain.splice(idx, 1);
+      // Ask OSRM for ONE driving-time matrix; retain the first and last stops.
+      const driveMatrix = await requestDriveTimeMatrix(
+        withPos.map(x => ({ lat: x.pos.lat(), lng: x.pos.lng() })),
+      );
+      if (!driveMatrix) {
+        toast.error("도로 이동시간을 계산할 수 없습니다. 잠시 뒤 다시 시도해주세요.");
+        return;
+      }
+      const start = withPos[0]!;
+      const end = withPos[withPos.length - 1]!;
+      const remaining = withPos.slice(1, -1).map((entry, i) => ({ entry, index: i + 1 }));
+      const orderedMiddle: typeof withPos = [];
+      let currentIndex = 0;
+      while (remaining.length > 0) {
+        remaining.sort((a, b) => driveMatrix[currentIndex]![a.index]! - driveMatrix[currentIndex]![b.index]!);
+        const choice = remaining.shift()!;
+        if (!Number.isFinite(driveMatrix[currentIndex]![choice.index]!)) {
+          toast.error("일부 장소 간 도로가 연결되지 않아 최적화할 수 없습니다.");
+          return;
+        }
+        orderedMiddle.push(choice.entry);
+        currentIndex = choice.index;
+      }
+      if (!Number.isFinite(driveMatrix[currentIndex]![withPos.length - 1]!)) {
+        toast.error("도착지까지 도로 경로를 찾을 수 없습니다.");
+        return;
       }
 
       const orderedIds = [start, ...orderedMiddle, end].map(x => x.item.id);
       setLocalOrder(orderedIds);
       reorderMutation.mutate(
         { tripId, orderedIds },
-        { onSuccess: () => toast.success("출발지/도착지 고정 기준으로 근접 동선 정렬 완료 (직선거리 기준)") },
+        { onSuccess: () => toast.success("출발지/도착지 고정 · 도로 이동시간 기준 동선 정렬 완료") },
       );
     } catch {
       toast.error("동선 최적화에 실패했습니다.");
