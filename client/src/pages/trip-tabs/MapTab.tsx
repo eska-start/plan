@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from "react";
 import { MapView, loadMapScript } from "@/components/Map";
+import { requestRoadRoute, readableDuration, readableDistance } from "@/lib/roadRouting";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
@@ -754,35 +755,41 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
   };
 
-  // No billed Directions API calls; Google map/pins stay unchanged.
+  const roadRenderVersionRef = useRef(0);
+
+  // Road geometry on Google Maps, no Google Directions billing.
   const drawRoute = useCallback((positions: google.maps.LatLng[]) => {
+    const version = ++roadRenderVersionRef.current;
     if (routeRendererRef.current) { routeRendererRef.current.setMap(null); routeRendererRef.current = null; }
     if (polylineRef.current) { polylineRef.current.setMap(null); polylineRef.current = null; }
     if (positions.length < 2 || !mapRef.current) return;
+    const coords = positions.map(p => ({ lat: p.lat(), lng: p.lng() }));
+    // Clearly dashed provisional line until OSRM road geometry arrives.
     polylineRef.current = new window.google.maps.Polyline({
-      path: positions,
-      map: mapRef.current,
-      strokeColor: "#6366f1",
-      strokeWeight: 3,
-      strokeOpacity: 0.7,
-      geodesic: true,
-      icons: [{ icon: { path: window.google.maps.SymbolPath.FORWARD_OPEN_ARROW, scale: 3 }, offset: "50%" }],
+      path: coords, map: mapRef.current, strokeColor: "#6366f1",
+      strokeWeight: 2, strokeOpacity: 0.45,
+      icons: [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 0.7, scale: 4 }, offset: "0", repeat: "16px" }],
+    });
+    void requestRoadRoute(coords, "foot").then(route => {
+      if (!route || version !== roadRenderVersionRef.current || !mapRef.current) return;
+      polylineRef.current?.setMap(null);
+      polylineRef.current = new window.google.maps.Polyline({
+        path: route.path, map: mapRef.current, strokeColor: "#6366f1", strokeWeight: 3, strokeOpacity: 0.8,
+      });
     });
   }, []);
 
-  // Approximate travel times only; never billed or presented as measured road times.
-  const getRouteInfo = useCallback((
+  const getRouteInfo = useCallback(async (
     origin: google.maps.LatLng,
     dest: google.maps.LatLng,
     mode: google.maps.TravelMode,
   ): Promise<{ duration: string | null; distance: string | null }> => {
-    const km = getApproxDistanceKm(origin, dest) * 1.25;
-    const speedKmh = mode === window.google.maps.TravelMode.WALKING ? 4.5 : 35;
-    const minutes = Math.max(1, Math.round(km / speedKmh * 60));
-    return Promise.resolve({
-      duration: `약 ${minutes}분(추정)`,
-      distance: `약 ${km < 1 ? Math.round(km * 1000) + "m" : km.toFixed(1) + "km"}(추정)`,
-    });
+    const route = await requestRoadRoute(
+      [{ lat: origin.lat(), lng: origin.lng() }, { lat: dest.lat(), lng: dest.lng() }],
+      mode === window.google.maps.TravelMode.WALKING ? "foot" : "car",
+    );
+    if (!route) return { duration: null, distance: null };
+    return { duration: readableDuration(route.duration), distance: readableDistance(route.distance) };
   }, []);
 
   // 제외 상태에 따라 핀 표시/번호·경로·이동시간 뱃지를 동기적으로 재적용
@@ -876,18 +883,24 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       mapRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 60, left: 40 });
     }
 
-    // 인접 핀 이동 시간 추정 (외부 경로 API 요청 없음)
+    // Two batched OSRM requests per itinerary (walking + car), not 2 requests per segment.
     const newTimesMap: Record<string, { walk: string | null; drive: string | null; distance: string | null }> = {};
     if (positions.length >= 2) {
+      const coords = positions.map(p => ({ lat: p.latlng.lat(), lng: p.latlng.lng() }));
+      const [walking, driving] = await Promise.all([
+        requestRoadRoute(coords, "foot"),
+        requestRoadRoute(coords, "car"),
+      ]);
+      if (renderVersionRef.current !== myVersion) return;
       for (let i = 0; i < positions.length - 1; i++) {
-        if (renderVersionRef.current !== myVersion) return; // stale, 중단
-        const { item: a, latlng: la } = positions[i];
-        const { item: b, latlng: lb } = positions[i + 1];
-        const [walkInfo, driveInfo] = await Promise.all([
-          getRouteInfo(la, lb, window.google.maps.TravelMode.WALKING),
-          getRouteInfo(la, lb, window.google.maps.TravelMode.DRIVING),
-        ]);
-        newTimesMap[`${a.id}:${b.id}`] = { walk: walkInfo.duration, drive: driveInfo.duration, distance: driveInfo.distance ?? walkInfo.distance };
+        const walk = walking?.legs[i];
+        const drive = driving?.legs[i];
+        newTimesMap[`${positions[i]!.item.id}:${positions[i + 1]!.item.id}`] = {
+          walk: walk ? readableDuration(walk.duration) : null,
+          drive: drive ? readableDuration(drive.duration) : null,
+          distance: drive ? readableDistance(drive.distance) :
+            walk ? readableDistance(walk.distance) : null,
+        };
       }
     }
     if (renderVersionRef.current !== myVersion) return; // stale, 중단
