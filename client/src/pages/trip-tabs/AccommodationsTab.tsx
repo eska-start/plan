@@ -1,6 +1,6 @@
+import { validateBooking } from "@shared/bookingValidation";
 import { trpc } from "@/lib/trpc";
 import { useAccommodationsList, useCreateAccommodation, useDeleteAccommodation, useUpdateAccommodation } from "@/lib/entities";
-import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { VisionReview } from "@/components/VisionReview";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -81,7 +81,6 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
     onError: () => toast.error("숙박 삭제에 실패했습니다."),
   });
 
-  const extractMutation = trpc.accommodations.extractFromImage.useMutation();
 
   const openCreate = () => { setEditId(null); setForm(defaultForm); setDialogOpen(true); };
   const openEdit = (a: NonNullable<typeof accommodations>[number]) => {
@@ -100,6 +99,8 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
   };
 
   const handleSubmit = () => {
+    const error = validateBooking("accommodation", form);
+    if (error) { toast.error(error); return; }
     const trimmedName = form.name.trim();
     if (!trimmedName) {
       toast.error("숙소명을 입력해주세요.");
@@ -150,7 +151,7 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
                   {a.address && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5 ml-6">
                       <MapPin className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{a.address}</span>
+                      <a className="break-words underline" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.address)}`} target="_blank" rel="noopener noreferrer">{a.address}</a>
                     </div>
                   )}
                 </div>
@@ -198,22 +199,6 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
             {/* OCR 자동 입력 (기존 유지) */}
-            <OcrUploadButton
-              uploadEndpoint="/api/upload-ocr"
-              extractEndpoint={async (url) => extractMutation.mutateAsync({ imageUrl: url })}
-              onExtracted={(data) => {
-                setForm(f => ({
-                  ...f,
-                  name: data.name ?? f.name,
-                  address: data.address ?? f.address,
-                  checkIn: data.checkIn ?? f.checkIn,
-                  checkOut: data.checkOut ?? f.checkOut,
-                  bookingRef: data.bookingRef ?? f.bookingRef,
-                  price: data.price ?? f.price,
-                  currency: data.currency ?? f.currency,
-                }));
-              }}
-            />
             <VisionReview
               docType="accommodation"
               onConfirm={(v) => {

@@ -1,0 +1,10 @@
+export type LatLng = { lat: number; lng: number };
+export type Layer = { addTo(map: Map | LayerGroup): Layer };
+export type LayerGroup = Layer & { clearLayers(): void };
+export type Map = { on(event: string, cb: (event: { latlng: LatLng }) => void): Map; invalidateSize(): Map; remove(): void; setView(center: [number, number], zoom: number): Map; fitBounds(bounds: [number, number][], options?: object): Map };
+export function map(element: HTMLElement, options?: object): Map;
+export function tileLayer(url: string, options?: object): Layer & { on(event: string, cb: () => void): void };
+export function layerGroup(): LayerGroup;
+export type CircleMarker = Layer & { bindPopup(content: HTMLElement): CircleMarker; bindTooltip(content: string, options?: object): CircleMarker };
+export function circleMarker(point: [number, number], options?: object): CircleMarker;
+export function polyline(points: [number, number][], options?: object): Layer;

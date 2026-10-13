@@ -1,0 +1,45 @@
+name: Android debug APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/native-booking-and-routing]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      PLAN_APK_VARIANT: preview
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-36 build-tools;36.0.0
+          log-accepted-android-sdk-licenses: false
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/check-local-booking.mjs
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm exec vite build
+      - run: pnpm exec cap add android
+      - run: pnpm exec cap sync android
+      - run: ./gradlew assembleDebug
+        working-directory: android
+      - run: cp android/app/build/outputs/apk/debug/app-debug.apk PLANLOG-test.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PLANLOG-test-install
+          path: PLANLOG-test.apk
+          if-no-files-found: error
+          retention-days: 7

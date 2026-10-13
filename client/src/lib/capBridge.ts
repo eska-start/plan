@@ -1,3 +1,4 @@
+import { mergeOcrLines, type OcrLine } from "@shared/ocrLayout";
 /**
  * Capacitor 네이티브 브리지 (Android).
  * - 카메라/갤러리 촬영 → ML Kit OCR(한국어+영문) → 텍스트
@@ -7,16 +8,13 @@
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { Preferences } from "@capacitor/preferences";
 import { Script, TextRecognition } from "@capacitor-mlkit/text-recognition";
+import { Capacitor } from "@capacitor/core";
 import type { AnalysisMode } from "@shared/vision";
 
 export type CapImage = { path: string; previewUrl: string; source: "camera" | "gallery" };
 
 export function isNativeApp(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ??
-      false)
-  );
+  return Capacitor.isNativePlatform();
 }
 
 export function isMlKitAvailable(): boolean {
@@ -26,14 +24,15 @@ export function isMlKitAvailable(): boolean {
 export async function captureImage(source: "camera" | "gallery"): Promise<CapImage | null> {
   try {
     const photo = await Camera.getPhoto({
-      quality: 90,
+      quality: 100,
       resultType: CameraResultType.Uri,
       source: source === "camera" ? CameraSource.Camera : CameraSource.Photos,
     });
-    if (!photo.path || !photo.webPath) return null;
+    if (!photo.path || !photo.webPath) throw new Error("IMAGE_PATH_UNAVAILABLE");
     return { path: photo.path, previewUrl: photo.webPath, source };
-  } catch {
-    return null; // 사용자 취소 등
+  } catch (e) {
+    if (/cancel|취소/i.test(e instanceof Error ? e.message : String(e))) return null;
+    throw e;
   }
 }
 
@@ -41,25 +40,25 @@ export async function captureImage(source: "camera" | "gallery"): Promise<CapIma
  * ML Kit 온디바이스 OCR. 한국어+영문 모델을 각각 실행 후 병합.
  * 좌표(blocks)는 필요시 확대 재분석에 사용.
  */
-export async function ocrImage(imagePath: string): Promise<{ text: string; blocks: number }> {
-  const runs = await Promise.all([
-    TextRecognition.processImage({ path: imagePath, script: Script.Korean }).catch(() => null),
-    TextRecognition.processImage({ path: imagePath, script: Script.Latin }).catch(() => null),
-  ]);
-  const texts = runs.filter((r) => r && r.text.trim()).map((r) => (r as { text: string }).text);
-  // 완전히 동일한 줄 중복 제거
-  const seen = new Set<string>();
-  const merged: string[] = [];
-  for (const t of texts) {
-    for (const line of t.split("\n")) {
-      const s = line.trim();
-      if (!s || seen.has(s)) continue;
-      seen.add(s);
-      merged.push(line);
-    }
+export async function ocrImage(imagePath: string): Promise<{ text: string; blocks: number; lines: OcrLine[] }> {
+  const runs = [];
+  const errors: string[] = [];
+  for (const script of [Script.Korean, Script.Latin]) {
+    try { runs.push(await TextRecognition.processImage({ path: imagePath, script })); }
+    catch (e) { errors.push(e instanceof Error ? e.message : String(e)); }
   }
-  const blockCount = runs.reduce((n, r) => n + (r?.blocks?.length ?? 0), 0);
-  return { text: merged.join("\n"), blocks: blockCount };
+  if (!runs.length) throw new Error(`OCR_ENGINE_FAILED: ${errors.join("; ")}`);
+  const texts = runs.filter((r) => r && r.text.trim()).map((r) => (r as { text: string }).text);
+  const observations: OcrLine[] = [];
+  for (const run of runs) for (const block of run.blocks) for (const line of block.lines) {
+    const box = line.boundingBox;
+    if (box) observations.push({ text: line.text, ...box });
+  }
+  const lines = mergeOcrLines(observations);
+  // Keep spatially distinct duplicate dates/times. The layout parser uses coordinates.
+  const text = lines.length ? lines.map(line => line.text).join("\n") : texts[0] ?? "";
+  if (!text.trim()) throw new Error("OCR_EMPTY_TEXT");
+  return { text, blocks: runs.reduce((n, run) => n + run.blocks.length, 0), lines };
 }
 
 // ─── 설정 (Preferences) ───

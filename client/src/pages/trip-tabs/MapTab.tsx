@@ -1,7 +1,10 @@
 import { trpc } from "@/lib/trpc";
-import { useItineraryByDate, useReorderItinerary } from "@/lib/entities";
+import { useItineraryByDate, useReorderItinerary, useTrip } from "@/lib/entities";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { MapView } from "@/components/Map";
+import { FreeMap, type Pin } from "@/components/FreeMap";
+import { geocodePlace } from "@/lib/freeGeocode";
+import { optimizeRoute } from "@shared/routeOptimize";
+import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { MapPin, Navigation, Loader2, CheckCircle2, GripVertical } from "lucide-react";
@@ -133,13 +136,11 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     return format(new Date(), "yyyy-MM-dd");
   });
 
-  const mapRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
-  const routeRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
-  const polylineRef = useRef<google.maps.Polyline | null>(null);
-  const geocacheRef = useRef<Map<string, google.maps.LatLng>>(new Map());
-  const [mapReady, setMapReady] = useState(false);
-  const [geocoding, setGeocoding] = useState(false);
+  const [pins,setPins]=useState<Pin[]>([]);
+  const [geocoding,setGeocoding]=useState(false);
+  const [missingLocations,setMissingLocations]=useState(0);
+  const [optimizing,setOptimizing]=useState(false);
+  const {data:trip}=useTrip(tripId);
 
   // 로컬 순서 상태 (드래그 즉시 반영)
   const [localOrder, setLocalOrder] = useState<number[] | null>(null);
@@ -207,186 +208,45 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     );
   }, [items, reorderMutation, tripId, selectedDate, utils]);
 
-  // 지도 초기화
-  const clearMap = useCallback(() => {
-    markersRef.current.forEach(m => { m.map = null; });
-    markersRef.current = [];
-    if (routeRendererRef.current) {
-      routeRendererRef.current.setMap(null);
-      routeRendererRef.current = null;
-    }
-    if (polylineRef.current) {
-      polylineRef.current.setMap(null);
-      polylineRef.current = null;
-    }
-  }, []);
-
-  // 지오코딩 (캐시 활용)
-  const geocodeAddress = useCallback(async (key: string, address: string): Promise<google.maps.LatLng | null> => {
-    if (geocacheRef.current.has(key)) return geocacheRef.current.get(key)!;
-    return new Promise(resolve => {
-      const geocoder = new window.google.maps.Geocoder();
-      geocoder.geocode({ address }, (results, status) => {
-        if (status === "OK" && results && results[0]) {
-          const latlng = results[0].geometry.location;
-          geocacheRef.current.set(key, latlng);
-          resolve(latlng);
-        } else {
-          resolve(null);
+  useEffect(()=>{
+    const controller=new AbortController();
+    setGeocoding(true);setPins([]);setMissingLocations(0);
+    void (async()=>{
+      const resolved:Pin[]=[];let missing=0;
+      for(const item of items){
+        let position=item.lat && item.lng && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng)) ? {lat:Number(item.lat),lng:Number(item.lng)}:null;
+        if(!position){
+          const place=item.placeName.replace(/^🏨\s*(?:체크인|체크아웃|숙박)\s*[—-]\s*/,"");
+          const query=item.address?.trim() || [place,trip?.destination].filter(Boolean).join(" ");
+          position=await geocodePlace(query,controller.signal);
         }
-      });
-    });
-  }, []);
-
-  // 경로 그리기
-  const drawRoute = useCallback((positions: google.maps.LatLng[]) => {
-    if (routeRendererRef.current) {
-      routeRendererRef.current.setMap(null);
-      routeRendererRef.current = null;
-    }
-    if (polylineRef.current) {
-      polylineRef.current.setMap(null);
-      polylineRef.current = null;
-    }
-    if (positions.length < 2 || !mapRef.current) return;
-
-    const directionsService = new window.google.maps.DirectionsService();
-    const renderer = new window.google.maps.DirectionsRenderer({
-      map: mapRef.current,
-      suppressMarkers: true,
-      polylineOptions: {
-        strokeColor: "#6366f1",
-        strokeWeight: 3,
-        strokeOpacity: 0.7,
-      },
-    });
-    routeRendererRef.current = renderer;
-
-    const waypoints = positions.slice(1, -1).map(latlng => ({ location: latlng, stopover: false }));
-
-    directionsService.route(
-      {
-        origin: positions[0],
-        destination: positions[positions.length - 1],
-        waypoints,
-        travelMode: window.google.maps.TravelMode.WALKING,
-        optimizeWaypoints: false,
-      },
-      (result, status) => {
-        if (status === "OK" && result) {
-          renderer.setDirections(result);
-        } else {
-          renderer.setMap(null);
-          routeRendererRef.current = null;
-          // 직선 폴리라인 대체
-          const polyline = new window.google.maps.Polyline({
-            path: positions,
-            map: mapRef.current!,
-            strokeColor: "#6366f1",
-            strokeWeight: 2,
-            strokeOpacity: 0.6,
-            icons: [{
-              icon: { path: window.google.maps.SymbolPath.FORWARD_OPEN_ARROW, scale: 3 },
-              offset: "50%",
-            }],
-          });
-          polylineRef.current = polyline;
-        }
+        if(controller.signal.aborted)return;
+        if(position)resolved.push({id:item.id,name:item.placeName,address:item.address,...position});else missing++;
       }
-    );
-  }, []);
-
-  // 지도 렌더링 (items 순서 기준으로 마커 번호 부여)
-  const renderOnMap = useCallback(async () => {
-    if (!mapRef.current || !items || items.length === 0) return;
-    clearMap();
-    setGeocoding(true);
-
-    const positions: { item: ItemType; latlng: google.maps.LatLng }[] = [];
-
-    for (const item of items) {
-      let latlng: google.maps.LatLng | null = null;
-      if (item.lat && item.lng) {
-        latlng = new window.google.maps.LatLng(Number(item.lat), Number(item.lng));
-      } else if (item.address) {
-        latlng = await geocodeAddress(`addr:${item.id}`, item.address);
-      } else if (item.placeName) {
-        latlng = await geocodeAddress(`name:${item.id}:${item.placeName}`, item.placeName);
-      }
-      if (latlng) positions.push({ item, latlng });
-    }
-
-    setGeocoding(false);
-    if (positions.length === 0) return;
-
-    const bounds = new window.google.maps.LatLngBounds();
-    positions.forEach(({ item, latlng }, idx) => {
-      bounds.extend(latlng);
-      const color = CATEGORY_COLORS[item.category ?? "place"] ?? "#6366f1";
-
-      // 고정 마커 (draggable 없음)
-      const el = document.createElement("div");
-      el.style.cssText = `
-        width: 36px; height: 36px; border-radius: 50% 50% 50% 0;
-        background: ${item.visited ? "#9ca3af" : color};
-        border: 2.5px solid white;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.25);
-        display: flex; align-items: center; justify-content: center;
-        transform: rotate(-45deg);
-        cursor: pointer;
-      `;
-      const inner = document.createElement("div");
-      inner.style.cssText = "transform: rotate(45deg); color: white; font-size: 12px; font-weight: 700; user-select: none;";
-      inner.textContent = String(idx + 1);
-      el.appendChild(inner);
-
-      const marker = new window.google.maps.marker.AdvancedMarkerElement({
-        map: mapRef.current!,
-        position: latlng,
-        title: item.placeName,
-        content: el,
-        // gmpDraggable 없음 - 마커 고정
-      });
-
-      // 클릭 정보창
-      const infoWindow = new window.google.maps.InfoWindow({
-        content: `
-          <div style="font-family: Inter, sans-serif; padding: 6px 4px; min-width: 160px;">
-            <div style="font-weight: 700; font-size: 13px; margin-bottom: 4px; color: #1e293b;">${idx + 1}. ${item.placeName}</div>
-            <div style="font-size: 11px; color: #64748b; background: ${color}20; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 4px;">${CATEGORY_LABELS[item.category ?? "place"] ?? "장소"}</div>
-            ${item.visitTime ? `<div style="font-size: 11px; color: #6b7280; margin-top: 2px;">⏰ ${item.visitTime}</div>` : ""}
-            ${item.address ? `<div style="font-size: 11px; color: #6b7280; margin-top: 2px;">📍 ${item.address}</div>` : ""}
-            ${item.visited ? `<div style="font-size: 11px; color: #22c55e; margin-top: 4px; font-weight: 600;">✓ 방문 완료</div>` : ""}
-          </div>
-        `,
-      });
-      marker.addListener("click", () => {
-        infoWindow.open({ anchor: marker, map: mapRef.current! });
-      });
-
-      markersRef.current.push(marker);
-    });
-
-    mapRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 60, left: 40 });
-    drawRoute(positions.map(p => p.latlng));
-  }, [items, clearMap, geocodeAddress, drawRoute]);
-
-  // 날짜 변경 시 캐시 초기화
-  useEffect(() => {
-    geocacheRef.current.clear();
-    setLocalOrder(null);
-  }, [selectedDate]);
-
-  useEffect(() => {
-    if (mapReady) {
-      if (items && items.length > 0) {
-        renderOnMap();
-      } else if (items && items.length === 0) {
-        clearMap();
-      }
-    }
-  }, [mapReady, items, renderOnMap, clearMap]);
-
+      if(!controller.signal.aborted){setPins(resolved);setMissingLocations(missing);setGeocoding(false);}
+    })();
+    return()=>controller.abort();
+  },[items,trip?.destination]);
+  const optimize=async()=>{
+    if(pins.length<2||pins.length!==items.length||optimizing)return;
+    setOptimizing(true);
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
+    try{
+      let matrix:number[][]|undefined;
+      try{
+        const coordinates=pins.map(pin=>`${pin.lng},${pin.lat}`).join(";");
+        const response=await fetch(`https://router.project-osrm.org/table/v1/driving/${coordinates}?annotations=duration`,{signal:controller.signal});
+        if(!response.ok)throw new Error("ROAD_UNAVAILABLE");
+        const data=await response.json() as {code:string;durations:number[][]};
+        if(data.code!=="Ok"||data.durations.some(row=>row.some(value=>typeof value!=="number"||!Number.isFinite(value))))throw new Error("ROAD_UNAVAILABLE");
+        matrix=data.durations;
+      }catch{toast.info("도로 정보를 불러오지 못해 직선거리 기준으로 방문 순서를 계산합니다.");}
+      const ids=optimizeRoute(pins,matrix);
+      setLocalOrder(ids);
+      reorderMutation.mutate({tripId,orderedIds:ids},{onSuccess:()=>toast.success("방문 순서를 최적화했습니다.")});
+    }catch{toast.error("동선 계산에 실패했습니다.");}finally{clearTimeout(timeout);setOptimizing(false);}
+  };
+  const orderedPins=items.map(item=>pins.find(pin=>pin.id===item.id)).filter((pin):pin is Pin=>!!pin);
   return (
     <div className="space-y-5">
       <div>
@@ -432,16 +292,11 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
             </div>
           </div>
         )}
-        <MapView
-          className="w-full h-[400px] sm:h-[480px]"
-          initialCenter={{ lat: 35.6762, lng: 139.6503 }}
-          initialZoom={13}
-          onMapReady={(map) => {
-            mapRef.current = map;
-            setMapReady(true);
-          }}
-        />
+        <FreeMap pins={orderedPins} route={orderedPins.map(pin=>[pin.lat,pin.lng])} />
       </div>
+
+      {missingLocations>0 && <p role="status" className="text-sm text-muted-foreground">{missingLocations}개 장소의 위치를 찾지 못했습니다. 등록된 주소를 확인해주세요.</p>}
+      <Button disabled={optimizing||geocoding||pins.length<2||pins.length!==items.length||pins.length>25} onClick={()=>void optimize()}>{optimizing?"동선 계산 중...":"방문 순서 최적화"}</Button>
 
       {/* 방문 순서 목록 (드래그 앤 드롭) */}
       {items && items.length > 0 && (
