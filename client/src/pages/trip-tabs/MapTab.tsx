@@ -392,6 +392,9 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const hasInitialFitRef = useRef(false);
   const renderVersionRef = useRef(0); // 동시 renderOnMap 실행 방지
   const roadRenderVersionRef = useRef(0); // Ignore stale async road geometries
+  const routingPausedRef = useRef(false); // Avoid OSRM requests for each manual reorder
+  const [routingPaused, setRoutingPaused] = useState(false);
+  const pauseRouting = () => { routingPausedRef.current = true; setRoutingPaused(true); };
   const itemsHashRef = useRef('');    // 내용 변경 시에만 renderOnMap 실행
   const [mapReady, setMapReady] = useState(false);
   const [roadStatsOpen, setRoadStatsOpen] = useState(false);
@@ -574,6 +577,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       }
 
       const orderedIds = [start, ...orderedMiddle, end].map(x => x.item.id);
+      pauseRouting();
       setLocalOrder(orderedIds);
       reorderMutation.mutate(
         { tripId, orderedIds },
@@ -674,6 +678,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     const newIndex = currentIds.indexOf(over.id as number);
     if (oldIndex === -1 || newIndex === -1) return;
     const newOrder = arrayMove(currentIds, oldIndex, newIndex);
+    pauseRouting();
     setLocalOrder(newOrder);
 
     // 기존 방문 시간을 시간순 정렬해 새 순서에 배분
@@ -793,6 +798,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       strokeWeight: 2, strokeOpacity: 0.45,
       icons: [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 0.7, scale: 4 }, offset: "0", repeat: "16px" }],
     });
+    if (routingPausedRef.current) return;
     void requestRoadRoute(coords, "foot").then(route => {
       if (!route || version !== roadRenderVersionRef.current || !mapRef.current) return;
       polylineRef.current?.setMap(null);
@@ -906,6 +912,11 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       mapRef.current.fitBounds(bounds, { top: 60, right: 40, bottom: 60, left: 40 });
     }
 
+    // Rearrangement is local-only until the user confirms the route calculation.
+    if (routingPausedRef.current) {
+      applyExclusionSync(travelTimesMapRef.current);
+      return;
+    }
     // Two batched OSRM requests per itinerary (walking + car), not 2 requests per segment.
     const newTimesMap: Record<string, { walk: string | null; drive: string | null; distance: string | null }> = {};
     if (positions.length >= 2) {
@@ -939,6 +950,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   useEffect(() => {
     geocacheRef.current.clear();
+    routingPausedRef.current = false;
+    setRoutingPaused(false);
     setLocalOrder(null);
     hasInitialFitRef.current = false;
     renderVersionRef.current = 0;
@@ -970,6 +983,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   useEffect(() => {
     if (!mapReady) return;
     applyExclusionSync(travelTimesMapRef.current);
+    if (routingPausedRef.current) return;
 
     // 새로 생긴 인접 쌍(건너뛴 쌍)의 이동 시간이 없으면 비동기로 계산 후 재적용
     const allItems = itemsRef.current;
@@ -1164,6 +1178,11 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
 
   return (
     <div className="space-y-5">
+      {routingPaused && (
+        <p className="text-xs text-muted-foreground rounded-lg bg-muted/50 px-3 py-2">
+          방문 순서를 정한 뒤 ‘경로 갱신’을 누르면 새 도로 경로와 이동시간이 계산됩니다. 순서 변경 중에는 추가 요청하지 않습니다.
+        </p>
+      )}
       {roadStatsOpen && (
         <div className="rounded-xl border bg-card px-3 py-3 text-sm shadow-sm space-y-2">
           <div className="flex justify-between items-center gap-3">
@@ -1188,6 +1207,15 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           <p className="text-sm text-muted-foreground mt-0.5 break-keep">드래그해서 방문 순서를 변경하면 지도와 일정 탭에 즉시 반영됩니다.</p>
         </div>
         <div className="flex gap-2 shrink-0 flex-wrap">
+          <Button size="sm" variant={routingPaused ? "default" : "outline"}
+            onClick={() => {
+              routingPausedRef.current = false;
+              setRoutingPaused(false);
+              itemsHashRef.current = "";
+              void renderOnMap();
+            }}
+            disabled={geocoding || !mapReady}
+            className="gap-1.5">{routingPaused ? "경로 갱신 · 계산 필요" : "경로 다시 계산"}</Button>
           <Button size="sm" variant="outline" onClick={() => setRoadStatsOpen(v => !v)}>
             경로 API 사용량
           </Button>
