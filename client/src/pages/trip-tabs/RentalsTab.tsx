@@ -1,6 +1,6 @@
+import { validateBooking } from "@shared/bookingValidation";
 import { trpc } from "@/lib/trpc";
 import { useCreateRental, useDeleteRental, useRentalsList, useUpdateRental } from "@/lib/entities";
-import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { VisionReview } from "@/components/VisionReview";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -61,7 +61,6 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
     onError: () => toast.error("렌트카 삭제에 실패했습니다."),
   });
 
-  const extractMutation = trpc.rentals.extractFromImage.useMutation();
 
   const openCreate = () => { setEditId(null); setForm(defaultForm); setDialogOpen(true); };
   const openEdit = (r: NonNullable<typeof rentals>[number]) => {
@@ -77,6 +76,8 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
   };
 
   const handleSubmit = () => {
+    const error = validateBooking("rental", form);
+    if (error) { toast.error(error); return; }
     if (editId) updateMutation.mutate({ id: editId, ...form });
     else createMutation.mutate({ tripId, ...form });
   };
@@ -158,24 +159,6 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
             {/* OCR 자동 입력 (기존 유지) */}
-            <OcrUploadButton
-              uploadEndpoint="/api/upload-ocr"
-              extractEndpoint={async (url) => extractMutation.mutateAsync({ imageUrl: url })}
-              onExtracted={(data) => {
-                setForm(f => ({
-                  ...f,
-                  company: data.company ?? f.company,
-                  carModel: data.carModel ?? f.carModel,
-                  pickupLocation: data.pickupLocation ?? f.pickupLocation,
-                  dropoffLocation: data.dropoffLocation ?? f.dropoffLocation,
-                  pickupTime: data.pickupTime ?? f.pickupTime,
-                  dropoffTime: data.dropoffTime ?? f.dropoffTime,
-                  bookingRef: data.bookingRef ?? f.bookingRef,
-                  price: data.price ?? f.price,
-                  currency: data.currency ?? f.currency,
-                }));
-              }}
-            />
             <VisionReview
               docType="rental"
               onConfirm={(v) => {

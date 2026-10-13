@@ -1,6 +1,6 @@
+import { validateBooking } from "@shared/bookingValidation";
 import { trpc } from "@/lib/trpc";
 import { useCreateFlight, useDeleteFlight, useFlightsList, useUpdateFlight } from "@/lib/entities";
-import { OcrUploadButton } from "@/components/OcrUploadButton";
 import { VisionReview } from "@/components/VisionReview";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -84,7 +84,6 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
     onError: () => toast.error("항공편 삭제에 실패했습니다."),
   });
 
-  const extractMutation = trpc.flights.extractFromImage.useMutation();
 
   const openCreate = () => { setEditId(null); setForm(defaultForm); setDialogOpen(true); };
   const openEdit = (f: NonNullable<typeof flights>[number]) => {
@@ -105,6 +104,8 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
   };
 
   const handleSubmit = () => {
+    const error = validateBooking("flight", form);
+    if (error) { toast.error(error); return; }
     if (editId) updateMutation.mutate({ id: editId, ...form });
     else createMutation.mutate({ tripId, ...form });
   };
@@ -177,31 +178,12 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
             {/* OCR 자동 입력 (기존 유지) */}
-            <OcrUploadButton
-              uploadEndpoint="/api/upload-ocr"
-              extractEndpoint={async (url) => extractMutation.mutateAsync({ imageUrl: url })}
-              onExtracted={(data) => {
-                setForm(f => ({
-                  ...f,
-                  airline: data.airline ?? f.airline,
-                  flightNumber: data.flightNumber ?? f.flightNumber,
-                  departureAirport: data.departureAirport ?? f.departureAirport,
-                  arrivalAirport: data.arrivalAirport ?? f.arrivalAirport,
-                  departureTime: data.departureTime ?? f.departureTime,
-                  arrivalTime: data.arrivalTime ?? f.arrivalTime,
-                  bookingRef: data.bookingRef ?? f.bookingRef,
-                  seatNumber: data.seatNumber ?? f.seatNumber,
-                  type: (data.type as typeof f.type) ?? f.type,
-                }));
-              }}
-            />
-            {/* 정밀 교차 검증 (신규): 확인된 값만 폼에 반영 */}
             <VisionReview
               docType="flight"
               onConfirm={(v) => {
                 setForm(f => ({
                   ...f,
-                  airline: v.airline ?? v.passengerName ?? f.airline,
+                  airline: v.airline ?? f.airline,
                   flightNumber: v.flightNumber ?? f.flightNumber,
                   departureAirport: v.departureAirportCode ?? v.departureAirport ?? f.departureAirport,
                   arrivalAirport: v.arrivalAirportCode ?? v.arrivalAirport ?? f.arrivalAirport,

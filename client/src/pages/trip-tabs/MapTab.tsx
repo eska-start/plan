@@ -1,3 +1,5 @@
+import { isNativeApp } from "@/lib/capBridge";
+import LocalMapTab from "./LocalMapTab";
 import { trpc } from "@/lib/trpc";
 import { useItineraryByDate, useReorderItinerary } from "@/lib/entities";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
@@ -127,7 +129,7 @@ function SortableVisitItem({
   );
 }
 
-export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays: Date[] }) {
+function GoogleMapTab({ tripId, tripDays }: { tripId: number; tripDays: Date[] }) {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     if (tripDays.length > 0) return format(tripDays[0], "yyyy-MM-dd");
     return format(new Date(), "yyyy-MM-dd");
@@ -495,4 +497,8 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
       )}
     </div>
   );
+}
+
+export default function MapTab(props: { tripId: number; tripDays: Date[] }) {
+  return isNativeApp() || !import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? <LocalMapTab {...props} /> : <GoogleMapTab {...props} />;
 }

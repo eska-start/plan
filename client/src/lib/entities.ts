@@ -28,6 +28,7 @@ function useNativeMut<TInput>(entity: string, fn: (input: TInput) => Promise<unk
     mutationFn: async (input: TInput) => {
       const r = await fn(input);
       await qc.invalidateQueries({ queryKey: ["m", entity] });
+      if (entity === "accommodations") await qc.invalidateQueries({ queryKey: ["m", "itinerary"] });
       return r;
     },
     onSuccess: () => {

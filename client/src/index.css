@@ -204,3 +204,5 @@
     @apply bg-card border border-border rounded-2xl shadow-sm;
   }
 }
+
+.plan-pin-label { background: transparent; border: 0; box-shadow: none; color: white; font-weight: 700; }

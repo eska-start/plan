@@ -1,3 +1,4 @@
+import { validateBooking } from "@shared/bookingValidation";
 /**
  * 네이티브 앱 로컬 DB (CapacitorSQLite).
  * 웹 server/db.ts + routers.ts 숙박→일정 동기화와 동일한 UI 동작.
@@ -80,6 +81,8 @@ export const getFlights = (tripId: number) =>
   all("SELECT * FROM flights WHERE tripId=? ORDER BY id ASC", [tripId]);
 
 export async function createFlight(tripId: number, d: Record<string, string | undefined>) {
+  const error = validateBooking("flight", d);
+  if (error) throw new Error(error);
   return run(
     "INSERT INTO flights (tripId,userId,type,airline,flightNumber,departureAirport,arrivalAirport,departureTime,arrivalTime,bookingRef,seatNumber,memo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
     [tripId, LOCAL_USER_ID, d.type ?? "departure", d.airline ?? null, d.flightNumber ?? null, d.departureAirport ?? null, d.arrivalAirport ?? null, d.departureTime ?? null, d.arrivalTime ?? null, d.bookingRef ?? null, d.seatNumber ?? null, d.memo ?? null],
@@ -104,6 +107,8 @@ export const getRentals = (tripId: number) =>
   all("SELECT * FROM rentals WHERE tripId=? ORDER BY id ASC", [tripId]);
 
 export async function createRental(tripId: number, d: Record<string, string | undefined>) {
+  const error = validateBooking("rental", d);
+  if (error) throw new Error(error);
   return run(
     "INSERT INTO rentals (tripId,userId,company,carModel,pickupLocation,dropoffLocation,pickupTime,dropoffTime,bookingRef,price,currency,memo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
     [tripId, LOCAL_USER_ID, d.company ?? null, d.carModel ?? null, d.pickupLocation ?? null, d.dropoffLocation ?? null, d.pickupTime ?? null, d.dropoffTime ?? null, d.bookingRef ?? null, d.price ?? null, d.currency ?? "KRW", d.memo ?? null],
@@ -151,6 +156,8 @@ async function syncAccommodationToItinerary(tripId: number, accId: number, name:
 }
 
 export async function createAccommodation(tripId: number, d: Record<string, string | undefined>) {
+  const error = validateBooking("accommodation", d);
+  if (error) throw new Error(error);
   const id = await run(
     "INSERT INTO accommodations (tripId,userId,name,address,checkIn,checkOut,bookingRef,price,currency,memo) VALUES (?,?,?,?,?,?,?,?,?,?)",
     [tripId, LOCAL_USER_ID, d.name ?? "", d.address ?? null, d.checkIn ?? null, d.checkOut ?? null, d.bookingRef ?? null, d.price ?? null, d.currency ?? "KRW", d.memo ?? null],

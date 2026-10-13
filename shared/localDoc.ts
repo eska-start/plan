@@ -11,7 +11,7 @@ export function localDocFromText(text: string, docType: DocumentType): Record<st
     const p = parseFlightFromText(text);
     return {
       documentType: "flight",
-      bookingStatus: null,
+      bookingStatus: /취소|cancelled/i.test(text) ? "cancelled" : /예약\s*(?:완료|확정)|confirmed|ticketed/i.test(text) ? "confirmed" : null,
       airline: p.airline,
       flightNumber: p.flightNumber,
       departureAirport: p.departureAirport,
@@ -55,7 +55,7 @@ export function localDocFromText(text: string, docType: DocumentType): Record<st
       bookingRef: p.bookingRef,
       price: p.price,
       currency: p.currency,
-      bookingStatus: null,
+      bookingStatus: /취소|cancelled/i.test(text) ? "cancelled" : /예약\s*(?:완료|확정)|confirmed|ticketed/i.test(text) ? "confirmed" : null,
     };
   }
   return {};

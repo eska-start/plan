@@ -1,3 +1,4 @@
+import { validateBooking } from "@shared/bookingValidation";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { eachDayOfInterval, parseISO, format } from "date-fns";
@@ -129,7 +130,11 @@ const flightsRouter = router({
       seatNumber: z.string().optional(),
       memo: z.string().optional(),
     }))
-    .mutation(({ ctx, input }) => createFlight({ ...input, userId: ctx.user.id })),
+    .mutation(({ ctx, input }) => {
+      const error = validateBooking("flight", input);
+      if (error) throw new TRPCError({ code: "BAD_REQUEST", message: error });
+      return createFlight({ ...input, userId: ctx.user.id });
+    }),
 
   update: protectedProcedure
     .input(z.object({
@@ -222,7 +227,11 @@ const rentalsRouter = router({
       currency: z.string().optional(),
       memo: z.string().optional(),
     }))
-    .mutation(({ ctx, input }) => createRental({ ...input, userId: ctx.user.id })),
+    .mutation(({ ctx, input }) => {
+      const error = validateBooking("rental", input);
+      if (error) throw new TRPCError({ code: "BAD_REQUEST", message: error });
+      return createRental({ ...input, userId: ctx.user.id });
+    }),
 
   update: protectedProcedure
     .input(z.object({
@@ -314,6 +323,8 @@ const accommodationsRouter = router({
       memo: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const error = validateBooking("accommodation", input);
+      if (error) throw new TRPCError({ code: "BAD_REQUEST", message: error });
       const id = await createAccommodation({ ...input, userId: ctx.user.id });
       // 일정 자동 연동
       if (id && input.checkIn && input.checkOut) {
