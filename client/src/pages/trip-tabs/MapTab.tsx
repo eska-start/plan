@@ -400,7 +400,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   const [mapReady, setMapReady] = useState(false);
   const [roadStatsOpen, setRoadStatsOpen] = useState(false);
   const [roadStats, setRoadStats] = useState<null | {
-    dayUtc: string; upstreamToday: number; dailyLimit: number;
+    dayUtc: string; upstreamToday: number; dailyLimit: number | null;
     cacheHitsSinceStart: number; rejectedSinceStart: number;
     upstreamFailuresSinceStart: number; upstreamSinceStart: number;
     cacheEntries: number; cacheDays: number; serverStartedAt: string;
@@ -1223,7 +1223,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
           </div>
           {roadStats ? (
             <div className="space-y-1 text-muted-foreground">
-              <p>오늘 외부 경로 요청: <strong className="text-foreground">{roadStats.upstreamToday} / {roadStats.dailyLimit}회</strong> (UTC 기준)</p>
+              <p>오늘 외부 경로 요청: <strong className="text-foreground">{roadStats.upstreamToday}회</strong> (UTC 기준)</p>
               <p>서버 캐시 재사용: {roadStats.cacheHitsSinceStart}회 · 외부 요청 누적: {roadStats.upstreamSinceStart}회</p>
               <p>차단: {roadStats.rejectedSinceStart}회 · 실패: {roadStats.upstreamFailuresSinceStart}회 · 보관된 경로: {roadStats.cacheEntries}개</p>
               <p className="text-xs">브라우저·서버 경로 캐시 최대 7일. 서버 통계는 마지막 재시작({new Date(roadStats.serverStartedAt).toLocaleString("ko-KR")}) 이후 기준이며 재시작 시 초기화됩니다.</p>
