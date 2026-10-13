@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { OcrUploadButton } from "@/components/OcrUploadButton";
+import { VisionReview } from "@/components/VisionReview";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Plane, Loader2, ArrowRight, Hash, Armchair } from "lucide-react";
@@ -174,7 +175,7 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
             <DialogTitle className="text-lg font-semibold">{editId ? "항공편 수정" : "항공편 추가"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
-            {/* OCR 자동 입력 */}
+            {/* OCR 자동 입력 (기존 유지) */}
             <OcrUploadButton
               uploadEndpoint="/api/upload-ocr"
               extractEndpoint={async (url) => extractMutation.mutateAsync({ imageUrl: url })}
@@ -190,6 +191,24 @@ export default function FlightsTab({ tripId }: { tripId: number }) {
                   bookingRef: data.bookingRef ?? f.bookingRef,
                   seatNumber: data.seatNumber ?? f.seatNumber,
                   type: (data.type as typeof f.type) ?? f.type,
+                }));
+              }}
+            />
+            {/* 정밀 교차 검증 (신규): 확인된 값만 폼에 반영 */}
+            <VisionReview
+              docType="flight"
+              onConfirm={(v) => {
+                setForm(f => ({
+                  ...f,
+                  airline: v.airline ?? v.passengerName ?? f.airline,
+                  flightNumber: v.flightNumber ?? f.flightNumber,
+                  departureAirport: v.departureAirportCode ?? v.departureAirport ?? f.departureAirport,
+                  arrivalAirport: v.arrivalAirportCode ?? v.arrivalAirport ?? f.arrivalAirport,
+                  departureTime: v.departureDateTime ?? f.departureTime,
+                  arrivalTime: v.arrivalDateTime ?? f.arrivalTime,
+                  bookingRef: v.bookingReference ?? f.bookingRef,
+                  seatNumber: v.seatNumber ?? f.seatNumber,
+                  type: (v.flightType as typeof f.type) ?? f.type,
                 }));
               }}
             />

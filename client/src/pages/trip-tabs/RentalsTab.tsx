@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { OcrUploadButton } from "@/components/OcrUploadButton";
+import { VisionReview } from "@/components/VisionReview";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Car, Loader2, MapPin, Hash } from "lucide-react";
@@ -155,7 +156,7 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
             <DialogTitle className="text-lg font-semibold">{editId ? "렌트카 수정" : "렌트카 추가"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
-            {/* OCR 자동 입력 */}
+            {/* OCR 자동 입력 (기존 유지) */}
             <OcrUploadButton
               uploadEndpoint="/api/upload-ocr"
               extractEndpoint={async (url) => extractMutation.mutateAsync({ imageUrl: url })}
@@ -171,6 +172,23 @@ export default function RentalsTab({ tripId }: { tripId: number }) {
                   bookingRef: data.bookingRef ?? f.bookingRef,
                   price: data.price ?? f.price,
                   currency: data.currency ?? f.currency,
+                }));
+              }}
+            />
+            <VisionReview
+              docType="rental"
+              onConfirm={(v) => {
+                setForm(f => ({
+                  ...f,
+                  company: v.company ?? f.company,
+                  carModel: v.carModel ?? f.carModel,
+                  pickupLocation: v.pickupLocation ?? f.pickupLocation,
+                  dropoffLocation: v.dropoffLocation ?? f.dropoffLocation,
+                  pickupTime: v.pickupDateTime ?? f.pickupTime,
+                  dropoffTime: v.dropoffDateTime ?? f.dropoffTime,
+                  bookingRef: v.bookingRef ?? f.bookingRef,
+                  price: v.price ?? f.price,
+                  currency: v.currency ?? f.currency,
                 }));
               }}
             />

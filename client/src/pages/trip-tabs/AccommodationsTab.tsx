@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { OcrUploadButton } from "@/components/OcrUploadButton";
+import { VisionReview } from "@/components/VisionReview";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Hotel, Loader2, MapPin, Hash, Calendar } from "lucide-react";
@@ -195,7 +196,7 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
             <DialogTitle className="text-lg font-semibold">{editId ? "숙박 수정" : "숙박 추가"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3.5 max-h-[70vh] overflow-y-auto">
-            {/* OCR 자동 입력 */}
+            {/* OCR 자동 입력 (기존 유지) */}
             <OcrUploadButton
               uploadEndpoint="/api/upload-ocr"
               extractEndpoint={async (url) => extractMutation.mutateAsync({ imageUrl: url })}
@@ -209,6 +210,21 @@ export default function AccommodationsTab({ tripId }: { tripId: number }) {
                   bookingRef: data.bookingRef ?? f.bookingRef,
                   price: data.price ?? f.price,
                   currency: data.currency ?? f.currency,
+                }));
+              }}
+            />
+            <VisionReview
+              docType="accommodation"
+              onConfirm={(v) => {
+                setForm(f => ({
+                  ...f,
+                  name: v.name ?? f.name,
+                  address: v.address ?? f.address,
+                  checkIn: v.checkIn ?? f.checkIn,
+                  checkOut: v.checkOut ?? f.checkOut,
+                  bookingRef: v.bookingRef ?? f.bookingRef,
+                  price: v.price ?? f.price,
+                  currency: v.currency ?? f.currency,
                 }));
               }}
             />

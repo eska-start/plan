@@ -6,6 +6,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { visionRouter } from "./vision/router";
 import { invokeLLM, type Message } from "./_core/llm";
 import { ENV } from "./_core/env";
 import {
@@ -603,6 +604,7 @@ export const appRouter = router({
   itinerary: itineraryRouter,
   diary: diaryRouter,
   sharing: sharingRouter,
+  vision: visionRouter,
 });
 
 export type AppRouter = typeof appRouter;
