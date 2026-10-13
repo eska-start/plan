@@ -762,18 +762,47 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
     if (polylineRef.current) { polylineRef.current.setMap(null); polylineRef.current = null; }
   }, []);
 
+  const pendingGeocodesRef = useRef<Map<string, Promise<google.maps.LatLng | null>>>(new Map());
   const geocodeAddress = useCallback(async (key: string, address: string): Promise<google.maps.LatLng | null> => {
-    if (geocacheRef.current.has(key)) return geocacheRef.current.get(key)!;
-    return new Promise(resolve => {
+    const normalized = address.trim().replace(/\\s+/g, " ").toLocaleLowerCase();
+    const storageKey = "planlog-geocode-v1:" + normalized;
+    if (geocacheRef.current.has(normalized)) return geocacheRef.current.get(normalized)!;
+    // Google geocoding content is cached only briefly (7 days; <=30 day policy).
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const entry = JSON.parse(saved) as { lat: number; lng: number; expires: number };
+        if (entry.expires > Date.now() && Number.isFinite(entry.lat) && Number.isFinite(entry.lng) &&
+            Math.abs(entry.lat) <= 90 && Math.abs(entry.lng) <= 180) {
+          const result = new window.google.maps.LatLng(entry.lat, entry.lng);
+          geocacheRef.current.set(normalized, result);
+          return result;
+        }
+        localStorage.removeItem(storageKey);
+      }
+    } catch { /* Private browsing or storage blocked; continue without persistent cache. */ }
+    const inFlight = pendingGeocodesRef.current.get(normalized);
+    if (inFlight) return inFlight;
+    const promise = new Promise<google.maps.LatLng | null>(resolve => {
       const geocoder = new window.google.maps.Geocoder();
       geocoder.geocode({ address }, (results, status) => {
         if (status === "OK" && results && results[0]) {
           const latlng = results[0].geometry.location;
-          geocacheRef.current.set(key, latlng);
+          geocacheRef.current.set(normalized, latlng);
+          try {
+            const keys = Object.keys(localStorage).filter(k => k.startsWith("planlog-geocode-v1:"));
+            if (keys.length > 160) keys.slice(0, keys.length - 160).forEach(k => localStorage.removeItem(k));
+            localStorage.setItem(storageKey, JSON.stringify({
+              lat: latlng.lat(), lng: latlng.lng(), expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            }));
+          } catch { /* no local storage available */ }
           resolve(latlng);
         } else { resolve(null); }
       });
     });
+    pendingGeocodesRef.current.set(normalized, promise);
+    try { return await promise; }
+    finally { pendingGeocodesRef.current.delete(normalized); }
   }, []);
 
   // Local great-circle distance; 1.25x is an approximate road detour factor, not real travel routing.
@@ -951,7 +980,7 @@ export default function MapTab({ tripId, tripDays }: { tripId: number; tripDays:
   }, [clearMap, geocodeAddress, drawRoute, getRouteInfo, applyExclusionSync]);
 
   useEffect(() => {
-    geocacheRef.current.clear();
+    // Keep successful geocodes across date switches; localStorage expires after 7 days.
     routingPausedRef.current = false;
     routeNetworkApprovedRef.current = false;
     setRoutingPaused(false);
