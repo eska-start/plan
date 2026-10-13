@@ -14,8 +14,8 @@ interface CapacitorConfig {
  * - 카메라/갤러리/공유시트/PDF/연속스크린샷 입력은 capBridge 경유.
  */
 const config: CapacitorConfig = {
-  appId: "com.eska.plan",
-  appName: "PLAN",
+  appId: process.env.PLAN_APK_VARIANT === "preview" ? "com.eska.plan.preview" : "com.eska.plan",
+  appName: process.env.PLAN_APK_VARIANT === "preview" ? "PLANLOG 테스트" : "PLAN",
   webDir: "dist/public",
   backgroundColor: "#ffffff",
   android: {

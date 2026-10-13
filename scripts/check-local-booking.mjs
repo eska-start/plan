@@ -12,7 +12,7 @@ catch { const folder = fs.readdirSync(path.join(root,"node_modules/.pnpm")).find
 const temp = fs.mkdtempSync(path.join(os.tmpdir(),"plan-local-check-"));
 try {
   fs.writeFileSync(path.join(temp,"package.json"), '{"type":"commonjs"}');
-  for (const file of ["vision","textParse","localDoc","bookingValidation","routeOptimize"]) {
+  for (const file of ["vision","textParse","localDoc","bookingValidation","routeOptimize","ocrLayout"]) {
     const src = fs.readFileSync(path.join(root,`shared/${file}.ts`),"utf8");
     fs.writeFileSync(path.join(temp,`${file}.js`),ts.transpileModule(src,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText);
   }
@@ -28,6 +28,17 @@ try {
   for(const type of ["flight","accommodation","rental"]) assert.ok(validateBooking(type,{}));
   assert.ok(validateBooking("accommodation",{...hotel,checkOut:"2026-11-04"})); assert.ok(validateBooking("accommodation",{...hotel,checkIn:"2026-02-30"}));
   assert.deepEqual(localDocFromText("not a booking screenshot","rental"),{company:null,carModel:null,pickupLocation:null,dropoffLocation:null,pickupDateTime:null,dropoffDateTime:null,bookingRef:null,price:null,currency:null});
+  const { extractBookingLayout, mergeOcrLines } = require(path.join(temp,"ocrLayout.js"));
+  const line=(text,left,top,width=90)=>({text,left,top,right:left+width,bottom:top+20});
+  const columnLines=[line("2026.11.05",180,20,120),line("7C1234",190,60),line("ICN",60,130),line("NRT",360,130),line("09:20",60,180),line("11:30",360,180)];
+  const column=extractBookingLayout(columnLines.map(l=>l.text).join("\n"),"flight",columnLines);
+  assert.equal(column.values.departureAirport,"ICN");assert.equal(column.values.arrivalAirport,"NRT");assert.equal(column.values.departureDateTime,"2026-11-05T09:20");assert.equal(column.values.arrivalDateTime,"2026-11-05T11:30");
+  const duplicateDates=[line("2026.11.05",40,40,120),line("2026.11.05",340,40,120),line("2026.11.05",41,41,120)];
+  assert.equal(mergeOcrLines(duplicateDates).length,2);
+  const second=columnLines.map(l=>({...l,text:l.text==="2026.11.05"?"2026.11.12":l.text==="7C1234"?"7C5678":l.text==="ICN"?"NRT":l.text==="NRT"?"ICN":l.text,top:l.top+600,bottom:l.bottom+600}));
+  assert.equal(extractBookingLayout([...columnLines,...second].map(l=>l.text).join("\n"),"flight",[...columnLines,...second]).segments.length,2);
+  const hotelColumns=[line("Rakuten STAY Atami",40,10,250),line("チェックイン",40,80,100),line("チェックアウト",300,80,100),line("2026.11.05",40,120,100),line("2026.11.07",300,120,100)];
+  const hotelSpatial=extractBookingLayout(hotelColumns.map(l=>l.text).join("\n"),"accommodation",hotelColumns);assert.equal(hotelSpatial.values.name,"Rakuten STAY Atami");assert.equal(hotelSpatial.values.checkIn,"2026-11-05");assert.equal(hotelSpatial.values.checkOut,"2026-11-07");
   // Directed road times: compare exact solver against every permutation, fixed start.
   const points=[{id:10,lat:35,lng:139},{id:11,lat:36,lng:139},{id:12,lat:37,lng:139},{id:13,lat:38,lng:139}];
   const matrix=[[0,8,1,6],[2,0,8,1],[9,1,0,4],[2,8,2,0]];

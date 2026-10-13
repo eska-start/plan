@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import type { DocumentType, FieldVerification } from "@shared/vision";
 import { verifyFields } from "@shared/vision";
-import { localDocFromText } from "@shared/localDoc";
+import { extractBookingLayout } from "@shared/ocrLayout";
 import { captureImage, isNativeApp, ocrImage } from "@/lib/capBridge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { toast } from "sonner";
 /** APK analysis never uploads the image or requires a cloud key. Results fill the existing form. */
 export function VisionReview({ docType, onConfirm }: { docType: DocumentType; onConfirm: (values: Record<string, string>) => void }) {
   const [preview, setPreview] = useState<string | null>(null);
+  const [segments, setSegments] = useState<Record<string, string | null>[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<"success" | "failure" | null>(null);
   const [log, setLog] = useState("");
@@ -36,7 +37,10 @@ export function VisionReview({ docType, onConfirm }: { docType: DocumentType; on
     if (values.bookingStatus === "cancelled" || values.bookingStatus === "search_result") throw new Error("NOT_A_CONFIRMED_BOOKING");
     onConfirm(values);
     const validation = validateBooking(docType, { ...values, departureTime: values.departureDateTime, arrivalTime: values.arrivalDateTime, pickupTime: values.pickupDateTime, dropoffTime: values.dropoffDateTime });
-    if (validation) throw new Error("INCOMPLETE_BOOKING_INFORMATION");
+    if (validation) {
+      const expected = docType === "flight" ? ["flightNumber", "departureAirport", "arrivalAirport", "departureDateTime", "arrivalDateTime"] : docType === "accommodation" ? ["name", "address", "checkIn", "checkOut"] : ["company", "pickupLocation", "dropoffLocation", "pickupDateTime", "dropoffDateTime"];
+      throw Object.assign(new Error("INCOMPLETE_BOOKING_INFORMATION"), { missingFields: expected.filter(field => !values[field]?.trim()), reason: validation });
+    }
     setStatus("success");
     toast.success("성공: 예약 정보를 입력했습니다. 확인 후 저장해주세요.");
   };
@@ -44,25 +48,29 @@ export function VisionReview({ docType, onConfirm }: { docType: DocumentType; on
     // No OCR text, booking details, image path, or credentials in diagnostic logs.
     const message = error instanceof Error ? error.message.split(":")[0] : "";
     const code = /^[A-Z_]+$/.test(message) ? message : "ANALYSIS_FAILED";
-    const diagnostic = JSON.stringify({ event: "booking-analysis-failed", document: docType, engine: isNativeApp() ? "mlkit-local" : "server", code, time: new Date().toISOString() }, null, 2);
+    const diagnostic = JSON.stringify({ event: "booking-analysis-failed", document: docType, engine: isNativeApp() ? "mlkit-local" : "server", code, missingFields: error && typeof error === "object" && "missingFields" in error ? error.missingFields : undefined, reason: error && typeof error === "object" && "reason" in error ? error.reason : undefined, time: new Date().toISOString() }, null, 2);
     setLog(diagnostic); setStatus("failure");
     toast.error("실패: 예약 정보를 읽지 못했습니다.", { duration: 10000, action: { label: "로그 복사", onClick: () => { void navigator.clipboard.writeText(diagnostic).catch(() => toast.error("아래 로그 복사 버튼을 이용해주세요.")); } } });
   };
   const pick = async (source: "camera" | "gallery") => {
     if (lock.current) return;
-    lock.current = true; setBusy(true); setStatus(null); setLog("");
+    lock.current = true; setBusy(true); setStatus(null); setLog(""); setSegments([]);
     try {
       const image = await captureImage(source);
       if (!image || !alive.current) return;
       setPreview(image.previewUrl);
-      const { text } = await ocrImage(image.path);
-      if (alive.current) complete(verifyFields(docType, localDocFromText(text, docType), null));
+      const { text, lines } = await ocrImage(image.path);
+      const extraction = extractBookingLayout(text, docType, lines);
+      if (alive.current) {
+        if (extraction.segments.length > 1) setSegments(extraction.segments);
+        else complete(verifyFields(docType, extraction.values, null));
+      }
     } catch (e) { if (alive.current) fail(e); }
     finally { lock.current = false; if (alive.current) setBusy(false); }
   };
   const upload = async (file: File) => {
     if (lock.current) return;
-    lock.current = true; setBusy(true); setStatus(null); setLog("");
+    lock.current = true; setBusy(true); setStatus(null); setLog(""); setSegments([]);
     try {
       if (!file.type.startsWith("image/") || file.size > 16 * 1024 * 1024) throw new Error("INVALID_IMAGE");
       if (ownedUrl.current) URL.revokeObjectURL(ownedUrl.current);
@@ -83,6 +91,7 @@ export function VisionReview({ docType, onConfirm }: { docType: DocumentType; on
     </div> : <Input aria-label="예약 스크린샷 선택" type="file" accept="image/*" disabled={busy} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void upload(file); }} />}
     {preview && <img src={preview} alt="선택한 예약 이미지" className="h-28 w-auto rounded-lg border object-contain" />}
     <p role="status" className="text-sm">{busy ? "예약 정보를 읽고 있습니다..." : status === "success" ? "성공" : status === "failure" ? "실패" : "예약 스크린샷을 선택하면 자동 입력됩니다."}</p>
+    {segments.length > 1 && <div className="space-y-2"><p className="text-sm">여러 항공 구간을 읽었습니다. 입력할 구간을 선택해주세요.</p>{segments.map((segment, index) => <Button key={index} type="button" variant="outline" className="w-full" onClick={() => { try { complete(verifyFields(docType, segment, null)); setSegments([]); } catch (error) { fail(error); } }}>{segment.departureAirport} → {segment.arrivalAirport} · {segment.departureDateTime}</Button>)}</div>}
     {status === "failure" && <><Button type="button" variant="outline" onClick={() => void copyLog()}>실패 로그 복사</Button><details><summary className="text-xs">복사용 로그</summary><textarea aria-label="실패 로그" readOnly value={log} className="w-full text-xs" rows={6} /></details></>}
   </div>;
 }
